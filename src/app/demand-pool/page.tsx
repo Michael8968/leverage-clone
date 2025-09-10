@@ -46,6 +46,7 @@ export default function DemandPoolPage() {
 
   useEffect(() => {
     const fetchDemands = async () => {
+      setIsLoading(true);
       try {
         const demandsCollection = collection(db, 'demands');
         const demandSnapshot = await getDocs(demandsCollection);
@@ -96,6 +97,19 @@ export default function DemandPoolPage() {
     setSelectedDemand(null);
     setIsRecDialogOpen(true);
   };
+
+  const getStatusBadge = (status: Demand['status']) => {
+    switch (status) {
+      case '开放中':
+        return <Badge variant="default">开放中</Badge>;
+      case '进行中':
+         return <Badge variant="secondary">进行中</Badge>;
+      case '已完成':
+        return <Badge variant="outline">已完成</Badge>;
+      default:
+        return <Badge>{status}</Badge>;
+    }
+  }
 
   return (
     <AppLayout>
@@ -192,9 +206,7 @@ export default function DemandPoolPage() {
                       <TableCell>¥{demand.budget.toLocaleString()}</TableCell>
                       <TableCell>{demand.category}</TableCell>
                       <TableCell>
-                        <Badge variant={demand.status === '开放中' ? 'default' : 'secondary'}>
-                          {demand.status}
-                        </Badge>
+                        {getStatusBadge(demand.status)}
                       </TableCell>
                       <TableCell>{format(demand.createdAt, 'yyyy-MM-dd')}</TableCell>
                       <TableCell className="text-right">
@@ -203,11 +215,13 @@ export default function DemandPoolPage() {
                                 <MessageSquare className="mr-2 h-4 w-4" />
                                 开始沟通
                             </Button>
-                        ) : (
+                        ) : demand.status === '已完成' ? (
                             <div className='flex items-center justify-end gap-2 text-muted-foreground'>
                                <Check className="h-4 w-4"/>
                                已完成
                             </div>
+                        ) : (
+                          <div className='flex items-center justify-end h-9'>-</div>
                         )}
                       </TableCell>
                     </TableRow>
@@ -382,5 +396,3 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
         </Dialog>
     )
 }
-
-    

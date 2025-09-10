@@ -160,7 +160,7 @@ function CreatorWorkbench() {
            <Card>
             <CardHeader>
               <CardTitle className="font-headline">我的提交</CardTitle>
-              <CardDescription>管理你已提交并被采纳的作品。</CardDescription>
+              <CardDescription>管理您已提交并被采纳的作品。</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8">

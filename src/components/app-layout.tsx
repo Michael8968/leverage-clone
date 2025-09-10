@@ -1,3 +1,4 @@
+
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
@@ -35,6 +36,8 @@ import {
   ShieldCheck,
   ChevronDown,
   PenSquare,
+  Search,
+  Users,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
@@ -47,8 +50,10 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: '/', label: 'AI购物助手', icon: Bot, roles: ['user', 'admin', 'supplier', 'creator'] },
-  { href: '/demand-pool', label: '需求池', icon: LayoutGrid, roles: ['admin', 'creator'] },
+  { href: '/', label: 'AI智能匹配', icon: Bot, roles: ['user', 'admin', 'supplier', 'creator'] },
+  { href: '/demand-pool', label: '需求池', icon: LayoutGrid, roles: ['admin', 'user', 'supplier', 'creator'] },
+  { href: '/designers', label: '创意设计师', icon: Users, roles: ['user', 'admin', 'supplier', 'creator'] },
+  { href: '/search', label: '智能搜索', icon: Search, roles: ['user', 'admin', 'supplier', 'creator'] },
   { href: '/creator-workbench', label: '创意者工作台', icon: PenSquare, roles: ['creator'] },
   { href: '/suppliers', label: '供应商中心', icon: Package, roles: ['admin', 'supplier'] },
   { href: '/permissions', label: '权限管理', icon: ShieldCheck, roles: ['admin'] },
