@@ -73,7 +73,7 @@ export default function DemandPoolPage() {
 
   useEffect(() => {
     fetchDemands();
-  }, [toast]);
+  }, []);
 
   const handleClaimDemand = async (demandId: string) => {
     try {
@@ -165,6 +165,7 @@ export default function DemandPoolPage() {
                 )}
               </div>
               <Button disabled>
+                <PlusCircle className="mr-2"/>
                 发布新需求
               </Button>
             </div>
@@ -228,11 +229,16 @@ export default function DemandPoolPage() {
                       </TableCell>
                       <TableCell>{format(demand.createdAt, 'yyyy-MM-dd')}</TableCell>
                       <TableCell className="text-right">
-                        {demand.status === '开放中' ? (
+                        {role === 'admin' && (
+                          <Button variant="ghost" size="sm" onClick={() => handleRecommendClick(demand)}>
+                            <Sparkles className="mr-2 h-4 w-4" /> AI推荐
+                          </Button>
+                        )}
+                        {(role === 'user' || role === 'creator') && demand.status === '开放中' ? (
                             <Button variant="default" size="sm" onClick={() => handleClaimDemand(demand.id)}>
                                 抢单
                             </Button>
-                        ) : demand.status === '进行中' ? (
+                        ) : (role === 'user' || role === 'creator') && demand.status === '进行中' ? (
                             <Button variant="outline" size="sm" disabled>
                                 <MessageSquare className="mr-2 h-4 w-4" />
                                 开始沟通
@@ -243,7 +249,7 @@ export default function DemandPoolPage() {
                                已完成
                             </div>
                         ) : (
-                          <div className='flex items-center justify-end h-9'>-</div>
+                          role !== 'admin' && <div className='flex items-center justify-end h-9'>-</div>
                         )}
                       </TableCell>
                     </TableRow>
@@ -416,7 +422,3 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
         </Dialog>
     )
 }
-
-    
-
-    

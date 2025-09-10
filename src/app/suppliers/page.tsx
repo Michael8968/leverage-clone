@@ -292,9 +292,6 @@ function ProductServiceItem({ product, onUpdate, onRemove }: {
 
       <div className="flex justify-end items-center gap-4">
         {isSaving && <Loader2 className="animate-spin text-muted-foreground" />}
-        <Button variant="outline" size="sm" onClick={() => triggerUpdate(localProduct)}>
-          保存
-        </Button>
         <Button variant="destructive" size="sm" onClick={() => onRemove(product.id)}>
           <Trash2 className="mr-2 h-4 w-4" />
           删除
@@ -303,5 +300,3 @@ function ProductServiceItem({ product, onUpdate, onRemove }: {
     </div>
   );
 }
-
-    
