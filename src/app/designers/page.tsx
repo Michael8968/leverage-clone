@@ -124,7 +124,7 @@ export default function DesignersPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {designers.map(designer => (
-              <Card key={designer.id} className="text-center">
+              <Card key={designer.id} className="text-center flex flex-col">
                 <CardHeader className="items-center">
                   <div className="relative">
                     <Image
@@ -142,7 +142,7 @@ export default function DesignersPage() {
                     )}
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-2">
+                <CardContent className="space-y-2 flex-1">
                   <CardTitle className="font-headline text-xl">{designer.name}</CardTitle>
                   <CardDescription className="h-10 text-xs">{designer.description}</CardDescription>
                   <div className="flex flex-wrap justify-center gap-2 pt-2">
@@ -152,7 +152,7 @@ export default function DesignersPage() {
                   </div>
                 </CardContent>
                 <div className="p-6 pt-2">
-                    <Button className="w-full">立即预约</Button>
+                    <Button className="w-full" disabled>立即预约</Button>
                 </div>
               </Card>
             ))}

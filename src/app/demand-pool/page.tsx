@@ -137,12 +137,10 @@ export default function DemandPoolPage() {
   return (
     <AppLayout>
       <div className="p-4 md:p-8">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-headline font-bold">需求池</h1>
-            <p className="text-muted-foreground">平台可用AI智能推送需求给供应商或创作者，供应商和创作者也可以在公共需求池中找需求，需求发布者决定与哪个供应商或创作者合作。</p>
-          </div>
-        </div>
+        <header className="mb-8">
+          <h1 className="text-2xl font-headline font-bold">需求池</h1>
+          <p className="text-muted-foreground">平台可用AI智能推送需求给供应商或创作者，供应商和创作者也可以在公共需求池中找需求，需求发布者决定与哪个供应商或创作者合作。</p>
+        </header>
         <Card>
           <CardHeader>
             <CardTitle className="font-headline">公开需求列表</CardTitle>
@@ -166,7 +164,7 @@ export default function DemandPoolPage() {
                     </Button>
                 )}
               </div>
-              <Button>
+              <Button disabled>
                 发布新需求
               </Button>
             </div>
@@ -235,7 +233,7 @@ export default function DemandPoolPage() {
                                 抢单
                             </Button>
                         ) : demand.status === '进行中' ? (
-                            <Button variant="outline" size="sm">
+                            <Button variant="outline" size="sm" disabled>
                                 <MessageSquare className="mr-2 h-4 w-4" />
                                 开始沟通
                             </Button>
@@ -418,5 +416,7 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
         </Dialog>
     )
 }
+
+    
 
     
