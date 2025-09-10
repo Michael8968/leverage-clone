@@ -14,7 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { DataProcessor } from '@/components/features/data-processor';
 import { useAuthStore } from '@/store/auth';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -72,13 +72,13 @@ function ProductManagement() {
     const { user } = useAuthStore();
     const { toast } = useToast();
 
-    useEffect(() => {
-        const fetchProducts = async () => {
+    const fetchProducts = useCallback(async () => {
         if (!user) return;
         setIsLoading(true);
         try {
             const productsCollection = collection(db, 'products');
-            const productSnapshot = await getDocs(productsCollection);
+            const q = query(productsCollection, where("supplierId", "==", user.id));
+            const productSnapshot = await getDocs(q);
             const productsList = productSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ProductService));
             setProducts(productsList);
         } catch (error) {
@@ -87,9 +87,11 @@ function ProductManagement() {
         } finally {
             setIsLoading(false);
         }
-        };
-        fetchProducts();
     }, [user, toast]);
+
+    useEffect(() => {
+        fetchProducts();
+    }, [fetchProducts]);
 
     const addProduct = async () => {
         if (!user) return;
@@ -185,7 +187,7 @@ export default function SuppliersPage() {
           <p className="text-muted-foreground">在此管理您的公司基本信息以及提供的商品与服务。</p>
         </header>
 
-        <Tabs defaultValue="info">
+        <Tabs defaultValue="products">
             <TabsList className="grid w-full grid-cols-3 max-w-lg">
                 <TabsTrigger value="info"><Building className="mr-2"/> 基本信息</TabsTrigger>
                 <TabsTrigger value="products"><Package className="mr-2"/> 商品/服务</TabsTrigger>
@@ -263,14 +265,18 @@ function ProductServiceItem({ product, onUpdate, onRemove }: {
     };
   }, []);
 
+  useEffect(() => {
+    setLocalProduct(product);
+  }, [product]);
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <LabeledInput label="产品或服务名称" name="name" placeholder="产品名称" value={localProduct.name} onChange={handleChange} />
         <LabeledInput label="价格" name="price" type="number" placeholder="例如: 1299" value={localProduct.price} onChange={handlePriceChange} />
-        <LabeledInput label="购买链接" name="purchaseUrl" placeholder="例如: https://item.jd.com/..." value={localProduct.purchaseUrl} onChange={handleChange} />
+        <LabeledInput label="购买链接" name="purchaseUrl" placeholder="例如: https://item.jd.com/..." value={localProduct.purchaseUrl || ''} onChange={handleChange} />
         <LabeledInput label="类别" name="category" placeholder="例如: 消费电子产品" value={localProduct.category} onChange={handleChange} />
-        <LabeledInput label="SKU服务代码" name="sku" placeholder="产品或服务的唯一代码" value={localProduct.sku} onChange={handleChange} />
+        <LabeledInput label="SKU服务代码" name="sku" placeholder="产品或服务的唯一代码" value={localProduct.sku || ''} onChange={handleChange} />
       </div>
       <div className="space-y-2">
         <label className="text-sm font-medium">描述</label>
@@ -286,8 +292,8 @@ function ProductServiceItem({ product, onUpdate, onRemove }: {
 
       <div className="flex justify-end items-center gap-4">
         {isSaving && <Loader2 className="animate-spin text-muted-foreground" />}
-        <Button variant="default" size="sm" onClick={() => triggerUpdate(localProduct)}>
-          保存商品服务
+        <Button variant="outline" size="sm" onClick={() => triggerUpdate(localProduct)}>
+          保存
         </Button>
         <Button variant="destructive" size="sm" onClick={() => onRemove(product.id)}>
           <Trash2 className="mr-2 h-4 w-4" />

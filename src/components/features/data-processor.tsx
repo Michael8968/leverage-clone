@@ -74,6 +74,8 @@ export function DataProcessor({ className }: { className?: string }) {
         });
         await batch.commit();
         toast({ title: '保存成功', description: 'AI分析结果已成功保存到数据库。' });
+        setAiResult(null);
+        setFile(null);
     } catch (error) {
         console.error("Failed to save supplier data:", error);
         toast({ title: '保存失败', description: '无法将结果保存到数据库。', variant: 'destructive' });
@@ -136,5 +138,3 @@ export function DataProcessor({ className }: { className?: string }) {
     </Card>
   );
 }
-
-    

@@ -164,15 +164,18 @@
 
 - **功能**: 供应商信息和产品的深度管理。
 - **数据获取/操作**:
-  - **公司信息**: 从`useAuthStore`中获取当前登录用户的姓名和邮箱。
-  - **产品列表**: 在`useEffect`中，从Firestore的`products`集合加载产品数据。
-  - **产品增删改**: `addProduct`, `updateProduct`, `removeProduct`函数直接调用Firestore API (`addDoc`, `updateDoc`, `deleteDoc`) 对`products`集合进行实时操作。
+  - **公司信息**: 静态表单，用于展示，未来可连接数据库。
+  - **产品列表**: 在`useEffect`中，通过`query(collection(db, 'products'), where("supplierId", "==", user.id))`从Firestore加载**当前供应商**的产品数据。
+  - **产品增删改**:
+    - `addProduct`: 调用`addDoc`在`products`集合中创建新产品文档，并关联当前`supplierId`。
+    - `updateProduct`: 调用`updateDoc`更新指定产品文档。通过debounce优化性能，避免频繁写入。
+    - `removeProduct`: 调用`deleteDoc`删除指定产品文档。
 - **子组件**:
   - **`ProductServiceItem`**:
-    - **状态同步**: 对产品信息的任何修改（包括补充字段）都会通过`onUpdate`回调，将**完整的、更新后的产品对象**传回父组件，由父组件写入Firestore。
+    - **状态同步**: 对产品信息的任何修改（包括补充字段）都会通过`onUpdate`回调，将**完整的、更新后的产品对象**传回父组件，由父组件通过`updateDoc`写入Firestore。
   - **`DataProcessor`**: 批量处理模块。
     - **功能**: 上传CSV，调用`evaluateSellerData` AI流程进行分析。
-    - **数据写入**: AI流程返回分析结果后，`saveData`函数通过`writeBatch`将这些处理过的供应商数据**写入Firestore的`suppliers`集合**。
+    - **数据写入**: AI流程返回分析结果后，`saveData`函数通过`writeBatch`将这些处理过的供应商数据**批量写入Firestore的`suppliers`集合**。
 
 ### 4.6. 创意者工作台 (`/src/app/creator-workbench/page.tsx`)
 
