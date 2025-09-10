@@ -31,7 +31,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { db } from '@/lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, doc, getDocs, updateDoc } from 'firebase/firestore';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 
@@ -44,36 +44,59 @@ export default function DemandPoolPage() {
   const { role } = useAuthStore();
   const { toast } = useToast();
 
-  useEffect(() => {
-    const fetchDemands = async () => {
-      setIsLoading(true);
-      try {
-        const demandsCollection = collection(db, 'demands');
-        const demandSnapshot = await getDocs(demandsCollection);
-        const demandsList = demandSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return { 
-                id: doc.id, 
-                ...data,
-                // Convert Firestore timestamp or string to Date object
-                createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt),
-            } as Demand
-        });
-        setDemands(demandsList);
-      } catch (error) {
-        console.error("Error fetching demands from Firestore:", error);
-        toast({
-          title: '加载失败',
-          description: '无法从数据库加载需求数据，请稍后重试。',
-          variant: 'destructive',
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const fetchDemands = async () => {
+    setIsLoading(true);
+    try {
+      const demandsCollection = collection(db, 'demands');
+      const demandSnapshot = await getDocs(demandsCollection);
+      const demandsList = demandSnapshot.docs.map(doc => {
+          const data = doc.data();
+          return { 
+              id: doc.id, 
+              ...data,
+              // Convert Firestore timestamp or string to Date object
+              createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt),
+          } as Demand
+      });
+      setDemands(demandsList);
+    } catch (error) {
+      console.error("Error fetching demands from Firestore:", error);
+      toast({
+        title: '加载失败',
+        description: '无法从数据库加载需求数据，请稍后重试。',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchDemands();
   }, [toast]);
+
+  const handleClaimDemand = async (demandId: string) => {
+    try {
+        const demandRef = doc(db, "demands", demandId);
+        await updateDoc(demandRef, {
+            status: "进行中"
+        });
+        toast({
+            title: "成功",
+            description: "您已成功抢单，请尽快与需求方沟通。",
+        });
+        // Refresh the list
+        fetchDemands();
+    } catch (error) {
+        console.error("Error claiming demand:", error);
+        toast({
+            title: "操作失败",
+            description: "抢单失败，请稍后重试。",
+            variant: "destructive",
+        });
+    }
+  };
+
 
   const isAllSelected = !isLoading && demands.length > 0 && selectedRows.length === demands.length;
   const isSomeSelected = selectedRows.length > 0 && selectedRows.length < demands.length;
@@ -210,7 +233,7 @@ export default function DemandPoolPage() {
                       <TableCell>{format(demand.createdAt, 'yyyy-MM-dd')}</TableCell>
                       <TableCell className="text-right">
                         {demand.status === '开放中' ? (
-                            <Button variant="default" size="sm">
+                            <Button variant="default" size="sm" onClick={() => handleClaimDemand(demand.id)}>
                                 抢单
                             </Button>
                         ) : demand.status === '进行中' ? (
@@ -397,5 +420,3 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
         </Dialog>
     )
 }
-
-    

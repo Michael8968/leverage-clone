@@ -149,11 +149,11 @@
 ### 4.4. 需求池 (`/src/app/demand-pool/page.tsx`)
 
 - **功能**: 需求发布、浏览、管理和AI匹配推荐。
-- **数据获取**: 在`useEffect`中，从Firestore的`demands`集合加载所有需求数据。
+- **数据获取**: 在`useEffect`中，通过`getDocs(collection(db, 'demands'))`从Firestore的`demands`集合加载所有需求数据。
 - **核心交互**:
   - **新增需求**: （功能简化）“发布新需求”按钮为静态展示。
-  - **批量/单项推荐**: (`admin`可见)
-    - 选中一个或多个需求后，点击“AI推荐”按钮，打开`RecommendationDialog`。
+  - **抢单**: （`user`或`creator`角色）点击“抢单”按钮后，调用Firestore的`updateDoc`函数，将该需求的`status`字段从“开放中”更新为“进行中”。
+  - **批量/单项推荐**: (`admin`可见) 选中一个或多个需求后，点击“AI推荐”按钮，打开`RecommendationDialog`。
 - **子组件**:
   - **`RecommendationDialog`**:
     - **数据获取**: 在对话框打开时，从Firestore的`products`集合加载所有产品作为“创意方”数据。
@@ -179,9 +179,9 @@
 - **功能**: 为创意者提供任务发现和AI创作工具。
 - **访问控制**: 页面在加载时检查用户角色，非`creator`角色将被拒绝访问。
 - **子组件**:
-  - **`TasksTab`**: 在`useEffect`中，通过Firestore查询`query(collection(db, 'demands'), where("status", "==", "开放中"))`，获取所有**开放中的真实需求**，并通过`DemandList`组件展示。
+  - **`TasksTab`**: 在`useEffect`中，通过Firestore查询`query(collection(db, 'demands'), where("status", "==", "开放中"))`，获取所有**开放中的真实需求**，并通过表格组件展示。
   - **`CreationForm`**: 提供表单调用`generate3dModel` AI流程，并将返回的图片（Data URI）进行预览。
-  - **`Submissions Tab`**: 静态占位符，显示“功能开发中”。
+  - **`Submissions Tab`**: 在`useEffect`中，从Firestore的`products`集合加载数据，模拟展示创作者已提交的作品列表。
 
 ---
 **文档结束**
