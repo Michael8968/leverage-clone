@@ -15,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Paperclip, Send, X, Bot, User, BrainCircuit, Sparkles, Building, Loader2, Users, FilePlus2 } from 'lucide-react';
+import { Paperclip, Send, X, Bot, User, BrainCircuit, Sparkles, Building, Loader2, FilePlus2, Gift } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -23,6 +23,7 @@ import { db } from '@/lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import type { ProductService } from '@/lib/types';
 import { useRouter } from 'next/navigation';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 
 type Message = {
@@ -37,6 +38,7 @@ type Message = {
 const formSchema = z.object({
   description: z.string().min(1, { message: '请输入您的需求描述。' }),
   image: z.instanceof(File).optional(),
+  scenario: z.string().optional(),
 });
 
 const fileToDataUri = (file: File): Promise<string> => {
@@ -61,6 +63,7 @@ export function ShoppingAssistant() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       description: "",
+      scenario: "birthday-gift",
     },
   });
   const imageRef = form.register("image");
@@ -94,6 +97,10 @@ export function ShoppingAssistant() {
         photoDataUri = await fileToDataUri(values.image);
       }
 
+      const fullDescription = values.scenario === 'birthday-gift' 
+        ? `场景：生日礼物。需求：${values.description}`
+        : values.description;
+
       const userMessage: Message = {
         id: Date.now(),
         type: 'user',
@@ -103,12 +110,12 @@ export function ShoppingAssistant() {
       const loadingMessage: Message = { id: Date.now() + 1, type: 'loading' };
 
       setMessages((prev) => [...prev, userMessage, loadingMessage]);
-      form.reset();
+      form.reset({ description: "", scenario: values.scenario });
       setImagePreview(null);
       
       try {
         const profile = await generateUserProfile({
-            description: values.description,
+            description: fullDescription,
             photoDataUri,
         });
 
@@ -144,12 +151,15 @@ export function ShoppingAssistant() {
 
   return (
     <div className="flex h-[calc(100vh-57px)] md:h-screen flex-col p-4 md:p-8">
-        <h1 className="text-2xl font-headline font-bold mb-4">AI 购物助手</h1>
+        <div className='text-center mb-4'>
+            <h1 className="text-2xl font-headline font-bold">欢迎光临“情动于艺”</h1>
+            <p className="text-muted-foreground">与AI导购对话,发现为您量身推荐的独特设计,部分商品更支持个性化定制。</p>
+        </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 min-h-0">
             <Card className="lg:col-span-2 flex flex-col">
                 <CardHeader>
-                    <CardTitle className="font-headline flex items-center gap-2"><Bot/> 智能对话</CardTitle>
-                    <CardDescription>输入您的想法或上传一张图片，让AI为您推荐心仪的商品。</CardDescription>
+                    <CardTitle className="font-headline flex items-center gap-2"><Bot/> AI购物助手</CardTitle>
+                    <CardDescription>您好,我是您的专属购物助手。请问您在寻找什么?比如,是为自己选购,还是为朋友挑选</CardDescription>
                 </CardHeader>
                 <CardContent className="flex-1 min-h-0">
                     <ScrollArea className="h-full" ref={scrollAreaRef}>
@@ -157,7 +167,6 @@ export function ShoppingAssistant() {
                             {messages.length === 0 && (
                                 <div className="text-center text-muted-foreground pt-16">
                                     <Sparkles className="mx-auto h-12 w-12 text-accent mb-4" />
-                                    <p>你好！我是您的专属购物助手。</p>
                                     <p>告诉我您的需求，比如“一个未来感的台灯”，我来帮您寻找。 </p>
                                 </div>
                             )}
@@ -189,50 +198,70 @@ export function ShoppingAssistant() {
                                 </Button>
                             </div>
                         )}
-                        <FormField
-                            control={form.control}
-                            name="description"
-                            render={({ field }) => (
-                            <FormItem>
-                                <FormControl>
-                                <Textarea placeholder="例如：我想要一个适合在办公室使用的降噪耳机..." {...field} />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                        <div className="flex justify-between items-center">
+                        <div className="flex gap-2 items-end">
+                            <FormField
+                                control={form.control}
+                                name="scenario"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl>
+                                            <SelectTrigger className="w-[130px]">
+                                                <Gift className="w-4 h-4 mr-2" />
+                                                <SelectValue placeholder="场景" />
+                                            </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="birthday-gift">生日礼物</SelectItem>
+                                                <SelectItem value="personal-use">为自己</SelectItem>
+                                                <SelectItem value="other">其他</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </FormItem>
+                                )}
+                                />
+                            <FormField
+                                control={form.control}
+                                name="description"
+                                render={({ field }) => (
+                                <FormItem className="flex-1">
+                                    <FormControl>
+                                    <Textarea placeholder="我想要一个适合在办公室使用的降噪耳机..." {...field} rows={1} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                                )}
+                            />
                             <FormField
                                 control={form.control}
                                 name="image"
                                 render={() => (
                                 <FormItem>
                                     <FormControl>
-                                    <Button asChild variant="outline">
-                                        <label>
-                                        <Paperclip className="mr-2" /> 上传图片
-                                        <Input
-                                            type="file"
-                                            className="hidden"
-                                            accept="image/*"
-                                            {...imageRef}
-                                            onChange={(e) => {
-                                                if (e.target.files?.[0]) {
-                                                    const file = e.target.files[0];
-                                                    form.setValue('image', file);
-                                                    setImagePreview(URL.createObjectURL(file));
-                                                }
-                                            }}
-                                        />
-                                        </label>
-                                    </Button>
+                                        <Button asChild variant="outline" size="icon">
+                                            <label>
+                                                <Paperclip />
+                                                <Input
+                                                    type="file"
+                                                    className="hidden"
+                                                    accept="image/*"
+                                                    {...imageRef}
+                                                    onChange={(e) => {
+                                                        if (e.target.files?.[0]) {
+                                                            const file = e.target.files[0];
+                                                            form.setValue('image', file);
+                                                            setImagePreview(URL.createObjectURL(file));
+                                                        }
+                                                    }}
+                                                />
+                                            </label>
+                                        </Button>
                                     </FormControl>
                                 </FormItem>
                                 )}
                             />
-                            <Button type="submit" disabled={isPending || products.length === 0}>
-                                {isPending ? <Loader2 className="animate-spin mr-2" /> : <Send className="mr-2" />}
-                                发送
+                            <Button type="submit" disabled={isPending || products.length === 0} size="icon">
+                                {isPending ? <Loader2 className="animate-spin" /> : <Send />}
                             </Button>
                         </div>
                         </form>
@@ -262,6 +291,7 @@ const AIMessage = ({ profile, recommendations }: Message) => (
   <div className="flex items-start gap-3">
     <Bot className="w-8 h-8 text-accent flex-shrink-0" />
     <div className="bg-card rounded-lg p-3 max-w-sm border space-y-4">
+      <p>这是我为您找到的结果:</p>
       {profile && <UserProfileDisplay profile={profile} />}
       {recommendations && recommendations.length > 0 && <RecommendationsDisplay recommendations={recommendations} />}
     </div>
@@ -273,7 +303,7 @@ const UserProfileDisplay = ({ profile }: { profile: UserProfile }) => (
         <CardHeader className="p-3">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
                 <BrainCircuit className="w-5 h-5 text-accent"/>
-                您的个性化画像
+                生成的用户画像
             </CardTitle>
         </CardHeader>
         <CardContent className="p-3 pt-0">
@@ -287,7 +317,7 @@ const UserProfileDisplay = ({ profile }: { profile: UserProfile }) => (
 
 const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductService[] }) => (
     <div>
-        <h4 className="font-semibold mb-2 flex items-center gap-2"><Sparkles className="w-5 h-5 text-amber-500" /> 为您推荐:</h4>
+        <h4 className="font-semibold mb-2 flex items-center gap-2"><Sparkles className="w-5 h-5 text-amber-500" /> 首要推荐</h4>
         <div className="space-y-2">
             {recommendations.map((rec) => (
                 <Card key={rec.id} className="overflow-hidden">
@@ -327,37 +357,23 @@ const LoadingMessage = () => (
 );
 
 const CustomServiceConnector = () => {
-    const [step, setStep] = useState<'initial' | 'input' | 'loading' | 'results'>('initial');
     const router = useRouter();
-
-    const handleFindSuppliers = () => {
-        router.push('/suppliers');
-    }
 
     return (
         <Card className="flex flex-col">
             <CardHeader>
-                <CardTitle className="font-headline flex items-center gap-2"><Building/> 高端定制</CardTitle>
-                <CardDescription>连接供应商，满足您的专属批量采购需求。</CardDescription>
+                <CardTitle className="font-headline flex items-center gap-2"><Building/> 高端定制服务</CardTitle>
+                <CardDescription>
+                    将您的构想变为现实,我们的签约合作方将为您提供专属设计服务。<br/>
+                    - 从草图到3D模型的转化<br/>
+                    - 从创意到原型样品制作<br/>
+                    - 依需求批量加工制作
+                </CardDescription>
             </CardHeader>
-            <CardContent className="flex-1 flex items-center justify-center min-h-[150px]">
-                {step === 'initial' && (
-                    <div className="text-center">
-                        <p className="mb-4 text-muted-foreground">有更复杂的需求？</p>
-                        <Button variant="accent" onClick={() => setStep('input')}>
-                            启动批量需求匹配
-                        </Button>
-                    </div>
-                )}
-                {step === 'input' && (
-                    <div className="w-full space-y-4">
-                         <Textarea placeholder="请详细描述您的批量采购需求，如产品规格、数量、预算等..." rows={5}/>
-                         <div className="flex justify-end gap-2">
-                            <Button variant="ghost" onClick={() => setStep('initial')}>取消</Button>
-                            <Button className="w-fit" onClick={handleFindSuppliers}>寻找供应商</Button>
-                         </div>
-                    </div>
-                )}
+            <CardContent className="flex-1 flex items-center justify-center min-h-[100px]">
+                <Button variant="accent" onClick={() => router.push('/suppliers')}>
+                    预约设计师(付费) →
+                </Button>
             </CardContent>
         </Card>
     );

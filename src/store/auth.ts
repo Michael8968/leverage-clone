@@ -19,10 +19,10 @@ interface AuthState {
 }
 
 const usersByRole: Record<Role, User> = {
-  admin: { id: 'admin-01', name: '王管理', email: 'admin@leverage.ai', role: 'admin', avatar: 'https://picsum.photos/seed/admin/100/100' },
-  supplier: { id: 'supplier-01', name: '李供应', email: 'supplier@leverage.ai', role: 'supplier', avatar: 'https://picsum.photos/seed/supplier/100/100' },
-  user: { id: 'user-01', name: '张三', email: 'user@leverage.ai', role: 'user', avatar: 'https://picsum.photos/seed/user/100/100' },
-  creator: { id: 'creator-01', name: '赵创意', email: 'creator@leverage.ai', role: 'creator', avatar: 'https://picsum.photos/seed/creator/100/100' },
+  admin: { id: 'admin-01', name: '李明', email: 'admin@leverage.ai', role: 'admin', avatar: 'https://picsum.photos/seed/admin/100/100' },
+  supplier: { id: 'supplier-01', name: '创新科技', email: 'supplier@leverage.ai', role: 'supplier', avatar: 'https://picsum.photos/seed/supplier/100/100' },
+  user: { id: 'user-01', name: '张伟', email: 'user@leverage.ai', role: 'user', avatar: 'https://picsum.photos/seed/user/100/100' },
+  creator: { id: 'creator-01', name: '王芳', email: 'creator@leverage.ai', role: 'creator', avatar: 'https://picsum.photos/seed/creator/100/100' },
 };
 
 export const useAuthStore = create<AuthState>()(
