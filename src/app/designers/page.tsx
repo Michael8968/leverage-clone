@@ -112,7 +112,7 @@ export default function DesignersPage() {
             系统将为您推荐在线的创意设计师,您也可以直接预约他们。若没有找到合适的服务,可以将您的具体需求发布到需求池。
           </p>
           <div className="flex justify-center gap-4 mt-4">
-            <Button variant="default">系统推荐</Button>
+            <Button variant="default" disabled>系统推荐</Button>
             <Button variant="outline" onClick={() => router.push('/demand-pool')}>去需求池发布</Button>
           </div>
         </header>

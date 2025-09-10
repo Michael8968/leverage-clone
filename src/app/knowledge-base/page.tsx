@@ -65,7 +65,7 @@ export default function KnowledgeBasePage() {
                                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                                     <Input placeholder="搜索条目名称或标签..." className="pl-8 w-64" />
                                 </div>
-                                <Button variant="outline">
+                                <Button variant="outline" disabled>
                                     <Filter className="mr-2 h-4 w-4" />
                                     筛选
                                 </Button>
@@ -133,3 +133,5 @@ export default function KnowledgeBasePage() {
         </AppLayout>
     );
 }
+
+    

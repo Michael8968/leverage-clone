@@ -187,7 +187,7 @@ function TasksTab() {
                             <TableCell>{getStatusBadge(demand.status)}</TableCell>
                             <TableCell className="text-right">
                                 {demand.status === '开放中' && (
-                                    <Button variant="ghost" size="sm">
+                                    <Button variant="ghost" size="sm" disabled>
                                         接受任务
                                         <ArrowRight className="ml-2 h-4 w-4" />
                                     </Button>
@@ -359,3 +359,5 @@ export default function CreatorWorkbenchPage() {
         </AppLayout>
     );
 }
+
+    

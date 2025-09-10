@@ -155,22 +155,20 @@ export default function DemandPoolPage() {
                   <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input placeholder="搜索需求标题或标签..." className="pl-8 w-64" />
                 </div>
-                <Button variant="outline">
+                <Button variant="outline" disabled>
                   <Filter className="mr-2 h-4 w-4" />
                   筛选
                 </Button>
-              </div>
-              <div className='flex items-center gap-2'>
-                {role === 'admin' && selectedRows.length > 0 && (
+                 {role === 'admin' && selectedRows.length > 0 && (
                     <Button onClick={handleBatchRecommendClick} size="sm">
                         <Sparkles className="mr-2" />
                         为选中的 {selectedRows.length} 项批量推荐
                     </Button>
                 )}
-                <Button>
-                  发布新需求
-                </Button>
               </div>
+              <Button>
+                发布新需求
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
@@ -420,3 +418,5 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
         </Dialog>
     )
 }
+
+    
