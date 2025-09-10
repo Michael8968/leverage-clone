@@ -9,108 +9,113 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { PlusCircle, Trash2, Loader2 } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Building, Package } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { DataProcessor } from '@/components/features/data-processor';
 import { useAuthStore } from '@/store/auth';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-export default function SuppliersPage() {
-  const [products, setProducts] = useState<ProductService[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [infoFields, setInfoFields] = useState<SupplementaryField[]>([
-    { id: 'info-1', key: '公司成立年份', value: '2018' },
-  ]);
+function CompanyInfoForm() {
   const { user } = useAuthStore();
-  const { toast } = useToast();
-
-  useEffect(() => {
-    const fetchProducts = async () => {
-      if (!user) return;
-      setIsLoading(true);
-      try {
-        const productsCollection = collection(db, 'products');
-        // In a real multi-supplier app, you'd filter by supplierId
-        // const q = query(productsCollection, where("supplierId", "==", user.id));
-        const productSnapshot = await getDocs(productsCollection);
-        const productsList = productSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ProductService));
-        setProducts(productsList);
-      } catch (error) {
-        console.error("Error fetching products:", error);
-        toast({ title: "错误", description: "无法加载产品数据。", variant: "destructive" });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchProducts();
-  }, [user, toast]);
-
-  const addProduct = async () => {
-    if (!user) return;
-    const newProductData = {
-      name: '',
-      description: '',
-      price: 0,
-      category: '',
-      supplierId: user.id,
-      purchaseUrl: '',
-      supplementaryFields: [],
-    };
-    try {
-      const docRef = await addDoc(collection(db, 'products'), newProductData);
-      setProducts([...products, { ...newProductData, id: docRef.id }]);
-    } catch (error) {
-      console.error("Error adding product:", error);
-      toast({ title: "错误", description: "添加新产品失败。", variant: "destructive" });
-    }
-  };
-
-  const updateProduct = useCallback(async (updatedProduct: ProductService) => {
-    const { id, ...dataToUpdate } = updatedProduct;
-    try {
-      const productRef = doc(db, 'products', id);
-      await updateDoc(productRef, dataToUpdate);
-      setProducts(prevProducts => prevProducts.map(p => (p.id === id ? updatedProduct : p)));
-    } catch (error) {
-      console.error("Error updating product:", error);
-      toast({ title: "错误", description: "更新产品失败。", variant: "destructive" });
-    }
-  }, [toast]);
-
-  const removeProduct = async (id: string) => {
-    try {
-      await deleteDoc(doc(db, 'products', id));
-      setProducts(products.filter(p => p.id !== id));
-      toast({ title: "成功", description: "产品已删除。" });
-    } catch (error) {
-      console.error("Error removing product:", error);
-      toast({ title: "错误", description: "删除产品失败。", variant: "destructive" });
-    }
-  };
-
+  
   return (
-    <AppLayout>
-      <div className="p-4 md:p-8 space-y-8">
-        <h1 className="text-2xl font-headline font-bold">供应商中心</h1>
+    <Card>
+      <CardHeader>
+        <CardTitle className="font-headline">公司资料</CardTitle>
+        <CardDescription>请填写准确、完整的公司信息。</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <LabeledInput label="供应商全称" placeholder="例如: 创新科技(深圳)有限公司" defaultValue={user?.name === '创新科技' ? '创新科技(深圳)有限公司' : ''} />
+          <LabeledInput label="供应商简称" placeholder="例如: 创新科技" defaultValue={user?.name} />
+          <LabeledInput label="所在区域" placeholder="例如: 广东省深圳市" />
+          <LabeledInput label="详细地址" placeholder="例如: 南山区科技园" />
+          <LabeledInput label="成立日期" type="date" />
+          <LabeledInput label="注册资本" placeholder="例如: 1000万元" />
+          <LabeledInput label="统一社会信用代码" />
+        </div>
+         <div className="flex justify-end">
+            <Button>保存更改</Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-headline">公司基本信息</CardTitle>
-            <CardDescription>管理您的供应商档案和公开信息。</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <LabeledInput value={user?.name} label="公司名称" readOnly/>
-              <LabeledInput value={user?.email} label="联系邮箱" readOnly/>
-            </div>
-            <SupplementaryFieldsManager fields={infoFields} onFieldsChange={setInfoFields} title="公司补充信息" />
-          </CardContent>
-        </Card>
+function ProductManagement() {
+    const [products, setProducts] = useState<ProductService[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const { user } = useAuthStore();
+    const { toast } = useToast();
 
-        <Card>
+    useEffect(() => {
+        const fetchProducts = async () => {
+        if (!user) return;
+        setIsLoading(true);
+        try {
+            const productsCollection = collection(db, 'products');
+            const productSnapshot = await getDocs(productsCollection);
+            const productsList = productSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ProductService));
+            setProducts(productsList);
+        } catch (error) {
+            console.error("Error fetching products:", error);
+            toast({ title: "错误", description: "无法加载产品数据。", variant: "destructive" });
+        } finally {
+            setIsLoading(false);
+        }
+        };
+        fetchProducts();
+    }, [user, toast]);
+
+    const addProduct = async () => {
+        if (!user) return;
+        const newProductData = {
+        name: '',
+        description: '',
+        price: 0,
+        category: '',
+        supplierId: user.id,
+        purchaseUrl: '',
+        supplementaryFields: [],
+        };
+        try {
+        const docRef = await addDoc(collection(db, 'products'), newProductData);
+        setProducts([...products, { ...newProductData, id: docRef.id }]);
+        } catch (error) {
+        console.error("Error adding product:", error);
+        toast({ title: "错误", description: "添加新产品失败。", variant: "destructive" });
+        }
+    };
+
+    const updateProduct = useCallback(async (updatedProduct: ProductService) => {
+        const { id, ...dataToUpdate } = updatedProduct;
+        try {
+        const productRef = doc(db, 'products', id);
+        await updateDoc(productRef, dataToUpdate);
+        setProducts(prevProducts => prevProducts.map(p => (p.id === id ? updatedProduct : p)));
+        } catch (error) {
+        console.error("Error updating product:", error);
+        toast({ title: "错误", description: "更新产品失败。", variant: "destructive" });
+        }
+    }, [toast]);
+
+    const removeProduct = async (id: string) => {
+        try {
+        await deleteDoc(doc(db, 'products', id));
+        setProducts(products.filter(p => p.id !== id));
+        toast({ title: "成功", description: "产品已删除。" });
+        } catch (error) {
+        console.error("Error removing product:", error);
+        toast({ title: "错误", description: "删除产品失败。", variant: "destructive" });
+        }
+    };
+
+    return (
+         <Card>
           <CardHeader>
             <div className="flex justify-between items-start">
               <div>
@@ -147,15 +152,36 @@ export default function SuppliersPage() {
             )}
           </CardContent>
         </Card>
+    );
+}
 
-        <DataProcessor />
+export default function SuppliersPage() {
+  return (
+    <AppLayout>
+      <div className="p-4 md:p-8 space-y-8">
+        <header>
+          <h1 className="text-2xl font-headline font-bold">供应商中心</h1>
+          <p className="text-muted-foreground">在此管理您的公司基本信息以及提供的商品与服务。</p>
+        </header>
 
+        <Tabs defaultValue="info">
+            <TabsList className="grid w-full grid-cols-2 max-w-md">
+                <TabsTrigger value="info"><Building className="mr-2"/> 基本信息</TabsTrigger>
+                <TabsTrigger value="products"><Package className="mr-2"/> 商品/服务</TabsTrigger>
+            </TabsList>
+            <TabsContent value="info" className="mt-6">
+                <CompanyInfoForm />
+            </TabsContent>
+            <TabsContent value="products" className="mt-6">
+                <ProductManagement />
+                <DataProcessor className="mt-8"/>
+            </TabsContent>
+        </Tabs>
       </div>
     </AppLayout>
   );
 }
 
-// Add label prop to Input
 const LabeledInput = ({ label, ...props }: React.ComponentProps<typeof Input> & { label: string }) => (
   <div className="space-y-2">
     <label className="text-sm font-medium">{label}</label>
@@ -203,7 +229,6 @@ function ProductServiceItem({ product, onUpdate, onRemove }: {
   }
   
   useEffect(() => {
-    // Clean up timeout on unmount
     return () => {
         if (debounceTimeoutRef.current) {
             clearTimeout(debounceTimeoutRef.current);
@@ -232,3 +257,6 @@ function ProductServiceItem({ product, onUpdate, onRemove }: {
     </div>
   );
 }
+
+
+    

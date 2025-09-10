@@ -13,6 +13,7 @@ import { db } from '@/lib/firebase';
 import { collection, writeBatch, doc } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
+import { cn } from '@/lib/utils';
 
 const fileToDataUri = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -23,7 +24,7 @@ const fileToDataUri = (file: File): Promise<string> => {
     });
 };
 
-export function DataProcessor() {
+export function DataProcessor({ className }: { className?: string }) {
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -82,7 +83,7 @@ export function DataProcessor() {
   };
 
   return (
-    <Card>
+    <Card className={cn(className)}>
       <CardHeader>
         <CardTitle className="font-headline">批量数据处理</CardTitle>
         <CardDescription>上传供应商数据(CSV)，AI将为您评估其与平台的匹配度，并将结果存入数据库。</CardDescription>
@@ -135,3 +136,5 @@ export function DataProcessor() {
     </Card>
   );
 }
+
+    

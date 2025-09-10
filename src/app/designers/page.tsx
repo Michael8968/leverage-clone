@@ -112,7 +112,7 @@ export default function DesignersPage() {
             系统将为您推荐在线的创意设计师,您也可以直接预约他们。若没有找到合适的服务,可以将您的具体需求发布到需求池。
           </p>
           <div className="flex justify-center gap-4 mt-4">
-            <Button variant="accent">系统推荐</Button>
+            <Button variant="default">系统推荐</Button>
             <Button variant="outline" onClick={() => router.push('/demand-pool')}>去需求池发布</Button>
           </div>
         </header>
@@ -135,7 +135,7 @@ export default function DesignersPage() {
                       className="rounded-full"
                     />
                     {designer.status === '在线' && (
-                        <Badge variant="default" className="absolute bottom-0 right-0 gap-1 pr-1 pl-0.5">
+                        <Badge variant="default" className="absolute bottom-0 right-0 gap-1 pr-1.5 pl-1 bg-green-500 hover:bg-green-600">
                             <RadioTower className="w-3 h-3 animate-pulse" />
                             在线
                         </Badge>
@@ -162,3 +162,5 @@ export default function DesignersPage() {
     </AppLayout>
   );
 }
+
+    

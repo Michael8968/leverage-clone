@@ -101,7 +101,7 @@ export default function DemandPoolPage() {
   const getStatusBadge = (status: Demand['status']) => {
     switch (status) {
       case '开放中':
-        return <Badge variant="default">开放中</Badge>;
+        return <Badge variant="default" className="bg-green-500 hover:bg-green-600">开放中</Badge>;
       case '进行中':
          return <Badge variant="secondary">进行中</Badge>;
       case '已完成':
@@ -133,7 +133,7 @@ export default function DemandPoolPage() {
                   <Input placeholder="搜索需求标题或标签..." className="pl-8 w-64" />
                 </div>
                 <Button variant="outline">
-                  <Filter className="mr-2" />
+                  <Filter className="mr-2 h-4 w-4" />
                   筛选
                 </Button>
               </div>
@@ -145,7 +145,6 @@ export default function DemandPoolPage() {
                     </Button>
                 )}
                 <Button>
-                  <PlusCircle className="mr-2" />
                   发布新需求
                 </Button>
               </div>
@@ -211,7 +210,11 @@ export default function DemandPoolPage() {
                       <TableCell>{format(demand.createdAt, 'yyyy-MM-dd')}</TableCell>
                       <TableCell className="text-right">
                         {demand.status === '开放中' ? (
-                            <Button variant="ghost" size="sm">
+                            <Button variant="default" size="sm">
+                                抢单
+                            </Button>
+                        ) : demand.status === '进行中' ? (
+                            <Button variant="outline" size="sm">
                                 <MessageSquare className="mr-2 h-4 w-4" />
                                 开始沟通
                             </Button>
@@ -236,8 +239,6 @@ export default function DemandPoolPage() {
         open={isRecDialogOpen}
         onOpenChange={(isOpen) => {
             if (!isOpen) {
-                // When closing dialog, if we were in batch mode, clear selection.
-                // This check is performed before resetting selectedDemand.
                 if (!selectedDemand && selectedRows.length > 0) {
                   setSelectedRows([]);
                 }
@@ -396,3 +397,5 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
         </Dialog>
     )
 }
+
+    
