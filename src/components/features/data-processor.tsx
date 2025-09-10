@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -9,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { evaluateSellerData, type EvaluateSellerDataOutput } from '@/ai/flows/supplier-data-analysis';
 import { useAuthStore } from '@/store/auth';
 import { db } from '@/lib/firebase';
-import { collection, writeBatch } from 'firebase/firestore';
+import { collection, writeBatch, doc } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
 
@@ -67,8 +68,8 @@ export function DataProcessor() {
         const batch = writeBatch(db);
         const suppliersCollection = collection(db, 'suppliers');
         aiResult.forEach(supplierData => {
-            const docRef = doc(suppliersCollection); // Create a new document with a unique ID
-            batch.set(docRef, { ...supplierData, processedBy: user.id, createdAt: new Date().toISOString() });
+            const newDocRef = doc(suppliersCollection); // Create a new document with a unique ID
+            batch.set(newDocRef, { ...supplierData, processedBy: user.id, createdAt: new Date().toISOString() });
         });
         await batch.commit();
         toast({ title: '保存成功', description: 'AI分析结果已成功保存到数据库。' });
@@ -133,7 +134,4 @@ export function DataProcessor() {
       </CardContent>
     </Card>
   );
-}
-function doc(suppliersCollection: import("firebase/firestore").CollectionReference<import("firebase/firestore").DocumentData, import("firebase/firestore").DocumentData>) {
-    throw new Error('Function not implemented.');
 }

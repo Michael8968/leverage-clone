@@ -1,3 +1,4 @@
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -101,8 +102,8 @@ export default function SuppliersPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <LabeledInput defaultValue="力维利治科技有限公司" label="公司名称" />
-              <LabeledInput defaultValue="supplier@leverage.ai" label="联系邮箱" />
+              <LabeledInput value={user?.name} label="公司名称" readOnly/>
+              <LabeledInput value={user?.email} label="联系邮箱" readOnly/>
             </div>
             <SupplementaryFieldsManager fields={infoFields} onFieldsChange={setInfoFields} title="公司补充信息" />
           </CardContent>
