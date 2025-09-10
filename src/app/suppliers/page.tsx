@@ -2,7 +2,7 @@
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { ProductService } from '@/lib/types';
 import { SupplementaryField, SupplementaryFieldsManager } from '@/components/features/supplementary-fields-manager';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -67,17 +67,17 @@ export default function SuppliersPage() {
     }
   };
 
-  const updateProduct = async (updatedProduct: ProductService) => {
+  const updateProduct = useCallback(async (updatedProduct: ProductService) => {
     const { id, ...dataToUpdate } = updatedProduct;
     try {
       const productRef = doc(db, 'products', id);
       await updateDoc(productRef, dataToUpdate);
-      setProducts(products.map(p => (p.id === id ? updatedProduct : p)));
+      setProducts(prevProducts => prevProducts.map(p => (p.id === id ? updatedProduct : p)));
     } catch (error) {
       console.error("Error updating product:", error);
       toast({ title: "错误", description: "更新产品失败。", variant: "destructive" });
     }
-  };
+  }, [toast]);
 
   const removeProduct = async (id: string) => {
     try {
