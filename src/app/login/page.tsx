@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useRouter } from 'next/navigation';
@@ -28,9 +29,9 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-      <div className="mb-8 flex items-center gap-2 text-2xl font-headline font-semibold">
+      <div className="mb-8 flex items-center gap-2 text-2xl font-headline font-semibold whitespace-nowrap">
         <Logo />
-        <h1 className="font-headline">Leverage 力维利治</h1>
+        <h1 className="font-headline">Leverage&nbsp;力维利治</h1>
       </div>
       <p className="mb-10 text-muted-foreground">请选择一个角色以登录系统</p>
 

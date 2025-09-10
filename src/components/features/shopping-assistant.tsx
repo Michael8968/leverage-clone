@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect, useTransition } from 'react';
@@ -321,6 +322,11 @@ const LoadingMessage = () => (
 
 const CustomServiceConnector = () => {
     const [step, setStep] = useState<'initial' | 'input' | 'loading' | 'results'>('initial');
+    const router = useRouter();
+
+    const handleFindSuppliers = () => {
+        router.push('/suppliers');
+    }
 
     return (
         <Card className="flex flex-col">
@@ -342,31 +348,8 @@ const CustomServiceConnector = () => {
                          <Textarea placeholder="请详细描述您的批量采购需求，如产品规格、数量、预算等..." rows={5}/>
                          <div className="flex justify-end gap-2">
                             <Button variant="ghost" onClick={() => setStep('initial')}>取消</Button>
-                            <Button className="w-fit" onClick={() => {
-                                setStep('loading');
-                                setTimeout(() => setStep('results'), 2000);
-                            }}>寻找供应商</Button>
+                            <Button className="w-fit" onClick={handleFindSuppliers}>寻找供应商</Button>
                          </div>
-                    </div>
-                )}
-                 {step === 'loading' && (
-                    <div className="flex flex-col items-center gap-2">
-                        <Loader2 className="w-8 h-8 animate-spin text-accent" />
-                        <p className="text-muted-foreground">正在为您匹配最佳供应商...</p>
-                    </div>
-                )}
-                {step === 'results' && (
-                    <div className="text-center w-full">
-                        <h3 className="font-semibold mb-2">为您匹配到 3 家供应商</h3>
-                        <div className="space-y-2 text-left mb-4">
-                            <Badge variant="secondary" className="w-full justify-between"><p>供应商A</p><p>98%匹配度</p></Badge>
-                            <Badge variant="secondary" className="w-full justify-between"><p>供应商B</p><p>95%匹配度</p></Badge>
-                            <Badge variant="secondary" className="w-full justify-between"><p>供应商C</p><p>92%匹配度</p></Badge>
-                        </div>
-                        <div className="flex justify-center gap-2">
-                            <Button variant="link" onClick={() => setStep('initial')}>重新匹配</Button>
-                            <Button variant="default"><Users className="mr-2"/> 查看设计师</Button>
-                        </div>
                     </div>
                 )}
             </CardContent>
