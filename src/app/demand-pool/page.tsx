@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/app-layout';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,7 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { mockDemands, mockCreatives } from '@/lib/data';
+import { mockCreatives } from '@/lib/data';
 import type { Demand } from '@/lib/types';
 import { useAuthStore } from '@/store/auth';
 import { PlusCircle, Sparkles, BrainCircuit, Loader2 } from 'lucide-react';
@@ -30,14 +31,41 @@ import type { RecommendCreativesOutput } from '@/ai/flows/demand-matching';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { db } from '@/lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 
 export default function DemandPoolPage() {
-  const [demands] = useState<Demand[]>(mockDemands);
+  const [demands, setDemands] = useState<Demand[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const [isRecDialogOpen, setIsRecDialogOpen] = useState(false);
   const [selectedDemand, setSelectedDemand] = useState<Demand | null>(null);
   const { role } = useAuthStore();
-  const isAllSelected = selectedRows.length > 0 && selectedRows.length === demands.length;
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchDemands = async () => {
+      try {
+        const demandsCollection = collection(db, 'demands');
+        const demandSnapshot = await getDocs(demandsCollection);
+        const demandsList = demandSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Demand));
+        setDemands(demandsList);
+      } catch (error) {
+        console.error("Error fetching demands from Firestore:", error);
+        toast({
+          title: '加载失败',
+          description: '无法从数据库加载需求数据，请稍后重试。',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDemands();
+  }, [toast]);
+
+  const isAllSelected = !isLoading && demands.length > 0 && selectedRows.length === demands.length;
   const isSomeSelected = selectedRows.length > 0 && selectedRows.length < demands.length;
 
   const handleSelectAll = (checked: boolean) => {
@@ -93,6 +121,7 @@ export default function DemandPoolPage() {
                       <Checkbox
                         checked={isAllSelected || (isSomeSelected && 'indeterminate')}
                         onCheckedChange={handleSelectAll}
+                        disabled={isLoading || demands.length === 0}
                       />
                     </TableHead>
                   )}
@@ -105,35 +134,55 @@ export default function DemandPoolPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {demands.map(demand => (
-                  <TableRow key={demand.id}>
-                    {role === 'admin' && (
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedRows.includes(demand.id)}
-                          onCheckedChange={(checked) => handleSelectRow(demand.id, !!checked)}
-                        />
-                      </TableCell>
-                    )}
-                    <TableCell className="font-medium">{demand.title}</TableCell>
-                    <TableCell>{demand.category}</TableCell>
-                    <TableCell>{demand.budget.toLocaleString()}</TableCell>
-                    <TableCell>
-                      <Badge variant={demand.status === '开放中' ? 'default' : 'secondary'}>
-                        {demand.status}
-                      </Badge>
+                {isLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>
+                      {role === 'admin' && <TableCell><Skeleton className="h-4 w-4" /></TableCell>}
+                      <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                      {role === 'admin' && <TableCell className="text-right"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>}
+                    </TableRow>
+                  ))
+                ) : demands.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={role === 'admin' ? 7 : 6} className="h-24 text-center">
+                      暂无需求数据。
                     </TableCell>
-                    <TableCell>{demand.createdAt}</TableCell>
-                    {role === 'admin' && (
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => handleRecommendClick(demand)}>
-                          <Sparkles className="mr-2 h-4 w-4" />
-                          AI推荐
-                        </Button>
-                      </TableCell>
-                    )}
                   </TableRow>
-                ))}
+                ) : (
+                  demands.map(demand => (
+                    <TableRow key={demand.id}>
+                      {role === 'admin' && (
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedRows.includes(demand.id)}
+                            onCheckedChange={(checked) => handleSelectRow(demand.id, !!checked)}
+                          />
+                        </TableCell>
+                      )}
+                      <TableCell className="font-medium">{demand.title}</TableCell>
+                      <TableCell>{demand.category}</TableCell>
+                      <TableCell>{demand.budget.toLocaleString()}</TableCell>
+                      <TableCell>
+                        <Badge variant={demand.status === '开放中' ? 'default' : 'secondary'}>
+                          {demand.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{demand.createdAt}</TableCell>
+                      {role === 'admin' && (
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" onClick={() => handleRecommendClick(demand)}>
+                            <Sparkles className="mr-2 h-4 w-4" />
+                            AI推荐
+                          </Button>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -144,11 +193,15 @@ export default function DemandPoolPage() {
         onOpenChange={(isOpen) => {
             if (!isOpen) {
                 setSelectedDemand(null);
+                // When closing dialog, if we were in batch mode, clear selection.
+                if (!selectedDemand && selectedRows.length > 0) {
+                  setSelectedRows([]);
+                }
             }
             setIsRecDialogOpen(isOpen);
         }}
         demand={selectedDemand}
-        selectedDemands={selectedRows.length > 0 && !selectedDemand ? mockDemands.filter(d => selectedRows.includes(d.id)) : null}
+        selectedDemands={selectedRows.length > 0 && !selectedDemand ? demands.filter(d => selectedRows.includes(d.id)) : null}
       />
     </AppLayout>
   );

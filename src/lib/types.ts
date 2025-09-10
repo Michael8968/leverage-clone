@@ -1,3 +1,4 @@
+
 export type Demand = {
   id: string;
   title: string;
@@ -6,6 +7,7 @@ export type Demand = {
   budget: number;
   status: '开放中' | '已匹配' | '已关闭';
   createdAt: string;
+  tags?: string[];
 };
 
 export type Creative = {
@@ -23,3 +25,5 @@ export type ProductService = {
   price: number;
   category: string;
 };
+
+    
