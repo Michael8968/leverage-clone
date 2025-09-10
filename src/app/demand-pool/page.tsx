@@ -22,8 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { mockCreatives } from '@/lib/data';
-import type { Demand } from '@/lib/types';
+import type { Demand, ProductService } from '@/lib/types';
 import { useAuthStore } from '@/store/auth';
 import { PlusCircle, Sparkles, BrainCircuit, Loader2 } from 'lucide-react';
 import { recommendCreatives } from '@/ai/flows/demand-matching';
@@ -222,6 +221,35 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
     const [isLoading, setIsLoading] = useState(false);
     const [aiResults, setAiResults] = useState<BatchResult[] | null>(null);
     const { toast } = useToast();
+    const [creatives, setCreatives] = useState<ProductService[]>([]);
+    const [creativesLoading, setCreativesLoading] = useState(true);
+
+    useEffect(() => {
+      const fetchCreatives = async () => {
+        setCreativesLoading(true);
+        try {
+          // In a real app, "creatives" could be suppliers, creators, or specific products.
+          // Here, we'll use products as a stand-in for "creatives".
+          const productsCollection = collection(db, 'products');
+          const productSnapshot = await getDocs(productsCollection);
+          const productsList = productSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProductService));
+          setCreatives(productsList);
+        } catch (error) {
+          console.error("Error fetching creatives:", error);
+          toast({
+            title: '加载创意方失败',
+            description: '无法加载用于匹配的数据。',
+            variant: 'destructive',
+          });
+        } finally {
+          setCreativesLoading(false);
+        }
+      };
+
+      if (open) {
+        fetchCreatives();
+      }
+    }, [open, toast]);
 
     const handleAiRecommend = async () => {
         const demandsToProcess = demand ? [demand] : selectedDemands;
@@ -234,7 +262,7 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
             const results = await Promise.all(
               demandsToProcess.map(async (d): Promise<BatchResult> => {
                     try {
-                        const result = await recommendCreatives({ demand: d, creatives: mockCreatives.map(c => ({...c, id: c.id.toString()})) });
+                        const result = await recommendCreatives({ demand: d, creatives });
                         return { demand: d, recommendations: result };
                     } catch (error) {
                         console.error(`AI recommendation failed for demand ${d.id}`, error);
@@ -266,9 +294,9 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
                     {!aiResults && !isLoading && (
                         <div className="text-center space-y-4">
                             <p className="text-muted-foreground">准备好后，点击下方按钮启动AI分析和推荐。</p>
-                            <Button variant="accent" onClick={handleAiRecommend} disabled={!targetDemands?.length}>
-                                <BrainCircuit className="mr-2"/>
-                                启动AI推荐
+                            <Button variant="accent" onClick={handleAiRecommend} disabled={!targetDemands?.length || creativesLoading}>
+                                {creativesLoading ? <Loader2 className="animate-spin mr-2"/> : <BrainCircuit className="mr-2"/>}
+                                {creativesLoading ? '加载创意方...' : '启动AI推荐'}
                             </Button>
                         </div>
                     )}
@@ -292,13 +320,13 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
                                         <AccordionContent>
                                             {result.error && <p className="text-destructive text-sm">{result.error}</p>}
                                             {result.recommendations && result.recommendations.recommendations.map(rec => {
-                                                const creative = mockCreatives.find(c => c.id === rec.creativeId);
+                                                const creative = creatives.find(c => c.id === rec.creativeId);
                                                 return (
                                                 <Card key={rec.creativeId} className="mb-2">
                                                     <CardHeader className="p-4">
                                                         <CardTitle className="text-base">{creative?.name}</CardTitle>
                                                         <div className="flex gap-2 pt-1">
-                                                            {creative?.tags.map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}
+                                                           {creative?.category && <Badge variant="secondary">{creative.category}</Badge>}
                                                         </div>
                                                     </CardHeader>
                                                     <CardContent className="p-4 pt-0">
@@ -318,5 +346,3 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
         </Dialog>
     )
 }
-
-    

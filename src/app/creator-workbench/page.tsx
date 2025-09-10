@@ -17,6 +17,10 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { generate3dModel } from '@/ai/flows/generate-3d-model';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import type { Demand } from '@/lib/types';
+import { DemandList } from '@/components/features/demand-list';
 
 
 const formSchema = z.object({
@@ -94,30 +98,59 @@ function CreationForm() {
   );
 }
 
+function TasksTab() {
+  const [demands, setDemands] = useState<Demand[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchOpenDemands = async () => {
+      try {
+        const demandsCollection = collection(db, 'demands');
+        const q = query(demandsCollection, where("status", "==", "开放中"));
+        const demandSnapshot = await getDocs(q);
+        const demandsList = demandSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Demand));
+        setDemands(demandsList);
+      } catch (error) {
+        console.error("Error fetching open demands:", error);
+        toast({
+          title: '加载失败',
+          description: '无法加载任务列表，请稍后重试。',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchOpenDemands();
+  }, [toast]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="font-headline">任务与需求</CardTitle>
+        <CardDescription>浏览平台上的公开需求，接受你感兴趣的任务。</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <DemandList demands={demands} isLoading={isLoading} />
+      </CardContent>
+    </Card>
+  );
+}
+
 
 function CreatorWorkbench() {
   return (
     <div className="p-4 md:p-8">
       <h1 className="text-2xl font-headline font-bold mb-4">创意者工作台</h1>
-      <Tabs defaultValue="3d-creation">
+      <Tabs defaultValue="tasks">
         <TabsList>
           <TabsTrigger value="tasks">任务与需求</TabsTrigger>
           <TabsTrigger value="3d-creation">3D AI 创作</TabsTrigger>
           <TabsTrigger value="submissions">我的提交</TabsTrigger>
         </TabsList>
         <TabsContent value="tasks">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-headline">任务与需求</CardTitle>
-              <CardDescription>浏览平台上的公开需求，接受你感兴趣的任务。</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8">
-                <Construction className="w-16 h-16 mb-4" />
-                <p>任务列表正在开发中，即将上线。</p>
-              </div>
-            </CardContent>
-          </Card>
+         <TasksTab />
         </TabsContent>
         <TabsContent value="3d-creation">
           <CreationForm />
@@ -127,7 +160,7 @@ function CreatorWorkbench() {
             <CardHeader>
               <CardTitle className="font-headline">我的提交</CardTitle>
               <CardDescription>管理你已提交并被采纳的作品。</CardDescription>
-            </Header>
+            </CardHeader>
             <CardContent>
               <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8">
                 <Construction className="w-16 h-16 mb-4" />

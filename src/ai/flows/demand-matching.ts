@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -21,17 +22,17 @@ const DemandSchema = z.object({
 export type Demand = z.infer<typeof DemandSchema>;
 
 const CreativeSchema = z.object({
-  id: z.string().describe('The unique identifier of the creative.'),
-  name: z.string().describe('The name of the creative.'),
-  description: z.string().describe('The description of the creative.'),
-  tags: z.array(z.string()).describe('The tags associated with the creative.'),
+  id: z.string().describe('The unique identifier of the creative source (e.g., product, supplier).'),
+  name: z.string().describe('The name of the creative source.'),
+  description: z.string().describe('The description of the creative source.'),
+  category: z.string().optional().describe('The category of the creative source.'),
 });
 
 export type Creative = z.infer<typeof CreativeSchema>;
 
 const RecommendCreativesInputSchema = z.object({
   demand: DemandSchema.describe('The user demand.'),
-  creatives: z.array(CreativeSchema).describe('The list of creatives to be considered.'),
+  creatives: z.array(CreativeSchema).describe('The list of creatives (products, suppliers, etc.) to be considered.'),
 });
 
 export type RecommendCreativesInput = z.infer<typeof RecommendCreativesInputSchema>;
@@ -57,24 +58,21 @@ const prompt = ai.definePrompt({
   name: 'recommendCreativesPrompt',
   input: {schema: RecommendCreativesInputSchema},
   output: {schema: RecommendCreativesOutputSchema},
-  prompt: `You are an expert in matching user demands with suitable creatives.
+  prompt: `You are an expert in matching user demands with suitable creatives (products, services, or suppliers).
 
-  Given a user demand and a list of creatives, you will select the creatives that best match the demand and provide a reason for each recommendation.
+  Given a user demand and a list of available creatives, you will select the creatives that best match the demand and provide a concise reason for each recommendation.
 
   Demand:
   Description: {{{demand.description}}}
   Budget: {{{demand.budget}}}
   Category: {{{demand.category}}}
 
-  Creatives:
-  {{#each creatives}}
-  Name: {{{name}}}
-  Description: {{{description}}}
-  Tags: {{#each tags}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
-  ---
-  {{/each}}
+  Available Creatives (JSON):
+  {{{json creatives}}}
 
-  Please provide a list of recommended creatives with reasons for each recommendation.
+  Please analyze the demand against the list of creatives. Pay attention to the description, category, and potential capabilities of each creative. 
+  
+  Return a list of the top recommendations with a clear, brief reason for why each is a good match.
   `,
 });
 
