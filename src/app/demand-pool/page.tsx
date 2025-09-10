@@ -191,11 +191,12 @@ export default function DemandPoolPage() {
         open={isRecDialogOpen}
         onOpenChange={(isOpen) => {
             if (!isOpen) {
-                setSelectedDemand(null);
                 // When closing dialog, if we were in batch mode, clear selection.
+                // This check is performed before resetting selectedDemand.
                 if (!selectedDemand && selectedRows.length > 0) {
                   setSelectedRows([]);
                 }
+                setSelectedDemand(null);
             }
             setIsRecDialogOpen(isOpen);
         }}
@@ -248,6 +249,7 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
 
       if (open) {
         fetchCreatives();
+        setAiResults(null);
       }
     }, [open, toast]);
 
@@ -334,6 +336,9 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
                                                     </CardContent>
                                                 </Card>
                                             )})}
+                                            {result.recommendations && result.recommendations.recommendations.length === 0 && (
+                                                <p className="text-sm text-muted-foreground">未找到合适的匹配项。</p>
+                                            )}
                                         </AccordionContent>
                                     </AccordionItem>
                                 ))}
@@ -346,3 +351,5 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
         </Dialog>
     )
 }
+
+    
