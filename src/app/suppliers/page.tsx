@@ -56,6 +56,7 @@ export default function SuppliersPage() {
       price: 0,
       category: '',
       supplierId: user.id,
+      purchaseUrl: '',
       supplementaryFields: [],
     };
     try {
@@ -172,7 +173,7 @@ function ProductServiceItem({ product, onUpdate, onRemove }: {
 
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const triggerUpdate = (updatedProduct: ProductService) => {
+  const triggerUpdate = useCallback((updatedProduct: ProductService) => {
     setIsSaving(true);
     if (debounceTimeoutRef.current) {
         clearTimeout(debounceTimeoutRef.current);
@@ -181,7 +182,7 @@ function ProductServiceItem({ product, onUpdate, onRemove }: {
         await onUpdate(updatedProduct);
         setIsSaving(false);
     }, 1000); // 1-second debounce
-  };
+  }, [onUpdate]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const updatedProduct = { ...localProduct, [e.target.name]: e.target.value };
