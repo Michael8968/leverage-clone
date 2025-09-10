@@ -193,7 +193,7 @@ export default function RegisterPage() {
             <CardHeader>
                 <CardTitle className="font-headline text-2xl">注册</CardTitle>
                 <CardDescription>加入我们，开启智能匹配与创意生成的旅程。</CardDescription>
-            </Header>
+            </CardHeader>
             <CardContent>
                  <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleRegister)} className="space-y-4">
