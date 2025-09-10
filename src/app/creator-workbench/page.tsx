@@ -5,7 +5,7 @@ import { AppLayout } from '@/components/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuthStore } from '@/store/auth';
-import { Construction, Frown, Bot, Loader2 } from 'lucide-react';
+import { Frown, Bot, Loader2, ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
@@ -20,7 +20,9 @@ import { generate3dModel } from '@/ai/flows/generate-3d-model';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Demand } from '@/lib/types';
-import { DemandList } from '@/components/features/demand-list';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 
 
 const formSchema = z.object({
@@ -58,8 +60,10 @@ function CreationForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-headline">3D AI 创作</CardTitle>
-        <CardDescription>输入文本提示，利用AI快速生成3D模型参考。</CardDescription>
+        <CardTitle className="font-headline">3D AI创作引擎</CardTitle>
+        <CardDescription>
+          基于 Tripo Studio 的下一代 AI 3D 生成技术，请在下方输入您的创意描述。
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <Form {...form}>
@@ -70,7 +74,7 @@ function CreationForm() {
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
-                    <Input placeholder="例如：一辆未来主义的赛博朋克风格摩托车" {...field} />
+                    <Input placeholder="例如: 一只正在看书的赛博朋克风格的猫,戴着眼镜,背景是下雨的东京街头。" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -78,7 +82,7 @@ function CreationForm() {
             />
             <Button type="submit" disabled={isPending} className="w-full">
               {isPending ? <Loader2 className="animate-spin mr-2" /> : <Bot className="mr-2" />}
-              生成
+              生成 3D 模型
             </Button>
           </form>
         </Form>
@@ -126,15 +130,124 @@ function TasksTab() {
     fetchOpenDemands();
   }, [toast]);
 
+  const getStatusBadge = (status: Demand['status']) => {
+    switch (status) {
+      case '开放中':
+        return <Badge variant="default">开放中</Badge>;
+      case '进行中':
+         return <Badge variant="secondary">进行中</Badge>;
+      case '已完成':
+        return <Badge variant="outline">已完成</Badge>;
+      default:
+        return <Badge>{status}</Badge>;
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-headline">任务与需求</CardTitle>
-        <CardDescription>浏览平台上的公开需求，接受你感兴趣的任务。</CardDescription>
+        <CardTitle className="font-headline">任务需求池</CardTitle>
+        <CardDescription>查看平台发布的任务以及开放的需求，选择您感兴趣的进行创作。</CardDescription>
       </CardHeader>
       <CardContent>
-        <DemandList demands={demands} isLoading={isLoading} />
+        <Table>
+            <TableHeader>
+                <TableRow>
+                    <TableHead>任务标题</TableHead>
+                    <TableHead>类型</TableHead>
+                    <TableHead>酬金</TableHead>
+                    <TableHead>状态</TableHead>
+                    <TableHead className="text-right">操作</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {isLoading ? (
+                    Array.from({ length: 3 }).map((_, i) => (
+                        <TableRow key={i}>
+                            <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                            <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                            <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                            <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                            <TableCell className="text-right"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
+                        </TableRow>
+                    ))
+                ) : demands.length === 0 ? (
+                    <TableRow>
+                        <TableCell colSpan={5} className="h-24 text-center">
+                        暂无开放的需求。
+                        </TableCell>
+                    </TableRow>
+                ) : (
+                    demands.map(demand => (
+                        <TableRow key={demand.id}>
+                            <TableCell className="font-medium">{demand.title}</TableCell>
+                            <TableCell>{demand.category}</TableCell>
+                            <TableCell>¥{demand.budget.toLocaleString()}</TableCell>
+                            <TableCell>{getStatusBadge(demand.status)}</TableCell>
+                            <TableCell className="text-right">
+                                {demand.status === '开放中' && (
+                                    <Button variant="ghost" size="sm">
+                                        接受任务
+                                        <ArrowRight className="ml-2 h-4 w-4" />
+                                    </Button>
+                                )}
+                            </TableCell>
+                        </TableRow>
+                    ))
+                )}
+            </TableBody>
+        </Table>
       </CardContent>
+    </Card>
+  );
+}
+
+function SubmissionsTab() {
+  const submissions = [
+    { name: '赛博朋克飞行摩托', type: '载具', date: '2024-07-30', status: '审核中' },
+    { name: '魔法森林精灵小屋', type: '场景', date: '2024-07-28', status: '已入库' },
+    { name: 'Q版宇航员手办', type: '角色', date: '2024-07-25', status: '已入库' },
+  ];
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case '已入库':
+        return <Badge variant="default">已入库</Badge>;
+      case '审核中':
+         return <Badge variant="secondary">审核中</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  }
+
+  return (
+    <Card>
+        <CardHeader>
+            <CardTitle className="font-headline">我的创意提交</CardTitle>
+            <CardDescription>您提交的创意作品将进入供应商产品库，并在此处进行管理。</CardDescription>
+        </CardHeader>
+        <CardContent>
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>作品名称</TableHead>
+                        <TableHead>类型</TableHead>
+                        <TableHead>提交日期</TableHead>
+                        <TableHead>状态</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {submissions.map((item, index) => (
+                        <TableRow key={index}>
+                            <TableCell className="font-medium">{item.name}</TableCell>
+                            <TableCell>{item.type}</TableCell>
+                            <TableCell>{item.date}</TableCell>
+                            <TableCell>{getStatusBadge(item.status)}</TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+        </CardContent>
     </Card>
   );
 }
@@ -143,32 +256,24 @@ function TasksTab() {
 function CreatorWorkbench() {
   return (
     <div className="p-4 md:p-8">
-      <h1 className="text-2xl font-headline font-bold mb-4">创意者工作台</h1>
+      <header className='text-center mb-8'>
+        <h1 className="text-3xl font-headline font-bold">创意者工作台</h1>
+        <p className="text-muted-foreground mt-2">在这里, 您可以接受任务, 响应需求, 并利用AI工具将您的创意变为现实。</p>
+      </header>
       <Tabs defaultValue="tasks">
-        <TabsList>
+        <TabsList className="grid w-full grid-cols-3 max-w-lg mx-auto">
           <TabsTrigger value="tasks">任务与需求</TabsTrigger>
           <TabsTrigger value="3d-creation">3D AI 创作</TabsTrigger>
           <TabsTrigger value="submissions">我的提交</TabsTrigger>
         </TabsList>
-        <TabsContent value="tasks">
+        <TabsContent value="tasks" className="mt-6">
          <TasksTab />
         </TabsContent>
-        <TabsContent value="3d-creation">
+        <TabsContent value="3d-creation" className="mt-6">
           <CreationForm />
         </TabsContent>
-        <TabsContent value="submissions">
-           <Card>
-            <CardHeader>
-              <CardTitle className="font-headline">我的提交</CardTitle>
-              <CardDescription>管理您已提交并被采纳的作品。</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8">
-                <Construction className="w-16 h-16 mb-4" />
-                <p>作品管理功能正在开发中。</p>
-              </div>
-            </CardContent>
-          </Card>
+        <TabsContent value="submissions" className="mt-6">
+           <SubmissionsTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -213,3 +318,5 @@ export default function CreatorWorkbenchPage() {
         </AppLayout>
     );
 }
+
+    
