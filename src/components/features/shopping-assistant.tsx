@@ -299,6 +299,12 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
                         <p className="text-sm text-muted-foreground truncate">{rec.description}</p>
                         <p className="font-bold text-right mt-2">¥{rec.price.toLocaleString()}</p>
                    </div>
+                   <CardFooter className="p-3 bg-muted/50">
+                        <div className="flex w-full justify-end gap-2">
+                            <Button size="sm" variant="secondary">查看详情</Button>
+                            <Button size="sm" onClick={() => rec.purchaseUrl && window.open(rec.purchaseUrl, '_blank')}>立即购买</Button>
+                        </div>
+                   </CardFooter>
                 </Card>
             ))}
         </div>

@@ -4,7 +4,7 @@
 import { AppLayout } from '@/components/app-layout';
 import { useState, useEffect, useRef } from 'react';
 import type { ProductService } from '@/lib/types';
-import type { SupplementaryField } from '@/components/features/supplementary-fields-manager';
+import { SupplementaryField, SupplementaryFieldsManager } from '@/components/features/supplementary-fields-manager';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { PlusCircle, Trash2, Loader2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { DataProcessor } from '@/components/features/data-processor';
-import { SupplementaryFieldsManager } from '@/components/features/supplementary-fields-manager';
 import { useAuthStore } from '@/store/auth';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
@@ -57,6 +56,7 @@ export default function SuppliersPage() {
       price: 0,
       category: '',
       supplierId: user.id,
+      supplementaryFields: [],
     };
     try {
       const docRef = await addDoc(collection(db, 'products'), newProductData);
@@ -167,7 +167,6 @@ function ProductServiceItem({ product, onUpdate, onRemove }: {
   onUpdate: (product: ProductService) => void;
   onRemove: (id: string) => void;
 }) {
-  const [fields, setFields] = useState<SupplementaryField[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [localProduct, setLocalProduct] = useState(product);
 
@@ -195,6 +194,12 @@ function ProductServiceItem({ product, onUpdate, onRemove }: {
     setLocalProduct(updatedProduct);
     triggerUpdate(updatedProduct);
   };
+
+  const handleFieldsChange = (fields: SupplementaryField[]) => {
+    const updatedProduct = { ...localProduct, supplementaryFields: fields };
+    setLocalProduct(updatedProduct);
+    triggerUpdate(updatedProduct);
+  }
   
   useEffect(() => {
     // Clean up timeout on unmount
@@ -214,7 +219,7 @@ function ProductServiceItem({ product, onUpdate, onRemove }: {
       </div>
       <Textarea name="description" placeholder="产品描述" value={localProduct.description} onChange={handleChange} />
 
-      <SupplementaryFieldsManager fields={fields} onFieldsChange={setFields} title="产品规格参数" />
+      <SupplementaryFieldsManager fields={localProduct.supplementaryFields || []} onFieldsChange={handleFieldsChange} title="产品规格参数" />
 
       <div className="flex justify-end items-center gap-4">
         {isSaving && <Loader2 className="animate-spin text-muted-foreground" />}

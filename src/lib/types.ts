@@ -1,3 +1,4 @@
+import type { SupplementaryField } from "@/components/features/supplementary-fields-manager";
 
 export type Demand = {
   id: string;
@@ -25,6 +26,8 @@ export type ProductService = {
   price: number;
   category: string;
   supplierId?: string;
+  purchaseUrl?: string;
+  supplementaryFields?: SupplementaryField[];
 };
 
 export type UserProfile = {
