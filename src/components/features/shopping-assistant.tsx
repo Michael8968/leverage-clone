@@ -14,13 +14,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Paperclip, Send, X, Bot, User, BrainCircuit, Sparkles, Building, Loader2 } from 'lucide-react';
+import { Paperclip, Send, X, Bot, User, BrainCircuit, Sparkles, Building, Loader2, Users, FilePlus2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { db } from '@/lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import type { ProductService } from '@/lib/types';
+import { useRouter } from 'next/navigation';
 
 
 type Message = {
@@ -46,10 +47,10 @@ const fileToDataUri = (file: File): Promise<string> => {
     });
 };
 
-export default function ShoppingAssistant() {
+export function ShoppingAssistant() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const { user } = useAuthStore();
+  const { user, role } = useAuthStore();
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -137,6 +138,8 @@ export default function ShoppingAssistant() {
       }
     });
   };
+  
+  const hasAiResponse = messages.some(m => m.type === 'ai');
 
   return (
     <div className="flex h-[calc(100vh-57px)] md:h-screen flex-col p-4 md:p-8">
@@ -171,7 +174,7 @@ export default function ShoppingAssistant() {
                         <form onSubmit={form.handleSubmit(onSubmit)} className="w-full space-y-2">
                         {imagePreview && (
                             <div className="relative w-24 h-24">
-                                <Image src={imagePreview} alt="Preview" width={100} height={100} objectFit="cover" className="rounded-md" />
+                                <Image src={imagePreview} alt="Preview" width={100} height={100} style={{objectFit: "cover"}} className="rounded-md" />
                                 <Button
                                     variant="ghost"
                                     size="icon"
@@ -235,7 +238,10 @@ export default function ShoppingAssistant() {
                     </Form>
                 </CardFooter>
             </Card>
-            <CustomServiceConnector />
+            <div className="flex flex-col gap-8">
+              <CustomServiceConnector />
+              {role === 'user' && hasAiResponse && <DemandPoolConnector />}
+            </div>
         </div>
     </div>
   );
@@ -285,7 +291,7 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
             {recommendations.map((rec) => (
                 <Card key={rec.id} className="overflow-hidden">
                    <div className="aspect-video relative w-full">
-                     <Image src={`https://picsum.photos/seed/${rec.id}/300/200`} alt={rec.name} fill className="object-cover" data-ai-hint="product design"/>
+                     <Image src={`https://picsum.photos/seed/${rec.id}/300/200`} alt={rec.name} fill style={{objectFit: "cover"}} data-ai-hint="product design"/>
                    </div>
                    <div className="p-3">
                         <h5 className="font-semibold truncate">{rec.name}</h5>
@@ -322,7 +328,7 @@ const CustomServiceConnector = () => {
                 <CardTitle className="font-headline flex items-center gap-2"><Building/> 高端定制</CardTitle>
                 <CardDescription>连接供应商，满足您的专属批量采购需求。</CardDescription>
             </CardHeader>
-            <CardContent className="flex-1 flex items-center justify-center">
+            <CardContent className="flex-1 flex items-center justify-center min-h-[150px]">
                 {step === 'initial' && (
                     <div className="text-center">
                         <p className="mb-4 text-muted-foreground">有更复杂的需求？</p>
@@ -334,10 +340,13 @@ const CustomServiceConnector = () => {
                 {step === 'input' && (
                     <div className="w-full space-y-4">
                          <Textarea placeholder="请详细描述您的批量采购需求，如产品规格、数量、预算等..." rows={5}/>
-                         <Button className="w-full" onClick={() => {
-                            setStep('loading');
-                            setTimeout(() => setStep('results'), 2000);
-                         }}>寻找供应商</Button>
+                         <div className="flex justify-end gap-2">
+                            <Button variant="ghost" onClick={() => setStep('initial')}>取消</Button>
+                            <Button className="w-fit" onClick={() => {
+                                setStep('loading');
+                                setTimeout(() => setStep('results'), 2000);
+                            }}>寻找供应商</Button>
+                         </div>
                     </div>
                 )}
                  {step === 'loading' && (
@@ -349,15 +358,35 @@ const CustomServiceConnector = () => {
                 {step === 'results' && (
                     <div className="text-center w-full">
                         <h3 className="font-semibold mb-2">为您匹配到 3 家供应商</h3>
-                        <div className="space-y-2 text-left">
-                            <Badge variant="secondary">供应商A - 98%匹配度</Badge>
-                            <Badge variant="secondary">供应商B - 95%匹配度</Badge>
-                            <Badge variant="secondary">供应商C - 92%匹配度</Badge>
+                        <div className="space-y-2 text-left mb-4">
+                            <Badge variant="secondary" className="w-full justify-between"><p>供应商A</p><p>98%匹配度</p></Badge>
+                            <Badge variant="secondary" className="w-full justify-between"><p>供应商B</p><p>95%匹配度</p></Badge>
+                            <Badge variant="secondary" className="w-full justify-between"><p>供应商C</p><p>92%匹配度</p></Badge>
                         </div>
-                        <Button variant="link" onClick={() => setStep('initial')}>重新匹配</Button>
+                        <div className="flex justify-center gap-2">
+                            <Button variant="link" onClick={() => setStep('initial')}>重新匹配</Button>
+                            <Button variant="default"><Users className="mr-2"/> 查看设计师</Button>
+                        </div>
                     </div>
                 )}
             </CardContent>
         </Card>
     );
 };
+
+const DemandPoolConnector = () => {
+    const router = useRouter();
+    return (
+        <Card className="bg-accent/20 border-accent">
+            <CardHeader>
+                <CardTitle className="font-headline flex items-center gap-2"><FilePlus2/> 没找到满意的？</CardTitle>
+                <CardDescription>您可以将您的需求发布到需求池，让更多的供应商和创意者来帮助您。</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Button className="w-full" variant="accent" onClick={() => router.push('/demand-pool')}>
+                    发布到需求池
+                </Button>
+            </CardContent>
+        </Card>
+    );
+}
