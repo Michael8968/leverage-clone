@@ -13,7 +13,7 @@ export type Demand = {
 };
 
 export type Creative = {
-  id: string;
+  id:string;
   name: string;
   description: string;
   tags: string[];
@@ -28,6 +28,7 @@ export type ProductService = {
   category: string;
   supplierId?: string;
   purchaseUrl?: string;
+  sku?: string;
   supplementaryFields?: SupplementaryField[];
 };
 

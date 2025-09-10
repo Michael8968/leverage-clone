@@ -3,13 +3,13 @@
 
 import { AppLayout } from '@/components/app-layout';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { ProductService } from '@/lib/types';
-import { SupplementaryField, SupplementaryFieldsManager } from '@/components/features/supplementary-fields-manager';
+import type { ProductService, SupplementaryField } from '@/lib/types';
+import { SupplementaryFieldsManager } from '@/components/features/supplementary-fields-manager';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { PlusCircle, Trash2, Loader2, Building, Package } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Building, Package, Upload } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { DataProcessor } from '@/components/features/data-processor';
 import { useAuthStore } from '@/store/auth';
@@ -21,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 function CompanyInfoForm() {
   const { user } = useAuthStore();
+  const [fields, setFields] = useState<SupplementaryField[]>([]);
   
   return (
     <Card>
@@ -28,19 +29,38 @@ function CompanyInfoForm() {
         <CardTitle className="font-headline">公司资料</CardTitle>
         <CardDescription>请填写准确、完整的公司信息。</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <LabeledInput label="供应商全称" placeholder="例如: 创新科技(深圳)有限公司" defaultValue={user?.name === '创新科技' ? '创新科技(深圳)有限公司' : ''} />
-          <LabeledInput label="供应商简称" placeholder="例如: 创新科技" defaultValue={user?.name} />
-          <LabeledInput label="所在区域" placeholder="例如: 广东省深圳市" />
-          <LabeledInput label="详细地址" placeholder="例如: 南山区科技园" />
-          <LabeledInput label="成立日期" type="date" />
-          <LabeledInput label="注册资本" placeholder="例如: 1000万元" />
-          <LabeledInput label="统一社会信用代码" />
+      <CardContent className="space-y-8">
+        <div className="space-y-4">
+            <h3 className="font-medium">供应商LOGO</h3>
+            <Button variant="outline"><Upload className="mr-2"/> 上传图片</Button>
         </div>
-         <div className="flex justify-end">
-            <Button>保存更改</Button>
+        <div className="space-y-4">
+            <h3 className="font-medium">营业执照</h3>
+            <Button variant="outline"><Upload className="mr-2"/> 上传文件</Button>
         </div>
+        
+        <Separator/>
+
+        <div className="space-y-4">
+            <h3 className="font-medium">联系人信息</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <LabeledInput label="联系人" placeholder="例如: 张三"/>
+                <LabeledInput label="职务" placeholder="例如: 市场总监" />
+                <LabeledInput label="手机" type="tel" />
+                <LabeledInput label="座机" type="tel" />
+                <LabeledInput label="企微/客服" />
+                <LabeledInput label="邮箱" type="email" defaultValue={user?.email} />
+            </div>
+            <LabeledInput label="企业微信号或其它客服联系方式" />
+        </div>
+
+        <Separator/>
+
+        <SupplementaryFieldsManager fields={fields} onFieldsChange={setFields} title="补充内容" />
+        
+        <div className="flex justify-end">
+           <Button>保存基本信息</Button>
+       </div>
       </CardContent>
     </Card>
   )
@@ -73,44 +93,45 @@ function ProductManagement() {
 
     const addProduct = async () => {
         if (!user) return;
-        const newProductData = {
-        name: '',
-        description: '',
-        price: 0,
-        category: '',
-        supplierId: user.id,
-        purchaseUrl: '',
-        supplementaryFields: [],
+        const newProductData: Omit<ProductService, 'id'> = {
+            name: '新产品或服务',
+            description: '',
+            price: 0,
+            category: '',
+            supplierId: user.id,
+            purchaseUrl: '',
+            sku: '',
+            supplementaryFields: [],
         };
         try {
-        const docRef = await addDoc(collection(db, 'products'), newProductData);
-        setProducts([...products, { ...newProductData, id: docRef.id }]);
+            const docRef = await addDoc(collection(db, 'products'), newProductData);
+            setProducts([...products, { ...newProductData, id: docRef.id }]);
         } catch (error) {
-        console.error("Error adding product:", error);
-        toast({ title: "错误", description: "添加新产品失败。", variant: "destructive" });
+            console.error("Error adding product:", error);
+            toast({ title: "错误", description: "添加新产品失败。", variant: "destructive" });
         }
     };
 
     const updateProduct = useCallback(async (updatedProduct: ProductService) => {
         const { id, ...dataToUpdate } = updatedProduct;
         try {
-        const productRef = doc(db, 'products', id);
-        await updateDoc(productRef, dataToUpdate);
-        setProducts(prevProducts => prevProducts.map(p => (p.id === id ? updatedProduct : p)));
+            const productRef = doc(db, 'products', id);
+            await updateDoc(productRef, dataToUpdate);
+            setProducts(prevProducts => prevProducts.map(p => (p.id === id ? updatedProduct : p)));
         } catch (error) {
-        console.error("Error updating product:", error);
-        toast({ title: "错误", description: "更新产品失败。", variant: "destructive" });
+            console.error("Error updating product:", error);
+            toast({ title: "错误", description: "更新产品失败。", variant: "destructive" });
         }
     }, [toast]);
 
     const removeProduct = async (id: string) => {
         try {
-        await deleteDoc(doc(db, 'products', id));
-        setProducts(products.filter(p => p.id !== id));
-        toast({ title: "成功", description: "产品已删除。" });
+            await deleteDoc(doc(db, 'products', id));
+            setProducts(products.filter(p => p.id !== id));
+            toast({ title: "成功", description: "产品已删除。" });
         } catch (error) {
-        console.error("Error removing product:", error);
-        toast({ title: "错误", description: "删除产品失败。", variant: "destructive" });
+            console.error("Error removing product:", error);
+            toast({ title: "错误", description: "删除产品失败。", variant: "destructive" });
         }
     };
 
@@ -211,7 +232,8 @@ function ProductServiceItem({ product, onUpdate, onRemove }: {
   }, [onUpdate]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const updatedProduct = { ...localProduct, [e.target.name]: e.target.value };
+    const { name, value } = e.target;
+    const updatedProduct = { ...localProduct, [name]: value };
     setLocalProduct(updatedProduct);
     triggerUpdate(updatedProduct);
   };
@@ -221,7 +243,7 @@ function ProductServiceItem({ product, onUpdate, onRemove }: {
     setLocalProduct(updatedProduct);
     triggerUpdate(updatedProduct);
   };
-
+  
   const handleFieldsChange = (fields: SupplementaryField[]) => {
     const updatedProduct = { ...localProduct, supplementaryFields: fields };
     setLocalProduct(updatedProduct);
@@ -238,14 +260,19 @@ function ProductServiceItem({ product, onUpdate, onRemove }: {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Input name="name" placeholder="产品名称" value={localProduct.name} onChange={handleChange} />
-        <Input name="category" placeholder="类别" value={localProduct.category} onChange={handleChange} />
-        <Input name="price" type="number" placeholder="价格" value={localProduct.price} onChange={handlePriceChange} />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <LabeledInput label="产品或服务名称" name="name" placeholder="产品名称" value={localProduct.name} onChange={handleChange} />
+        <LabeledInput label="价格" name="price" type="number" placeholder="例如: 1299" value={localProduct.price} onChange={handlePriceChange} />
+        <LabeledInput label="购买链接" name="purchaseUrl" placeholder="例如: https://item.jd.com/..." value={localProduct.purchaseUrl} onChange={handleChange} />
+        <LabeledInput label="类别" name="category" placeholder="例如: 消费电子产品" value={localProduct.category} onChange={handleChange} />
+        <LabeledInput label="SKU服务代码" name="sku" placeholder="产品或服务的唯一代码" value={localProduct.sku} onChange={handleChange} />
       </div>
-      <Textarea name="description" placeholder="产品描述" value={localProduct.description} onChange={handleChange} />
+      <div className="space-y-2">
+        <label className="text-sm font-medium">描述</label>
+        <Textarea name="description" placeholder="产品描述" value={localProduct.description} onChange={handleChange} />
+      </div>
 
-      <SupplementaryFieldsManager fields={localProduct.supplementaryFields || []} onFieldsChange={handleFieldsChange} title="产品规格参数" />
+      <SupplementaryFieldsManager fields={localProduct.supplementaryFields || []} onFieldsChange={handleFieldsChange} title="详细介绍产品或服务" />
 
       <div className="flex justify-end items-center gap-4">
         {isSaving && <Loader2 className="animate-spin text-muted-foreground" />}
@@ -257,6 +284,3 @@ function ProductServiceItem({ product, onUpdate, onRemove }: {
     </div>
   );
 }
-
-
-    
