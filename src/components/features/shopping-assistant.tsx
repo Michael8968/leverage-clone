@@ -165,7 +165,7 @@ export function ShoppingAssistant() {
   return (
     <div className="flex h-[calc(100vh-57px)] md:h-screen flex-col p-4 md:p-8">
         <div className='text-center mb-4'>
-            <h1 className="text-2xl font-headline font-bold">欢迎光临“情动于艺”</h1>
+            <h1 className="text-2xl font-headline font-bold">欢迎光临 Leverage 力维利治</h1>
             <p className="text-muted-foreground">与AI导购对话,发现为您量身推荐的独特设计,部分商品更支持个性化定制。</p>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 min-h-0">
