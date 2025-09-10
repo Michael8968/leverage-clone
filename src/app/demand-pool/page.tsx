@@ -76,6 +76,14 @@ export default function DemandPoolPage() {
   }, []);
 
   const handleClaimDemand = async (demandId: string) => {
+    const originalDemands = [...demands];
+    // Optimistic UI update
+    setDemands(prevDemands =>
+        prevDemands.map(d =>
+            d.id === demandId ? { ...d, status: '进行中' } : d
+        )
+    );
+
     try {
         const demandRef = doc(db, "demands", demandId);
         await updateDoc(demandRef, {
@@ -85,9 +93,9 @@ export default function DemandPoolPage() {
             title: "成功",
             description: "您已成功抢单，请尽快与需求方沟通。",
         });
-        // Refresh the list
-        fetchDemands();
     } catch (error) {
+        // Revert UI on error
+        setDemands(originalDemands);
         console.error("Error claiming demand:", error);
         toast({
             title: "操作失败",

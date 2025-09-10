@@ -344,7 +344,11 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
                    </div>
                    <CardFooter className="p-3 bg-muted/50 flex w-full justify-end gap-2">
                         <Button size="sm" variant="secondary" disabled>查看详情</Button>
-                        <Button size="sm" onClick={() => rec.purchaseUrl && window.open(rec.purchaseUrl, '_blank')}>
+                        <Button 
+                            size="sm" 
+                            onClick={() => rec.purchaseUrl && window.open(rec.purchaseUrl, '_blank')}
+                            disabled={!rec.purchaseUrl}
+                        >
                             立即购买 <ExternalLink className="ml-1.5"/>
                         </Button>
                    </CardFooter>
