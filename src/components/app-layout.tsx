@@ -32,13 +32,15 @@ import {
   Bot,
   LayoutGrid,
   LogOut,
-  Package,
+  Building,
   ShieldCheck,
   ChevronDown,
   PenSquare,
   Search,
   Users,
   Wrench,
+  Database,
+  Library,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
@@ -56,8 +58,10 @@ const navItems: NavItem[] = [
   { href: '/designers', label: '创意设计师', icon: Users, roles: ['user', 'admin', 'supplier', 'creator'] },
   { href: '/creator-workbench', label: '创意者工作台', icon: PenSquare, roles: ['creator'] },
   { href: '/search', label: '智能搜索', icon: Search, roles: ['user', 'admin', 'supplier', 'creator'] },
-  { href: '/suppliers', label: '供应商中心', icon: Package, roles: ['admin', 'supplier'] },
+  { href: '/suppliers', label: '供应商中心', icon: Building, roles: ['admin', 'supplier'] },
   { href: '/prompt-management', label: '提示词管理', icon: Wrench, roles: ['admin'] },
+  { href: '/knowledge-base', label: '知识库管理', icon: Database, roles: ['admin'] },
+  { href: '/public-resources', label: '公共资源库', icon: Library, roles: ['admin'] },
   { href: '/permissions', label: '权限管理', icon: ShieldCheck, roles: ['admin'] },
 ];
 
