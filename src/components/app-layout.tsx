@@ -34,6 +34,7 @@ import {
   Package,
   ShieldCheck,
   ChevronDown,
+  PenSquare,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
@@ -48,6 +49,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: '/', label: 'AI购物助手', icon: Bot, roles: ['user', 'admin', 'supplier', 'creator'] },
   { href: '/demand-pool', label: '需求池', icon: LayoutGrid, roles: ['admin', 'creator'] },
+  { href: '/creator-workbench', label: '创意者工作台', icon: PenSquare, roles: ['creator'] },
   { href: '/suppliers', label: '供应商中心', icon: Package, roles: ['admin', 'supplier'] },
   { href: '/permissions', label: '权限管理', icon: ShieldCheck, roles: ['admin'] },
 ];
