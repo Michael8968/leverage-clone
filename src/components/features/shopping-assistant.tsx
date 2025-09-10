@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import Image from 'next/image';
 import { getProductRecommendations } from '@/ai/flows/shopping-assistant';
+import { generateUserProfile, type UserProfile } from '@/ai/flows/user-profiling';
 import { useAuthStore } from '@/store/auth';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -17,14 +18,18 @@ import { Paperclip, Send, X, Bot, User, BrainCircuit, Sparkles, Building, Loader
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { db } from '@/lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
+import type { ProductService } from '@/lib/types';
+
 
 type Message = {
     id: number;
     type: 'user' | 'ai' | 'loading';
     text?: string;
     imageUrl?: string;
-    profile?: string;
-    recommendations?: string[];
+    profile?: UserProfile;
+    recommendations?: ProductService[];
 };
 
 const formSchema = z.object({
@@ -48,12 +53,23 @@ export default function ShoppingAssistant() {
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [products, setProducts] = useState<ProductService[]>([]);
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: { description: '', image: undefined },
-  });
-  const imageRef = form.register('image');
+  useEffect(() => {
+    const fetchProducts = async () => {
+        try {
+            const productsCollection = collection(db, 'products');
+            const productSnapshot = await getDocs(productsCollection);
+            const productsList = productSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ProductService));
+            setProducts(productsList);
+        } catch (error) {
+            console.error("Error fetching products:", error);
+            toast({ title: "商品加载失败", description: "无法从数据库加载商品列表。", variant: "destructive" });
+        }
+    };
+    fetchProducts();
+  }, [toast]);
+
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -81,18 +97,24 @@ export default function ShoppingAssistant() {
       setImagePreview(null);
       
       try {
-        const userProfile = `用户角色: ${user?.role}, 用户名: ${user?.name}`;
-        const result = await getProductRecommendations({
-          description: values.description,
-          photoDataUri,
-          userProfile,
+        const profile = await generateUserProfile({
+            description: values.description,
+            photoDataUri,
         });
+
+        const productResult = await getProductRecommendations({
+            userProfile: profile,
+            products,
+            photoDataUri,
+        });
+        
+        const recommendedProducts = products.filter(p => productResult.recommendations.includes(p.id));
 
         const aiMessage: Message = {
           id: Date.now() + 2,
           type: 'ai',
-          profile: `基于您的输入, AI分析出您的用户画像偏向: 热爱科技、追求生活品质的都市年轻群体。`,
-          recommendations: result.recommendations,
+          profile: profile,
+          recommendations: recommendedProducts,
         };
 
         setMessages((prev) => prev.map((msg) => (msg.type === 'loading' ? aiMessage : msg)));
@@ -120,6 +142,13 @@ export default function ShoppingAssistant() {
                 <CardContent className="flex-1 min-h-0">
                     <ScrollArea className="h-full" ref={scrollAreaRef}>
                         <div className="space-y-6 pr-4">
+                            {messages.length === 0 && (
+                                <div className="text-center text-muted-foreground pt-16">
+                                    <Sparkles className="mx-auto h-12 w-12 text-accent mb-4" />
+                                    <p>你好！我是您的专属购物助手。</p>
+                                    <p>告诉我您的需求，比如“一个未来感的台灯”，我来帮您寻找。 </p>
+                                </div>
+                            )}
                             {messages.map((msg) => {
                                 if (msg.type === 'user') return <UserMessage key={msg.id} {...msg} />;
                                 if (msg.type === 'ai') return <AIMessage key={msg.id} {...msg} />;
@@ -134,7 +163,7 @@ export default function ShoppingAssistant() {
                         <form onSubmit={form.handleSubmit(onSubmit)} className="w-full space-y-2">
                         {imagePreview && (
                             <div className="relative w-24 h-24">
-                                <Image src={imagePreview} alt="Preview" layout="fill" objectFit="cover" className="rounded-md" />
+                                <Image src={imagePreview} alt="Preview" width={100} height={100} objectFit="cover" className="rounded-md" />
                                 <Button
                                     variant="ghost"
                                     size="icon"
@@ -189,7 +218,7 @@ export default function ShoppingAssistant() {
                                 </FormItem>
                                 )}
                             />
-                            <Button type="submit" disabled={isPending}>
+                            <Button type="submit" disabled={isPending || products.length === 0}>
                                 {isPending ? <Loader2 className="animate-spin mr-2" /> : <Send className="mr-2" />}
                                 发送
                             </Button>
@@ -217,26 +246,45 @@ const UserMessage = ({ text, imageUrl }: Message) => (
 const AIMessage = ({ profile, recommendations }: Message) => (
   <div className="flex items-start gap-3">
     <Bot className="w-8 h-8 text-accent flex-shrink-0" />
-    <div className="bg-card rounded-lg p-3 max-w-sm border">
+    <div className="bg-card rounded-lg p-3 max-w-sm border space-y-4">
       {profile && <UserProfileDisplay profile={profile} />}
-      {recommendations && <RecommendationsDisplay recommendations={recommendations} />}
+      {recommendations && recommendations.length > 0 && <RecommendationsDisplay recommendations={recommendations} />}
     </div>
   </div>
 );
 
-const UserProfileDisplay = ({ profile }: { profile: string }) => (
-    <div className="flex items-center gap-2 text-sm text-muted-foreground border-b pb-2 mb-2">
-        <BrainCircuit className="w-5 h-5" />
-        <p>{profile}</p>
-    </div>
+const UserProfileDisplay = ({ profile }: { profile: UserProfile }) => (
+    <Card className="bg-background">
+        <CardHeader className="p-3">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <BrainCircuit className="w-5 h-5 text-accent"/>
+                您的个性化画像
+            </CardTitle>
+        </CardHeader>
+        <CardContent className="p-3 pt-0">
+            <p className="text-sm text-muted-foreground mb-2">{profile.summary}</p>
+            <div className="flex flex-wrap gap-1">
+                {profile.tags.map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}
+            </div>
+        </CardContent>
+    </Card>
 );
 
-const RecommendationsDisplay = ({ recommendations }: { recommendations: string[] }) => (
+const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductService[] }) => (
     <div>
         <h4 className="font-semibold mb-2 flex items-center gap-2"><Sparkles className="w-5 h-5 text-amber-500" /> 为您推荐:</h4>
-        <ul className="space-y-2">
-            {recommendations.map((rec, i) => (
-                <li key={i} className="text-sm p-2 bg-background rounded-md">{rec}</li>
+        <div className="space-y-2">
+            {recommendations.map((rec) => (
+                <Card key={rec.id} className="overflow-hidden">
+                   <div className="aspect-video relative w-full">
+                     <Image src={`https://picsum.photos/seed/${rec.id}/300/200`} alt={rec.name} fill className="object-cover" data-ai-hint="product design"/>
+                   </div>
+                   <div className="p-3">
+                        <h5 className="font-semibold truncate">{rec.name}</h5>
+                        <p className="text-sm text-muted-foreground truncate">{rec.description}</p>
+                        <p className="font-bold text-right mt-2">¥{rec.price.toLocaleString()}</p>
+                   </div>
+                </Card>
             ))}
         </ul>
     </div>
@@ -247,12 +295,10 @@ const LoadingMessage = () => (
         <Bot className="w-8 h-8 text-accent" />
         <div className="bg-card rounded-lg p-3 max-w-sm border w-full">
             <div className="space-y-3">
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-16 w-full" />
                 <div className="space-y-2 pt-2">
-                    <Skeleton className="h-8 w-full" />
-                    <Skeleton className="h-8 w-full" />
-                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-24 w-full" />
+                    <Skeleton className="h-24 w-full" />
                 </div>
             </div>
         </div>

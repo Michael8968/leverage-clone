@@ -27,4 +27,8 @@ export type ProductService = {
   supplierId?: string;
 };
 
+export type UserProfile = {
+  summary: string;
+  tags: string[];
+}
     
