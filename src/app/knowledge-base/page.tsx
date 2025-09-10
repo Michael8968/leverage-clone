@@ -8,41 +8,42 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Database, Edit, Filter, PlusCircle, Search, Trash2 } from 'lucide-react';
-
-const knowledgeItems = [
-    {
-        name: '智能家庭中心 Pro',
-        category: '消费电子产品',
-        tags: ['智能家居', '语音助手', 'Zigbee'],
-        lastUpdated: '2024-07-28',
-    },
-    {
-        name: '静音大师洗衣机',
-        category: '家用电器',
-        tags: ['节能', '直流变频', '10公斤'],
-        lastUpdated: '2024-07-27',
-    },
-    {
-        name: '云端数据备份服务',
-        category: '软件服务',
-        tags: ['SaaS', '数据安全', '多设备同步'],
-        lastUpdated: '2024-07-26',
-    },
-    {
-        name: '个性化营养咨询',
-        category: '健康服务',
-        tags: ['在线咨询', '营养师', '定制方案'],
-        lastUpdated: '2024-07-25',
-    },
-    {
-        name: '便携式咖啡机',
-        category: '生活电器',
-        tags: ['户外', '旅行', '手动'],
-        lastUpdated: '2024-07-24',
-    }
-];
+import { useEffect, useState } from 'react';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import type { ProductService } from '@/lib/types';
+import { useToast } from '@/hooks/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function KnowledgeBasePage() {
+    const [knowledgeItems, setKnowledgeItems] = useState<ProductService[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const { toast } = useToast();
+
+    useEffect(() => {
+        const fetchKnowledgeItems = async () => {
+            setIsLoading(true);
+            try {
+                // The knowledge base is essentially the product/service database.
+                const productsCollection = collection(db, 'products');
+                const productSnapshot = await getDocs(productsCollection);
+                const productsList = productSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ProductService));
+                setKnowledgeItems(productsList);
+            } catch (error) {
+                console.error("Error fetching knowledge base items:", error);
+                toast({
+                    title: "加载失败",
+                    description: "无法从数据库加载知识库条目。",
+                    variant: "destructive"
+                });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchKnowledgeItems();
+    }, [toast]);
+
     return (
         <AppLayout>
             <div className="p-4 md:p-8 space-y-8">
@@ -81,22 +82,37 @@ export default function KnowledgeBasePage() {
                                 <TableRow>
                                     <TableHead>条目名称</TableHead>
                                     <TableHead>类别</TableHead>
-                                    <TableHead>标签</TableHead>
-                                    <TableHead>最后更新</TableHead>
+                                    <TableHead>SKU</TableHead>
+                                    <TableHead>价格 (元)</TableHead>
                                     <TableHead className="text-right">操作</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {knowledgeItems.map((item) => (
-                                    <TableRow key={item.name}>
-                                        <TableCell className="font-medium">{item.name}</TableCell>
-                                        <TableCell>{item.category}</TableCell>
-                                        <TableCell>
-                                            <div className="flex flex-wrap gap-1">
-                                                {item.tags.map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}
-                                            </div>
+                                {isLoading ? (
+                                    Array.from({ length: 5 }).map((_, i) => (
+                                        <TableRow key={i}>
+                                            <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                                            <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                                            <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                                            <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                                            <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : knowledgeItems.length === 0 ? (
+                                     <TableRow>
+                                        <TableCell colSpan={5} className="h-24 text-center">
+                                            知识库中暂无条目。
                                         </TableCell>
-                                        <TableCell>{item.lastUpdated}</TableCell>
+                                    </TableRow>
+                                ) : (
+                                    knowledgeItems.map((item) => (
+                                    <TableRow key={item.id}>
+                                        <TableCell className="font-medium">{item.name}</TableCell>
+                                        <TableCell>
+                                            <Badge variant="secondary">{item.category}</Badge>
+                                        </TableCell>
+                                        <TableCell className="font-mono text-xs">{item.sku || 'N/A'}</TableCell>
+                                        <TableCell>¥{item.price.toLocaleString()}</TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex items-center justify-end gap-2">
                                                 <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -108,7 +124,7 @@ export default function KnowledgeBasePage() {
                                             </div>
                                         </TableCell>
                                     </TableRow>
-                                ))}
+                                )))}
                             </TableBody>
                         </Table>
                     </CardContent>
