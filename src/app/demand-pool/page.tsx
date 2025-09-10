@@ -73,6 +73,7 @@ export default function DemandPoolPage() {
 
   useEffect(() => {
     fetchDemands();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleClaimDemand = async (demandId: string) => {
@@ -430,5 +431,3 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
         </Dialog>
     )
 }
-
-    

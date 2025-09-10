@@ -23,51 +23,6 @@ type Designer = {
   status: '在线' | '离线';
 };
 
-const mockDesigners: Omit<Designer, 'id'>[] = [
-    {
-        name: 'Alex Chen',
-        avatar: 'https://picsum.photos/seed/alex/100/100',
-        description: '专注于创造沉浸式赛博朋克世界的资深3D艺术家。',
-        tags: ['赛博朋克', '未来主义', '3D角色'],
-        status: '在线',
-    },
-    {
-        name: 'Emily Wang',
-        avatar: 'https://picsum.photos/seed/emily/100/100',
-        description: '擅长用细腻的笔触描绘栩栩如生的动植物和自然景观。',
-        tags: ['有机建模', '自然渲染', '写实纹理'],
-        status: '在线',
-    },
-    {
-        name: 'David Li',
-        avatar: 'https://picsum.photos/seed/david/100/100',
-        description: '对复杂的机械结构和科幻载具有着无限的热情和创造力。',
-        tags: ['硬表面建模', '科幻载具', '机械设计'],
-        status: '离线',
-    },
-    {
-        name: 'Sophia Zhang',
-        avatar: 'https://picsum.photos/seed/sophia/100/100',
-        description: '将可爱的想象变为现实，创造出温暖人心的角色和玩具。',
-        tags: ['可爱模型', '手办原型', '角色设计'],
-        status: '在线',
-    }
-];
-
-async function seedDesigners() {
-  try {
-    const promises = mockDesigners.map(designer => {
-      const docRef = doc(db, 'designers', designer.name.replace(' ', '-').toLowerCase());
-      return setDoc(docRef, designer);
-    });
-    await Promise.all(promises);
-    console.log('Designers seeded successfully.');
-  } catch (error) {
-    console.error('Error seeding designers:', error);
-  }
-}
-
-
 export default function DesignersPage() {
   const [designers, setDesigners] = useState<Designer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -80,15 +35,8 @@ export default function DesignersPage() {
       try {
         const designersCollection = collection(db, 'designers');
         const snapshot = await getDocs(designersCollection);
-        if (snapshot.empty) {
-          await seedDesigners();
-          const seededSnapshot = await getDocs(designersCollection);
-          const designersList = seededSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Designer));
-          setDesigners(designersList);
-        } else {
-          const designersList = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Designer));
-          setDesigners(designersList);
-        }
+        const designersList = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Designer));
+        setDesigners(designersList);
       } catch (error) {
         console.error("Error fetching designers:", error);
         toast({

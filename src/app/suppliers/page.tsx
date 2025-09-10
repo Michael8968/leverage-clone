@@ -230,9 +230,10 @@ function ProductServiceItem({ product, onUpdate, onRemove }: {
     if (debounceTimeoutRef.current) {
         clearTimeout(debounceTimeoutRef.current);
     }
-    debounceTimeoutRef.current = setTimeout(async () => {
-        await onUpdate(updatedProduct);
-        setIsSaving(false);
+    debounceTimeoutRef.current = setTimeout(() => {
+        onUpdate(updatedProduct).finally(() => {
+            setIsSaving(false);
+        });
     }, 1000); // 1-second debounce
   }, [onUpdate]);
 
@@ -300,5 +301,3 @@ function ProductServiceItem({ product, onUpdate, onRemove }: {
     </div>
   );
 }
-
-    

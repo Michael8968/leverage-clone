@@ -423,5 +423,3 @@ const DemandPoolConnector = () => {
         </Card>
     );
 }
-
-    
