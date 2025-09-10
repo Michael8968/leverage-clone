@@ -8,30 +8,40 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Download, Edit, Library, Link, PlusCircle, Trash2, Upload } from 'lucide-react';
 
-const resources = [
+const apiResources = [
     {
-        name: 'TechCrunch - 最新科技新闻',
-        url: 'https://techcrunch.com/',
-        description: '提供技术和创业公司新闻、分析和观点。',
-        category: '科技新闻',
-        lastUpdated: '2024-07-28',
+        name: '天气查询 API',
+        endpoint: 'https://api.weather.com/v1/weather/...',
+        authType: 'API Key',
+        status: '生效中',
+        docsUrl: '#',
     },
     {
-        name: '中国家电网',
-        url: 'http://www.cheaa.com/',
-        description: '中国家用电器协会主办的官方网站，提供行业动态和数据。',
-        category: '行业资讯',
-        lastUpdated: '2024-07-28',
+        name: '地图路线规划 API',
+        endpoint: 'https://api.mapservice.com/v2/routes/...',
+        authType: 'OAuth 2.0',
+        status: '生效中',
+        docsUrl: '#',
     },
     {
-        name: 'Statista - 市场数据统计',
-        url: 'https://www.statista.com/',
-        description: '全球领先的商业数据平台，提供各类市场和消费者数据。',
-        category: '数据分析',
-        lastUpdated: '2024-07-27',
+        name: '内部产品价格查询',
+        endpoint: 'https://internal.api/products/price',
+        authType: 'JWT',
+        status: '已停用',
+        docsUrl: '#',
     },
 ];
 
+const getStatusBadge = (status: string) => {
+    switch (status) {
+        case '生效中':
+            return <Badge variant="default" className="bg-green-500 hover:bg-green-600">{status}</Badge>;
+        case '已停用':
+            return <Badge variant="destructive">{status}</Badge>;
+        default:
+            return <Badge variant="secondary">{status}</Badge>;
+    }
+}
 
 export default function PublicResourcesPage() {
     return (
@@ -50,16 +60,16 @@ export default function PublicResourcesPage() {
                         <CardTitle className="font-headline">资源列表</CardTitle>
                         <CardDescription>管理所有外部链接和API接口。</CardDescription>
                         <div className="flex items-center justify-between pt-4">
-                            <div className="flex items-center gap-2">
-                               <Button variant="outline"><Link className="mr-2"/> 添加链接</Button>
-                               <Button variant="outline">API 接口</Button>
+                            <div className="flex items-center gap-2 border-b">
+                               <Button variant="ghost" className="rounded-b-none border-b-2 border-primary">外部链接</Button>
+                               <Button variant="ghost" className="rounded-b-none text-muted-foreground">API 接口</Button>
                             </div>
                             <div className="flex items-center gap-2">
-                                <Button variant="ghost"><Upload className="mr-2"/> 导入</Button>
-                                <Button variant="ghost"><Download className="mr-2"/> 导出</Button>
+                                <Button variant="outline"><Upload className="mr-2"/> 导入</Button>
+                                <Button variant="outline"><Download className="mr-2"/> 导出</Button>
                                 <Button>
                                     <PlusCircle className="mr-2" />
-                                    新增链接
+                                    新增接口
                                 </Button>
                             </div>
                         </div>
@@ -68,24 +78,28 @@ export default function PublicResourcesPage() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>名称</TableHead>
-                                    <TableHead>URL</TableHead>
-                                    <TableHead>描述</TableHead>
-                                    <TableHead>类别</TableHead>
-                                    <TableHead>最后更新</TableHead>
+                                    <TableHead>接口名称</TableHead>
+                                    <TableHead>端点 (Endpoint)</TableHead>
+                                    <TableHead>认证方式</TableHead>
+                                    <TableHead>状态</TableHead>
+                                    <TableHead>相关文档</TableHead>
                                     <TableHead className="text-right">操作</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {resources.map((item) => (
+                                {apiResources.map((item) => (
                                     <TableRow key={item.name}>
                                         <TableCell className="font-medium">{item.name}</TableCell>
-                                        <TableCell><a href={item.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{item.url}</a></TableCell>
-                                        <TableCell className="text-xs text-muted-foreground">{item.description}</TableCell>
+                                        <TableCell className="font-mono text-xs text-muted-foreground">{item.endpoint}</TableCell>
                                         <TableCell>
-                                            <Badge variant="outline">{item.category}</Badge>
+                                            <Badge variant="outline">{item.authType}</Badge>
                                         </TableCell>
-                                        <TableCell>{item.lastUpdated}</TableCell>
+                                        <TableCell>{getStatusBadge(item.status)}</TableCell>
+                                        <TableCell>
+                                            <a href={item.docsUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1 text-sm">
+                                                查看文档 <Link className="w-3 h-3"/>
+                                            </a>
+                                        </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex items-center justify-end gap-2">
                                                 <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -106,4 +120,3 @@ export default function PublicResourcesPage() {
         </AppLayout>
     );
 }
-
