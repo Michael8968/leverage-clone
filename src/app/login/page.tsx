@@ -70,7 +70,7 @@ export default function LoginPage() {
             <CardHeader>
                 <CardTitle className="font-headline text-2xl">登录</CardTitle>
                 <CardDescription>欢迎回来，请输入您的凭据以继续。</CardDescription>
-            </Header>
+            </CardHeader>
             <CardContent>
                  <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleLogin)} className="space-y-6">
