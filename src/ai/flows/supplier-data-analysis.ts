@@ -18,12 +18,20 @@ const EvaluateSellerDataInputSchema = z.object({
     .describe(
       'The CSV data as a data URI that must include a MIME type and use Base64 encoding. Expected format: \'data:<mimetype>;base64,<encoded_data>\'.' // eslint-disable-line prettier/prettier
     ),
+    supplierId: z.string().describe('The ID of the supplier uploading the data.'),
 });
 
 export type EvaluateSellerDataInput = z.infer<typeof EvaluateSellerDataInputSchema>;
 
+const ProcessedSupplierSchema = z.object({
+    name: z.string().describe('The name of the company from the CSV row.'),
+    category: z.string().describe('The business category of the company.'),
+    matchScore: z.number().min(0).max(100).describe('An AI-generated score from 0-100 indicating how well this supplier matches the platform\'s needs.'),
+    recommendation: z.string().describe('A brief recommendation or summary from the AI.'),
+});
+
 const EvaluateSellerDataOutputSchema = z.object({
-  insights: z.string().describe('AI-generated insights and recommendations to improve sales strategy.'),
+  processedSuppliers: z.array(ProcessedSupplierSchema).describe('A list of processed supplier records with AI analysis.'),
 });
 
 export type EvaluateSellerDataOutput = z.infer<typeof EvaluateSellerDataOutputSchema>;
@@ -34,17 +42,23 @@ export async function evaluateSellerData(input: EvaluateSellerDataInput): Promis
 
 const prompt = ai.definePrompt({
   name: 'evaluateSellerDataPrompt',
-  input: {schema: EvaluateSellerDataInputSchema},
+  input: {schema: z.object({ jsonData: z.string() })},
   output: {schema: EvaluateSellerDataOutputSchema},
-  prompt: `You are an AI assistant specialized in analyzing sales data for e-commerce suppliers.
+  prompt: `You are an AI assistant specialized in analyzing and qualifying e-commerce suppliers based on data.
+  The user is a platform that connects unique demands with high-quality suppliers.
 
-  Analyze the data provided in the CSV format and provide actionable insights and recommendations to improve their sales strategy.
+  Analyze each item in the following JSON data, which represents a list of potential suppliers.
+  For each supplier, perform the following tasks:
+  1.  Identify the company's name and its business category.
+  2.  Based on the provided data (like specialty, products, description), evaluate how well they fit a platform that prioritizes "innovation", "customization", and "high-quality products".
+  3.  Assign a 'matchScore' from 0 (poor fit) to 100 (perfect fit). A good fit would be a company in tech, custom manufacturing, unique design, etc. A poor fit would be a generic reseller or bulk commodity provider.
+  4.  Provide a brief 'recommendation' or summary explaining your score.
 
-  Be concise and provide specific suggestions related to pricing, product offerings, marketing, etc.
+  Return the entire list as a JSON object following the output schema.
 
-  The CSV data is:
-
-  {{csvData}}`,
+  The JSON data is:
+  {{{jsonData}}}
+  `,
 });
 
 const evaluateSellerDataFlow = ai.defineFlow(
@@ -53,13 +67,20 @@ const evaluateSellerDataFlow = ai.defineFlow(
     inputSchema: EvaluateSellerDataInputSchema,
     outputSchema: EvaluateSellerDataOutputSchema,
   },
-  async input => {
-    const csvString = input.csvDataUri.split(',')[1];
+  async ({ csvDataUri, supplierId }) => {
+    const csvString = csvDataUri.split(',')[1];
     const csvBuffer = Buffer.from(csvString, 'base64');
     const csvContent = csvBuffer.toString('utf-8');
-    // Convert CSV content to JSON format
     const jsonData = await csv().fromString(csvContent);
-    const {output} = await prompt({csvData: JSON.stringify(jsonData)});
-    return output!;
+
+    // Call the AI to get the analysis
+    const { output } = await prompt({ jsonData: JSON.stringify(jsonData) });
+    if (!output) {
+        throw new Error("AI analysis failed to return data.");
+    }
+    
+    // In a real scenario, you might enrich the output with the supplierId before returning,
+    // but here we assume the calling function will handle associating the data.
+    return output;
   }
 );
