@@ -55,6 +55,14 @@ export default function ShoppingAssistant() {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [products, setProducts] = useState<ProductService[]>([]);
 
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      description: "",
+    },
+  });
+  const imageRef = form.register("image");
+
   useEffect(() => {
     const fetchProducts = async () => {
         try {
@@ -286,7 +294,7 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
                    </div>
                 </Card>
             ))}
-        </ul>
+        </div>
     </div>
 );
 
