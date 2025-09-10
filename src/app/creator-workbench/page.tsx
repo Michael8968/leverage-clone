@@ -19,10 +19,11 @@ import Image from 'next/image';
 import { generate3dModel } from '@/ai/flows/generate-3d-model';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Demand } from '@/lib/types';
+import type { Demand, ProductService } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { format } from 'date-fns';
 
 
 const formSchema = z.object({
@@ -203,11 +204,34 @@ function TasksTab() {
 }
 
 function SubmissionsTab() {
-  const submissions = [
-    { name: '赛博朋克飞行摩托', type: '载具', date: '2024-07-30', status: '审核中' },
-    { name: '魔法森林精灵小屋', type: '场景', date: '2024-07-28', status: '已入库' },
-    { name: 'Q版宇航员手办', type: '角色', date: '2024-07-25', status: '已入库' },
-  ];
+  const [submissions, setSubmissions] = useState<ProductService[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchSubmissions = async () => {
+        setIsLoading(true);
+        try {
+            // A creator's submissions are essentially products in the database
+            const productsCollection = collection(db, 'products');
+            const productSnapshot = await getDocs(productsCollection);
+            const productsList = productSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ProductService));
+            setSubmissions(productsList);
+        } catch (error) {
+            console.error("Error fetching submissions:", error);
+            toast({
+                title: "加载失败",
+                description: "无法从数据库加载提交的作品。",
+                variant: "destructive"
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    fetchSubmissions();
+  }, [toast]);
+
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -237,14 +261,31 @@ function SubmissionsTab() {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {submissions.map((item, index) => (
-                        <TableRow key={index}>
-                            <TableCell className="font-medium">{item.name}</TableCell>
-                            <TableCell>{item.type}</TableCell>
-                            <TableCell>{item.date}</TableCell>
-                            <TableCell>{getStatusBadge(item.status)}</TableCell>
+                     {isLoading ? (
+                        Array.from({ length: 3 }).map((_, i) => (
+                            <TableRow key={i}>
+                                <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                                <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                                <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                                <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                            </TableRow>
+                        ))
+                    ) : submissions.length === 0 ? (
+                        <TableRow>
+                            <TableCell colSpan={4} className="h-24 text-center">
+                            您还没有提交任何作品。
+                            </TableCell>
                         </TableRow>
-                    ))}
+                    ) : (
+                        submissions.map((item) => (
+                            <TableRow key={item.id}>
+                                <TableCell className="font-medium">{item.name}</TableCell>
+                                <TableCell>{item.category}</TableCell>
+                                <TableCell>{format(new Date(), 'yyyy-MM-dd')}</TableCell>
+                                <TableCell>{getStatusBadge('审核中')}</TableCell>
+                            </TableRow>
+                        ))
+                    )}
                 </TableBody>
             </Table>
         </CardContent>
@@ -318,5 +359,3 @@ export default function CreatorWorkbenchPage() {
         </AppLayout>
     );
 }
-
-    

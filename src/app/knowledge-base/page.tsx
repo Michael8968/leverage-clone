@@ -14,6 +14,7 @@ import { db } from '@/lib/firebase';
 import type { ProductService } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import { format } from 'date-fns';
 
 export default function KnowledgeBasePage() {
     const [knowledgeItems, setKnowledgeItems] = useState<ProductService[]>([]);
@@ -82,8 +83,8 @@ export default function KnowledgeBasePage() {
                                 <TableRow>
                                     <TableHead>条目名称</TableHead>
                                     <TableHead>类别</TableHead>
-                                    <TableHead>SKU</TableHead>
-                                    <TableHead>价格 (元)</TableHead>
+                                    <TableHead>标签</TableHead>
+                                    <TableHead>最后更新</TableHead>
                                     <TableHead className="text-right">操作</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -111,8 +112,8 @@ export default function KnowledgeBasePage() {
                                         <TableCell>
                                             <Badge variant="secondary">{item.category}</Badge>
                                         </TableCell>
-                                        <TableCell className="font-mono text-xs">{item.sku || 'N/A'}</TableCell>
-                                        <TableCell>¥{item.price.toLocaleString()}</TableCell>
+                                        <TableCell className="text-muted-foreground text-xs">N/A</TableCell>
+                                        <TableCell>{format(new Date(), 'yyyy-MM-dd')}</TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex items-center justify-end gap-2">
                                                 <Button variant="ghost" size="icon" className="h-8 w-8">
