@@ -1,6 +1,7 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore, memoryLocalCache } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
   "projectId": "studio-1968664538-7b455",
@@ -9,11 +10,19 @@ const firebaseConfig = {
   "apiKey": "AIzaSyB8XChQPO2LLOGoZu4UpF7AQ6_BjSto1Zo",
   "authDomain": "studio-1968664538-7b455.firebaseapp.com",
   "measurementId": "",
-  "messagingSenderId": "813896547402"
+  "messagingSenderId": "813896547402",
+  vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
 };
 
 // Initialize Firebase
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const db = getFirestore(app);
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-export { app, db };
+const db = initializeFirestore(app, {
+    databaseId: "a003",
+    localCache: memoryLocalCache(),
+});
+
+const auth = getAuth(app);
+
+
+export { app, db, auth };
