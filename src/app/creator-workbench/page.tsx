@@ -105,6 +105,7 @@ function TasksTab() {
 
   useEffect(() => {
     const fetchOpenDemands = async () => {
+      setIsLoading(true);
       try {
         const demandsCollection = collection(db, 'demands');
         const q = query(demandsCollection, where("status", "==", "开放中"));
