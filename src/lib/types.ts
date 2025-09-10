@@ -27,6 +27,7 @@ export type ProductService = {
   price: number;
   category: string;
   supplierId?: string;
+  supplierName?: string;
   purchaseUrl?: string;
   sku?: string;
   supplementaryFields?: SupplementaryField[];

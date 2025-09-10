@@ -35,6 +35,13 @@ type Message = {
     recommendations?: ProductService[];
 };
 
+type Supplier = {
+    id: string;
+    name: string;
+    category: string;
+    matchScore?: number;
+}
+
 const formSchema = z.object({
   description: z.string().min(1, { message: '请输入您的需求描述。' }),
   image: z.instanceof(File).optional(),
@@ -58,6 +65,7 @@ export function ShoppingAssistant() {
   const [isPending, startTransition] = useTransition();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [products, setProducts] = useState<ProductService[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -69,18 +77,24 @@ export function ShoppingAssistant() {
   const imageRef = form.register("image");
 
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchData = async () => {
         try {
             const productsCollection = collection(db, 'products');
             const productSnapshot = await getDocs(productsCollection);
             const productsList = productSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ProductService));
             setProducts(productsList);
+
+            const suppliersCollection = collection(db, 'suppliers');
+            const supplierSnapshot = await getDocs(suppliersCollection);
+            const suppliersList = supplierSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Supplier));
+            setSuppliers(suppliersList);
+
         } catch (error) {
-            console.error("Error fetching products:", error);
-            toast({ title: "商品加载失败", description: "无法从数据库加载商品列表。", variant: "destructive" });
+            console.error("Error fetching data:", error);
+            toast({ title: "数据加载失败", description: "无法从数据库加载产品或供应商列表。", variant: "destructive" });
         }
     };
-    fetchProducts();
+    fetchData();
   }, [toast]);
 
 
@@ -122,10 +136,16 @@ export function ShoppingAssistant() {
         const productResult = await getProductRecommendations({
             userProfile: profile,
             products,
+            suppliers,
             photoDataUri,
         });
         
-        const recommendedProducts = products.filter(p => productResult.recommendations.includes(p.id));
+        const recommendedProducts = products.filter(p => productResult.recommendations.includes(p.id))
+          .map(p => {
+              const supplier = suppliers.find(s => s.id === p.supplierId);
+              return { ...p, supplierName: supplier?.name };
+          });
+
 
         const aiMessage: Message = {
           id: Date.now() + 2,
@@ -298,7 +318,12 @@ const AIMessage = ({ profile, recommendations }: Message) => {
             <p>这是我为您找到的结果:</p>
             {profile && <UserProfileDisplay profile={profile} />}
             {recommendations && recommendations.length > 0 && <RecommendationsDisplay recommendations={recommendations} />}
-            {recommendations && recommendations.length > 0 && (
+            {recommendations && recommendations.length === 0 && (
+                <div className="text-center text-sm text-muted-foreground pt-2">
+                    <p>抱歉，暂时没有找到完全匹配的商品。</p>
+                </div>
+            )}
+            {recommendations && (
                 <div className="text-center text-sm text-muted-foreground pt-2">
                     <p>没有找到满意的结果？</p>
                     <Button variant="link" className="h-auto p-0" onClick={() => router.push('/demand-pool')}>发布到需求池</Button>
@@ -336,8 +361,11 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
                      <Image src={`https://picsum.photos/seed/${rec.id}/300/200`} alt={rec.name} fill style={{objectFit: "cover"}} data-ai-hint="product design"/>
                    </div>
                    <div className="p-3">
-                        <div className='flex justify-between items-start'>
+                        <div className='flex justify-between items-start gap-2'>
+                           <div>
                             <h5 className="font-semibold truncate pr-2">{rec.name}</h5>
+                            {rec.supplierName && <p className="text-xs text-muted-foreground">由 {rec.supplierName} 提供</p>}
+                           </div>
                             <p className="font-bold text-right text-primary whitespace-nowrap">¥{rec.price.toLocaleString()}</p>
                         </div>
                         <p className="text-sm text-muted-foreground truncate mt-1">{rec.description}</p>

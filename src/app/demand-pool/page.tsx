@@ -25,7 +25,7 @@ import {
 import type { Demand, ProductService } from '@/lib/types';
 import { useAuthStore } from '@/store/auth';
 import { PlusCircle, Sparkles, BrainCircuit, Loader2, MessageSquare, Check, Search, Filter } from 'lucide-react';
-import { recommendCreatives } from '@/ai/flows/demand-matching';
+import { recommendCreatives, type Creative } from '@/ai/flows/demand-matching';
 import type { RecommendCreativesOutput } from '@/ai/flows/demand-matching';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -302,19 +302,29 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
     const [isLoading, setIsLoading] = useState(false);
     const [aiResults, setAiResults] = useState<BatchResult[] | null>(null);
     const { toast } = useToast();
-    const [creatives, setCreatives] = useState<ProductService[]>([]);
+    const [creatives, setCreatives] = useState<Creative[]>([]);
     const [creativesLoading, setCreativesLoading] = useState(true);
 
     useEffect(() => {
       const fetchCreatives = async () => {
         setCreativesLoading(true);
         try {
-          // In a real app, "creatives" could be suppliers, creators, or specific products.
-          // Here, we'll use products as a stand-in for "creatives".
+          // Creatives are a combination of products and suppliers
           const productsCollection = collection(db, 'products');
           const productSnapshot = await getDocs(productsCollection);
-          const productsList = productSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProductService));
-          setCreatives(productsList);
+          const productsList: Creative[] = productSnapshot.docs.map(doc => {
+              const data = doc.data();
+              return { id: doc.id, name: data.name, description: data.description, category: data.category };
+          });
+
+          const suppliersCollection = collection(db, 'suppliers');
+          const supplierSnapshot = await getDocs(suppliersCollection);
+          const suppliersList: Creative[] = supplierSnapshot.docs.map(doc => {
+              const data = doc.data();
+              return { id: doc.id, name: data.name, description: data.recommendation, category: data.category };
+          });
+          
+          setCreatives([...productsList, ...suppliersList]);
         } catch (error) {
           console.error("Error fetching creatives:", error);
           toast({
