@@ -15,7 +15,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
-import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 
 const formSchema = z.object({
