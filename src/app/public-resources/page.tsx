@@ -61,8 +61,8 @@ export default function PublicResourcesPage() {
                         <CardDescription>管理所有外部链接和API接口。</CardDescription>
                         <div className="flex items-center justify-between pt-4">
                             <div className="flex items-center gap-2 border-b">
-                               <Button variant="ghost" className="rounded-b-none border-b-2 border-primary" disabled>外部链接</Button>
-                               <Button variant="ghost" className="rounded-b-none text-muted-foreground">API 接口</Button>
+                               <Button variant="ghost" className="rounded-b-none text-muted-foreground" disabled>外部链接</Button>
+                               <Button variant="ghost" className="rounded-b-none border-b-2 border-primary">API 接口</Button>
                             </div>
                             <div className="flex items-center gap-2">
                                 <Button variant="outline" disabled><Upload className="mr-2"/> 导入</Button>
@@ -96,8 +96,8 @@ export default function PublicResourcesPage() {
                                         </TableCell>
                                         <TableCell>{getStatusBadge(item.status)}</TableCell>
                                         <TableCell>
-                                            <Button variant="link" size="sm" asChild className="p-0 h-auto">
-                                                <a href={item.docsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm pointer-events-none text-primary/50">
+                                            <Button variant="link" size="sm" asChild className="p-0 h-auto" disabled>
+                                                <a href={item.docsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm">
                                                     查看文档 <Link className="w-3 h-3"/>
                                                 </a>
                                             </Button>
@@ -122,5 +122,3 @@ export default function PublicResourcesPage() {
         </AppLayout>
     );
 }
-
-    
