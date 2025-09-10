@@ -15,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Paperclip, Send, X, Bot, User, BrainCircuit, Sparkles, Building, Loader2, FilePlus2, Gift } from 'lucide-react';
+import { Paperclip, Send, X, Bot, User, BrainCircuit, Sparkles, Building, Loader2, FilePlus2, Gift, ExternalLink } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -172,7 +172,7 @@ export function ShoppingAssistant() {
                             )}
                             {messages.map((msg) => {
                                 if (msg.type === 'user') return <UserMessage key={msg.id} {...msg} />;
-                                if (msg.type === 'ai') return <AIMessage key={msg.id} {...msg} />;
+                                if (msg.type === 'ai') return <AIMessage key={msg.id} />;
                                 if (msg.type === 'loading') return <LoadingMessage key={msg.id} />;
                                 return null;
                             })}
@@ -226,7 +226,7 @@ export function ShoppingAssistant() {
                                 render={({ field }) => (
                                 <FormItem className="flex-1">
                                     <FormControl>
-                                    <Textarea placeholder="我想要一个适合在办公室使用的降噪耳机..." {...field} rows={1} />
+                                    <Textarea placeholder="例如: 我想找一个送给科幻迷的礼物..." {...field} rows={1} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -287,23 +287,33 @@ const UserMessage = ({ text, imageUrl }: Message) => (
   </div>
 );
 
-const AIMessage = ({ profile, recommendations }: Message) => (
-  <div className="flex items-start gap-3">
-    <Bot className="w-8 h-8 text-accent flex-shrink-0" />
-    <div className="bg-card rounded-lg p-3 max-w-sm border space-y-4">
-      <p>这是我为您找到的结果:</p>
-      {profile && <UserProfileDisplay profile={profile} />}
-      {recommendations && recommendations.length > 0 && <RecommendationsDisplay recommendations={recommendations} />}
+const AIMessage = ({ profile, recommendations }: Message) => {
+  const router = useRouter();
+
+  return (
+    <div className="flex items-start gap-3">
+        <Bot className="w-8 h-8 text-accent flex-shrink-0" />
+        <div className="bg-card rounded-lg p-3 max-w-sm border space-y-4">
+            <p>这是我为您找到的结果:</p>
+            {profile && <UserProfileDisplay profile={profile} />}
+            {recommendations && recommendations.length > 0 && <RecommendationsDisplay recommendations={recommendations} />}
+            {recommendations && recommendations.length > 0 && (
+                <div className="text-center text-sm text-muted-foreground pt-2">
+                    <p>没有找到满意的结果？</p>
+                    <Button variant="link" className="h-auto p-0" onClick={() => router.push('/demand-pool')}>发布到需求池</Button>
+                </div>
+            )}
+        </div>
     </div>
-  </div>
-);
+  )
+};
 
 const UserProfileDisplay = ({ profile }: { profile: UserProfile }) => (
     <Card className="bg-background">
         <CardHeader className="p-3">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
                 <BrainCircuit className="w-5 h-5 text-accent"/>
-                生成的用户画像
+                推荐理由
             </CardTitle>
         </CardHeader>
         <CardContent className="p-3 pt-0">
@@ -318,22 +328,24 @@ const UserProfileDisplay = ({ profile }: { profile: UserProfile }) => (
 const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductService[] }) => (
     <div>
         <h4 className="font-semibold mb-2 flex items-center gap-2"><Sparkles className="w-5 h-5 text-amber-500" /> 首要推荐</h4>
-        <div className="space-y-2">
+        <div className="space-y-3">
             {recommendations.map((rec) => (
                 <Card key={rec.id} className="overflow-hidden">
                    <div className="aspect-video relative w-full">
                      <Image src={`https://picsum.photos/seed/${rec.id}/300/200`} alt={rec.name} fill style={{objectFit: "cover"}} data-ai-hint="product design"/>
                    </div>
                    <div className="p-3">
-                        <h5 className="font-semibold truncate">{rec.name}</h5>
-                        <p className="text-sm text-muted-foreground truncate">{rec.description}</p>
-                        <p className="font-bold text-right mt-2">¥{rec.price.toLocaleString()}</p>
-                   </div>
-                   <CardFooter className="p-3 bg-muted/50">
-                        <div className="flex w-full justify-end gap-2">
-                            <Button size="sm" variant="secondary">查看详情</Button>
-                            <Button size="sm" onClick={() => rec.purchaseUrl && window.open(rec.purchaseUrl, '_blank')}>立即购买</Button>
+                        <div className='flex justify-between items-start'>
+                            <h5 className="font-semibold truncate pr-2">{rec.name}</h5>
+                            <p className="font-bold text-right text-primary whitespace-nowrap">¥{rec.price.toLocaleString()}</p>
                         </div>
+                        <p className="text-sm text-muted-foreground truncate mt-1">{rec.description}</p>
+                   </div>
+                   <CardFooter className="p-3 bg-muted/50 flex w-full justify-end gap-2">
+                        <Button size="sm" variant="secondary">查看详情</Button>
+                        <Button size="sm" onClick={() => rec.purchaseUrl && window.open(rec.purchaseUrl, '_blank')}>
+                            立即购买 <ExternalLink className="ml-1.5"/>
+                        </Button>
                    </CardFooter>
                 </Card>
             ))}
@@ -395,3 +407,5 @@ const DemandPoolConnector = () => {
         </Card>
     );
 }
+
+    

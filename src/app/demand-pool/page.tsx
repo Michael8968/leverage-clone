@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/dialog';
 import type { Demand, ProductService } from '@/lib/types';
 import { useAuthStore } from '@/store/auth';
-import { PlusCircle, Sparkles, BrainCircuit, Loader2 } from 'lucide-react';
+import { PlusCircle, Sparkles, BrainCircuit, Loader2, MessageSquare, Check, Search, Filter } from 'lucide-react';
 import { recommendCreatives } from '@/ai/flows/demand-matching';
 import type { RecommendCreativesOutput } from '@/ai/flows/demand-matching';
 import { useToast } from '@/hooks/use-toast';
@@ -32,6 +32,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { db } from '@/lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
+import { Input } from '@/components/ui/input';
+import { format } from 'date-fns';
 
 export default function DemandPoolPage() {
   const [demands, setDemands] = useState<Demand[]>([]);
@@ -47,7 +49,15 @@ export default function DemandPoolPage() {
       try {
         const demandsCollection = collection(db, 'demands');
         const demandSnapshot = await getDocs(demandsCollection);
-        const demandsList = demandSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Demand));
+        const demandsList = demandSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return { 
+                id: doc.id, 
+                ...data,
+                // Convert Firestore timestamp or string to Date object
+                createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt),
+            } as Demand
+        });
         setDemands(demandsList);
       } catch (error) {
         console.error("Error fetching demands from Firestore:", error);
@@ -91,25 +101,41 @@ export default function DemandPoolPage() {
     <AppLayout>
       <div className="p-4 md:p-8">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-headline font-bold">需求池</h1>
-          <Button>
-            <PlusCircle className="mr-2" />
-            发布新需求
-          </Button>
+          <div>
+            <h1 className="text-2xl font-headline font-bold">需求池</h1>
+            <p className="text-muted-foreground">平台可用AI智能推送需求给供应商或创作者，供应商和创作者也可以在公共需求池中找需求，需求发布者决定与哪个供应商或创作者合作。</p>
+          </div>
         </div>
         <Card>
           <CardHeader>
-            <CardTitle className="font-headline">需求列表</CardTitle>
+            <CardTitle className="font-headline">公开需求列表</CardTitle>
             <CardDescription>
-              浏览、管理和匹配平台上的所有需求。
-              {role === 'admin' && ' 您可以为选中的需求启动AI匹配。'}
+              查看所有已发布的需求，寻找与您业务相关的机会。
             </CardDescription>
-            {role === 'admin' && selectedRows.length > 0 && (
-                 <Button onClick={handleBatchRecommendClick} size="sm" className="w-fit">
-                    <Sparkles className="mr-2" />
-                    为选中的 {selectedRows.length} 项批量推荐
+             <div className="flex items-center justify-between pt-4">
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input placeholder="搜索需求标题或标签..." className="pl-8 w-64" />
+                </div>
+                <Button variant="outline">
+                  <Filter className="mr-2" />
+                  筛选
                 </Button>
-            )}
+              </div>
+              <div className='flex items-center gap-2'>
+                {role === 'admin' && selectedRows.length > 0 && (
+                    <Button onClick={handleBatchRecommendClick} size="sm">
+                        <Sparkles className="mr-2" />
+                        为选中的 {selectedRows.length} 项批量推荐
+                    </Button>
+                )}
+                <Button>
+                  <PlusCircle className="mr-2" />
+                  发布新需求
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <Table>
@@ -124,12 +150,12 @@ export default function DemandPoolPage() {
                       />
                     </TableHead>
                   )}
-                  <TableHead>标题</TableHead>
+                  <TableHead>需求标题</TableHead>
+                  <TableHead>预算</TableHead>
                   <TableHead>类别</TableHead>
-                  <TableHead>预算 (元)</TableHead>
                   <TableHead>状态</TableHead>
-                  <TableHead>创建日期</TableHead>
-                  {role === 'admin' && <TableHead className="text-right">操作</TableHead>}
+                  <TableHead>发布日期</TableHead>
+                  <TableHead className="text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -142,7 +168,7 @@ export default function DemandPoolPage() {
                       <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                      {role === 'admin' && <TableCell className="text-right"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>}
+                      <TableCell className="text-right"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
                     </TableRow>
                   ))
                 ) : demands.length === 0 ? (
@@ -163,22 +189,27 @@ export default function DemandPoolPage() {
                         </TableCell>
                       )}
                       <TableCell className="font-medium">{demand.title}</TableCell>
+                      <TableCell>¥{demand.budget.toLocaleString()}</TableCell>
                       <TableCell>{demand.category}</TableCell>
-                      <TableCell>{demand.budget.toLocaleString()}</TableCell>
                       <TableCell>
                         <Badge variant={demand.status === '开放中' ? 'default' : 'secondary'}>
                           {demand.status}
                         </Badge>
                       </TableCell>
-                      <TableCell>{demand.createdAt}</TableCell>
-                      {role === 'admin' && (
-                        <TableCell className="text-right">
-                          <Button variant="ghost" size="sm" onClick={() => handleRecommendClick(demand)}>
-                            <Sparkles className="mr-2 h-4 w-4" />
-                            AI推荐
-                          </Button>
-                        </TableCell>
-                      )}
+                      <TableCell>{format(demand.createdAt, 'yyyy-MM-dd')}</TableCell>
+                      <TableCell className="text-right">
+                        {demand.status === '开放中' ? (
+                            <Button variant="ghost" size="sm">
+                                <MessageSquare className="mr-2 h-4 w-4" />
+                                开始沟通
+                            </Button>
+                        ) : (
+                            <div className='flex items-center justify-end gap-2 text-muted-foreground'>
+                               <Check className="h-4 w-4"/>
+                               已完成
+                            </div>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
