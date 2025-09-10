@@ -24,6 +24,7 @@ export type ProductService = {
   description: string;
   price: number;
   category: string;
+  supplierId?: string;
 };
 
     
