@@ -28,10 +28,19 @@ export type ProductService = {
   category: string;
   supplierId?: string;
   supplierName?: string;
+  supplierScore?: number;
   purchaseUrl?: string;
   sku?: string;
   supplementaryFields?: SupplementaryField[];
 };
+
+export type Supplier = {
+  id: string;
+  name: string;
+  category: string;
+  matchScore: number;
+  recommendation: string;
+}
 
 export type UserProfile = {
   summary: string;

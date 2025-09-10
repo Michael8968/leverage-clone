@@ -22,7 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import type { Demand, ProductService } from '@/lib/types';
+import type { Demand, Supplier } from '@/lib/types';
 import { useAuthStore } from '@/store/auth';
 import { PlusCircle, Sparkles, BrainCircuit, Loader2, MessageSquare, Check, Search, Filter } from 'lucide-react';
 import { recommendCreatives, type Creative } from '@/ai/flows/demand-matching';
@@ -320,7 +320,7 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
           const suppliersCollection = collection(db, 'suppliers');
           const supplierSnapshot = await getDocs(suppliersCollection);
           const suppliersList: Creative[] = supplierSnapshot.docs.map(doc => {
-              const data = doc.data();
+              const data = doc.data() as Supplier;
               return { id: doc.id, name: data.name, description: data.recommendation, category: data.category };
           });
           

@@ -15,13 +15,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Paperclip, Send, X, Bot, User, BrainCircuit, Sparkles, Building, Loader2, FilePlus2, Gift, ExternalLink, ArrowRight } from 'lucide-react';
+import { Paperclip, Send, X, Bot, User, BrainCircuit, Sparkles, Building, Loader2, FilePlus2, Gift, ExternalLink, ArrowRight, Star } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { db } from '@/lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
-import type { ProductService } from '@/lib/types';
+import type { ProductService, Supplier } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
@@ -34,13 +34,6 @@ type Message = {
     profile?: UserProfile;
     recommendations?: ProductService[];
 };
-
-type Supplier = {
-    id: string;
-    name: string;
-    category: string;
-    matchScore?: number;
-}
 
 const formSchema = z.object({
   description: z.string().min(1, { message: '请输入您的需求描述。' }),
@@ -143,7 +136,7 @@ export function ShoppingAssistant() {
         const recommendedProducts = products.filter(p => productResult.recommendations.includes(p.id))
           .map(p => {
               const supplier = suppliers.find(s => s.id === p.supplierId);
-              return { ...p, supplierName: supplier?.name };
+              return { ...p, supplierName: supplier?.name, supplierScore: supplier?.matchScore };
           });
 
 
@@ -351,6 +344,18 @@ const UserProfileDisplay = ({ profile }: { profile: UserProfile }) => (
     </Card>
 );
 
+const StarRating = ({ score }: { score: number }) => {
+    const totalStars = 5;
+    const filledStars = Math.round((score / 100) * totalStars);
+    return (
+        <div className="flex items-center">
+            {Array.from({ length: totalStars }).map((_, i) => (
+                <Star key={i} className={`w-3 h-3 ${i < filledStars ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
+            ))}
+        </div>
+    )
+}
+
 const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductService[] }) => (
     <div>
         <h4 className="font-semibold mb-2 flex items-center gap-2"><Sparkles className="w-5 h-5 text-amber-500" /> 首要推荐</h4>
@@ -364,7 +369,12 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
                         <div className='flex justify-between items-start gap-2'>
                            <div>
                             <h5 className="font-semibold truncate pr-2">{rec.name}</h5>
-                            {rec.supplierName && <p className="text-xs text-muted-foreground">由 {rec.supplierName} 提供</p>}
+                             {rec.supplierName && (
+                                <div className="flex items-center gap-2">
+                                    <p className="text-xs text-muted-foreground">由 {rec.supplierName} 提供</p>
+                                    {rec.supplierScore && <StarRating score={rec.supplierScore} />}
+                                </div>
+                            )}
                            </div>
                             <p className="font-bold text-right text-primary whitespace-nowrap">¥{rec.price.toLocaleString()}</p>
                         </div>
