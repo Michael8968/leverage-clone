@@ -8,13 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { RadioTower } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-type Designer = {
+export type Designer = {
   id: string;
   name: string;
   avatar: string;
@@ -110,7 +110,3 @@ export default function DesignersPage() {
     </AppLayout>
   );
 }
-
-    
-
-    

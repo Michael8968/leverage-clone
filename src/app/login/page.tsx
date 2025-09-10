@@ -1,64 +1,127 @@
 
 'use client';
 
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { getUserForRole, useAuthStore, Role } from '@/store/auth';
 import { Logo } from '@/components/logo';
-import { Users, Building, Bot, PenSquare } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertTriangle, Loader2 } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import Link from 'next/link';
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { db } from '@/lib/firebase';
+import { useToast } from '@/hooks/use-toast';
 
-const roleProfiles: { role: Role, name: string, description: string, icon: ReactNode }[] = [
-  { role: 'admin', name: '管理员', description: '管理平台所有功能和数据', icon: <Users className="w-8 h-8" /> },
-  { role: 'supplier', name: '供应商', description: '管理商品、服务和订单', icon: <Building className="w-8 h-8" /> },
-  { role: 'user', name: '普通用户', description: '体验AI购物助手和浏览商品', icon: <Bot className="w-8 h-8" /> },
-  { role: 'creator', name: '创作者', description: '参与创意项目和需求匹配', icon: <PenSquare className="w-8 h-8" /> },
-];
+const formSchema = z.object({
+  email: z.string().email({ message: '请输入有效的邮箱地址。' }),
+  password: z.string().min(6, { message: '密码至少需要6个字符。' }),
+});
 
 export default function LoginPage() {
   const router = useRouter();
-  const login = useAuthStore((state) => state.login);
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
+  
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
 
-  const handleLogin = (role: Role) => {
-    const userToLogin = getUserForRole(role);
-    login(userToLogin);
-    router.push('/');
+  const handleLogin = (values: z.infer<typeof formSchema>) => {
+    setError(null);
+    startTransition(async () => {
+      try {
+        const auth = getAuth();
+        await signInWithEmailAndPassword(auth, values.email, values.password);
+        toast({
+          title: '登录成功',
+          description: '欢迎回来！即将跳转到主页。',
+        });
+        router.push('/dashboard');
+        router.refresh();
+      } catch (e: any) {
+        if (e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
+          setError('邮箱或密码不正确，请重试。');
+        } else {
+          setError('发生未知错误，请稍后再试。');
+          console.error(e);
+        }
+      }
+    });
   };
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-      <div className="mb-8 flex items-center gap-2 text-2xl font-headline font-semibold whitespace-nowrap">
-        <Logo />
-        <h1 className="font-headline">Leverage&nbsp;力维利治</h1>
-      </div>
-      <p className="mb-10 text-muted-foreground">请选择一个角色以登录系统</p>
-
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {roleProfiles.map(({ role, name, description, icon }) => {
-          const user = getUserForRole(role);
-          return (
-            <Card key={role} className="w-full max-w-sm text-center transform hover:scale-105 transition-transform duration-300 shadow-lg">
-              <CardHeader>
-                <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  {icon}
+       <div className="w-full max-w-md">
+        <div className="mb-8 flex flex-col items-center gap-2 text-2xl font-headline font-semibold whitespace-nowrap">
+            <Logo />
+            <h1 className="font-headline text-3xl">Leverage&nbsp;力维利治</h1>
+        </div>
+        <Card>
+            <CardHeader>
+                <CardTitle className="font-headline text-2xl">登录</CardTitle>
+                <CardDescription>欢迎回来，请输入您的凭据以继续。</CardDescription>
+            </Header>
+            <CardContent>
+                 <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleLogin)} className="space-y-6">
+                        {error && (
+                            <Alert variant="destructive">
+                                <AlertTriangle className="h-4 w-4" />
+                                <AlertTitle>登录失败</AlertTitle>
+                                <AlertDescription>{error}</AlertDescription>
+                            </Alert>
+                        )}
+                        <FormField
+                            control={form.control}
+                            name="email"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>邮箱</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="name@example.com" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="password"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>密码</FormLabel>
+                                    <FormControl>
+                                        <Input type="password" placeholder="••••••••" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <Button type="submit" disabled={isPending} className="w-full">
+                            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            登录
+                        </Button>
+                    </form>
+                </Form>
+                 <div className="mt-6 text-center text-sm">
+                    还没有账户？{' '}
+                    <Link href="/register" className="underline">
+                        立即注册
+                    </Link>
                 </div>
-                <CardTitle className="font-headline text-xl">{name}</CardTitle>
-                <CardDescription>{description}</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col items-center gap-4">
-                <Avatar>
-                  <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-                </Avatar>
-                <Button onClick={() => handleLogin(role)} className="w-full">
-                  以 {name} 身份登录
-                </Button>
-              </CardContent>
-            </Card>
-          );
-        })}
+            </CardContent>
+        </Card>
       </div>
     </div>
   );

@@ -3,88 +3,34 @@
 
 import { AppLayout } from '@/components/app-layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ShieldCheck, MoreHorizontal, Star, Check, X, UserX, Trash2 } from 'lucide-react';
+import { ShieldCheck, MoreHorizontal, Star, UserX, Trash2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import type { User, Role } from '@/store/auth';
+import { useEffect, useState } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
 
-
-const users = [
-    {
-        name: '李明 (管理员)',
-        email: 'admin@example.com',
-        avatar: 'https://picsum.photos/seed/admin/40/40',
-        role: '管理员',
-        status: '正常',
-        rating: 5,
-    },
-    {
-        name: '创新科技 (供应商)',
-        email: 'supplier@example.com',
-        avatar: 'https://picsum.photos/seed/supplier/40/40',
-        role: '供应商',
-        status: '待处理',
-        rating: 4,
-    },
-    {
-        name: '张伟 (普通用户)',
-        email: 'user@example.com',
-        avatar: 'https://picsum.photos/seed/user/40/40',
-        role: '普通用户',
-        status: '正常',
-        rating: 3,
-    },
-    {
-        name: '王芳 (创意者)',
-        email: 'creator@example.com',
-        avatar: 'https://picsum.photos/seed/creator/40/40',
-        role: '创意者',
-        status: '正常',
-        rating: 5,
-    },
-    {
-        name: '问题用户',
-        email: 'suspended@example.com',
-        avatar: 'https://picsum.photos/seed/suspended/40/40',
-        role: '普通用户',
-        status: '已暂停',
-        rating: 1,
-    }
-];
-
-const RoleBadge = ({ role, status }: { role: string, status: string }) => {
-    const roleColor = () => {
-        switch(role) {
-            case '管理员': return 'bg-red-500 hover:bg-red-600';
-            case '供应商': return 'bg-blue-500 hover:bg-blue-600';
-            case '创意者': return 'bg-green-500 hover:bg-green-600';
-            case '普通用户': return 'bg-gray-500 hover:bg-gray-600';
-            default: return 'bg-gray-500 hover:bg-gray-600';
-        }
+const RoleBadge = ({ role }: { role: Role }) => {
+    const roleConfig = {
+        admin: { label: '管理员', color: 'bg-red-500 hover:bg-red-600' },
+        supplier: { label: '供应商', color: 'bg-blue-500 hover:bg-blue-600' },
+        creator: { label: '创意者', color: 'bg-green-500 hover:bg-green-600' },
+        user: { label: '普通用户', color: 'bg-gray-500 hover:bg-gray-600' },
     };
-    
-    const statusBadge = () => {
-        switch(status) {
-            case '正常': return <Badge variant="default" className="bg-green-100 text-green-800 border-green-200">{status}</Badge>;
-            case '待处理': return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-200">{status}</Badge>;
-            case '已暂停':
-            case '已停用': 
-                return <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-200">{status}</Badge>;
-            default: return <Badge variant="outline">{status}</Badge>;
-        }
-    }
 
-    return (
-        <div className="flex gap-2 items-center">
-            <Badge className={roleColor()}>{role}</Badge>
-            {statusBadge()}
-        </div>
-    )
-}
+    const { label, color } = roleConfig[role] || { label: role, color: 'bg-gray-400' };
 
-const StarRating = ({ rating }: { rating: number }) => {
+    return <Badge className={color}>{label}</Badge>;
+};
+
+
+const StarRating = ({ rating = 0 }: { rating?: number }) => {
     return (
         <div className="flex items-center">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -96,6 +42,34 @@ const StarRating = ({ rating }: { rating: number }) => {
 
 
 export default function PermissionsPage() {
+    const [users, setUsers] = useState<User[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const { toast } = useToast();
+
+    useEffect(() => {
+        const fetchUsers = async () => {
+            setIsLoading(true);
+            try {
+                const usersCollection = collection(db, 'users');
+                const q = query(usersCollection, orderBy('email'));
+                const usersSnapshot = await getDocs(q);
+                const usersList = usersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+                setUsers(usersList);
+            } catch (error) {
+                console.error("Error fetching users:", error);
+                toast({
+                    title: '加载失败',
+                    description: '无法加载用户列表，请稍后重试。',
+                    variant: 'destructive',
+                });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchUsers();
+    }, [toast]);
+
+
   return (
     <AppLayout>
       <div className="p-4 md:p-8 space-y-8">
@@ -120,71 +94,67 @@ export default function PermissionsPage() {
                         <TableHead>邮箱</TableHead>
                         <TableHead>角色</TableHead>
                         <TableHead>星级</TableHead>
-                        <TableHead>新角色</TableHead>
                         <TableHead className="text-right">操作</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {users.map(user => (
-                        <TableRow key={user.email}>
-                            <TableCell>
-                                <div className="flex items-center gap-3">
-                                    <Avatar className="w-8 h-8">
-                                        <AvatarImage src={user.avatar} alt={user.name} />
-                                        <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-                                    </Avatar>
-                                    <span className="font-medium">{user.name}</span>
-                                </div>
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">{user.email}</TableCell>
-                            <TableCell>
-                                <RoleBadge role={user.role} status={user.status} />
-                            </TableCell>
-                            <TableCell>
-                                <StarRating rating={user.rating}/>
-                            </TableCell>
-                            <TableCell>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" className="w-[120px] justify-between">
-                                            {user.role} <MoreHorizontal className="w-4 h-4 ml-2" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent className="w-40">
-                                        <DropdownMenuItem disabled>管理员</DropdownMenuItem>
-                                        <DropdownMenuItem disabled>供应商</DropdownMenuItem>
-                                        <DropdownMenuItem disabled>普通用户</DropdownMenuItem>
-                                        <DropdownMenuItem disabled>创意者</DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </TableCell>
-                            <TableCell className="text-right">
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon">
-                                            <MoreHorizontal className="w-4 h-4"/>
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                        <DropdownMenuItem disabled>
-                                            <Check className="mr-2"/> 保存角色
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem disabled>
-                                            <UserX className="mr-2"/> 设为暂停
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem disabled>
-                                            <X className="mr-2"/> 加入黑名单
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem className="text-destructive" disabled>
-                                            <Trash2 className="mr-2"/> 删除用户
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
+                    {isLoading ? (
+                         Array.from({ length: 4 }).map((_, i) => (
+                            <TableRow key={i}>
+                                <TableCell><div className="flex items-center gap-3"><Skeleton className="h-8 w-8 rounded-full" /><Skeleton className="h-4 w-24" /></div></TableCell>
+                                <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                                <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
+                                <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                                <TableCell className="text-right"><Skeleton className="h-8 w-8 rounded-md ml-auto" /></TableCell>
+                            </TableRow>
+                        ))
+                    ) : users.length === 0 ? (
+                        <TableRow>
+                            <TableCell colSpan={5} className="h-24 text-center">
+                            数据库中暂无用户。
                             </TableCell>
                         </TableRow>
-                    ))}
+                    ) : (
+                        users.map(user => (
+                            <TableRow key={user.id}>
+                                <TableCell>
+                                    <div className="flex items-center gap-3">
+                                        <Avatar className="w-8 h-8">
+                                            <AvatarImage src={user.avatar} alt={user.name} />
+                                            <AvatarFallback>{user.name ? user.name.charAt(0) : user.email.charAt(0)}</AvatarFallback>
+                                        </Avatar>
+                                        <span className="font-medium">{user.name || '未命名'}</span>
+                                    </div>
+                                </TableCell>
+                                <TableCell className="text-muted-foreground">{user.email}</TableCell>
+                                <TableCell>
+                                    <RoleBadge role={user.role} />
+                                </TableCell>
+                                <TableCell>
+                                    <StarRating rating={5}/>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="icon">
+                                                <MoreHorizontal className="w-4 h-4"/>
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem disabled>
+                                                <UserX className="mr-2"/> 设为暂停
+                                            </DropdownMenuItem>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem className="text-destructive" disabled>
+                                                <Trash2 className="mr-2"/> 删除用户
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </TableCell>
+                            </TableRow>
+                        ))
+                    )}
                 </TableBody>
             </Table>
           </CardContent>
@@ -193,5 +163,3 @@ export default function PermissionsPage() {
     </AppLayout>
   );
 }
-
-    
