@@ -3,12 +3,13 @@
 
 import { AppLayout } from '@/components/app-layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ShieldCheck, MoreHorizontal, Star } from 'lucide-react';
+import { ShieldCheck, MoreHorizontal, Star, Check, X, UserX, Trash2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+
 
 const users = [
     {
@@ -24,7 +25,7 @@ const users = [
         email: 'supplier@example.com',
         avatar: 'https://picsum.photos/seed/supplier/40/40',
         role: '供应商',
-        status: '正常',
+        status: '待处理',
         rating: 4,
     },
     {
@@ -48,27 +49,37 @@ const users = [
         email: 'suspended@example.com',
         avatar: 'https://picsum.photos/seed/suspended/40/40',
         role: '普通用户',
-        status: '已停用',
+        status: '已暂停',
         rating: 1,
     }
 ];
 
 const RoleBadge = ({ role, status }: { role: string, status: string }) => {
-    const isSuspended = status === '已停用';
     const roleColor = () => {
         switch(role) {
             case '管理员': return 'bg-red-500 hover:bg-red-600';
             case '供应商': return 'bg-blue-500 hover:bg-blue-600';
-            case '普通用户': return 'bg-gray-500 hover:bg-gray-600';
             case '创意者': return 'bg-green-500 hover:bg-green-600';
+            case '普通用户': return 'bg-gray-500 hover:bg-gray-600';
             default: return 'bg-gray-500 hover:bg-gray-600';
+        }
+    };
+    
+    const statusBadge = () => {
+        switch(status) {
+            case '正常': return <Badge variant="default" className="bg-green-100 text-green-800 border-green-200">{status}</Badge>;
+            case '待处理': return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-200">{status}</Badge>;
+            case '已暂停':
+            case '已停用': 
+                return <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-200">{status}</Badge>;
+            default: return <Badge variant="outline">{status}</Badge>;
         }
     }
 
     return (
         <div className="flex gap-2 items-center">
-            <Badge className={isSuspended ? 'bg-gray-400' : roleColor()}>{role}</Badge>
-            <Badge variant={isSuspended ? 'destructive' : 'outline'}>{status}</Badge>
+            <Badge className={roleColor()}>{role}</Badge>
+            {statusBadge()}
         </div>
     )
 }
@@ -133,22 +144,44 @@ export default function PermissionsPage() {
                                 <StarRating rating={user.rating}/>
                             </TableCell>
                             <TableCell>
-                                <Select defaultValue={user.role}>
-                                    <SelectTrigger className="w-[120px]">
-                                        <SelectValue placeholder="选择角色" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="管理员">管理员</SelectItem>
-                                        <SelectItem value="供应商">供应商</SelectItem>
-                                        <SelectItem value="普通用户">普通用户</SelectItem>
-                                        <SelectItem value="创意者">创意者</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" className="w-[120px] justify-between">
+                                            {user.role} <MoreHorizontal className="w-4 h-4 ml-2" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="w-40">
+                                        <DropdownMenuItem>管理员</DropdownMenuItem>
+                                        <DropdownMenuItem>供应商</DropdownMenuItem>
+                                        <DropdownMenuItem>普通用户</DropdownMenuItem>
+                                        <DropdownMenuItem>创意者</DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </TableCell>
                             <TableCell className="text-right">
-                                <Button variant="ghost" size="icon">
-                                    <MoreHorizontal className="w-4 h-4"/>
-                                </Button>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon">
+                                            <MoreHorizontal className="w-4 h-4"/>
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem>
+                                            <Check className="mr-2"/> 保存角色
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem>
+                                            <UserX className="mr-2"/> 设为暂停
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem>
+                                            <X className="mr-2"/> 加入黑名单
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem className="text-destructive">
+                                            <Trash2 className="mr-2"/> 删除用户
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </TableCell>
                         </TableRow>
                     ))}
