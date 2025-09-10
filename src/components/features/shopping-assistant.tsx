@@ -15,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Paperclip, Send, X, Bot, User, BrainCircuit, Sparkles, Building, Loader2, FilePlus2, Gift, ExternalLink } from 'lucide-react';
+import { Paperclip, Send, X, Bot, User, BrainCircuit, Sparkles, Building, Loader2, FilePlus2, Gift, ExternalLink, ArrowRight } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -172,7 +172,7 @@ export function ShoppingAssistant() {
                             )}
                             {messages.map((msg) => {
                                 if (msg.type === 'user') return <UserMessage key={msg.id} {...msg} />;
-                                if (msg.type === 'ai') return <AIMessage key={msg.id} />;
+                                if (msg.type === 'ai') return <AIMessage key={msg.id} {...msg} />;
                                 if (msg.type === 'loading') return <LoadingMessage key={msg.id} />;
                                 return null;
                             })}
@@ -269,6 +269,7 @@ export function ShoppingAssistant() {
                 </CardFooter>
             </Card>
             <div className="flex flex-col gap-8">
+              {role === 'creator' && <CreatorWorkbenchConnector />}
               <CustomServiceConnector />
               {role === 'user' && hasAiResponse && <DemandPoolConnector />}
             </div>
@@ -368,6 +369,20 @@ const LoadingMessage = () => (
     </div>
 );
 
+const CreatorWorkbenchConnector = () => {
+    const router = useRouter();
+    return (
+        <Card className="bg-primary/10 border-primary text-primary-foreground">
+             <CardContent className="p-6 flex items-center justify-between">
+                <p className='font-headline'>准备好开始创作了吗？</p>
+                <Button variant="default" onClick={() => router.push('/creator-workbench')}>
+                    进入创作者工作台 <ArrowRight className="ml-2"/>
+                </Button>
+            </CardContent>
+        </Card>
+    )
+}
+
 const CustomServiceConnector = () => {
     const router = useRouter();
 
@@ -376,10 +391,7 @@ const CustomServiceConnector = () => {
             <CardHeader>
                 <CardTitle className="font-headline flex items-center gap-2"><Building/> 高端定制服务</CardTitle>
                 <CardDescription>
-                    将您的构想变为现实,我们的签约合作方将为您提供专属设计服务。<br/>
-                    - 从草图到3D模型的转化<br/>
-                    - 从创意到原型样品制作<br/>
-                    - 依需求批量加工制作
+                    将您的构想变为现实，我们的签约合作方将为您提供专属设计服务，与专业3D艺术家沟通。
                 </CardDescription>
             </CardHeader>
             <CardContent className="flex-1 flex items-center justify-center min-h-[100px]">
@@ -407,5 +419,7 @@ const DemandPoolConnector = () => {
         </Card>
     );
 }
+
+    
 
     
