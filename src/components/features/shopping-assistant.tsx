@@ -343,7 +343,7 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
                         <p className="text-sm text-muted-foreground truncate mt-1">{rec.description}</p>
                    </div>
                    <CardFooter className="p-3 bg-muted/50 flex w-full justify-end gap-2">
-                        <Button size="sm" variant="secondary">查看详情</Button>
+                        <Button size="sm" variant="secondary" disabled>查看详情</Button>
                         <Button size="sm" onClick={() => rec.purchaseUrl && window.open(rec.purchaseUrl, '_blank')}>
                             立即购买 <ExternalLink className="ml-1.5"/>
                         </Button>
@@ -395,7 +395,7 @@ const CustomServiceConnector = () => {
                 </CardDescription>
             </CardHeader>
             <CardContent className="flex-1 flex items-center justify-center min-h-[100px]">
-                <Button variant="accent" onClick={() => router.push('/suppliers')}>
+                <Button variant="accent" onClick={() => router.push('/designers')}>
                     预约设计师(付费) →
                 </Button>
             </CardContent>
@@ -419,7 +419,3 @@ const DemandPoolConnector = () => {
         </Card>
     );
 }
-
-    
-
-    

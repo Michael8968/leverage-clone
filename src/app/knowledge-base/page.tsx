@@ -25,7 +25,6 @@ export default function KnowledgeBasePage() {
         const fetchKnowledgeItems = async () => {
             setIsLoading(true);
             try {
-                // The knowledge base is essentially the product/service database.
                 const productsCollection = collection(db, 'products');
                 const productSnapshot = await getDocs(productsCollection);
                 const productsList = productSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ProductService));
@@ -71,7 +70,7 @@ export default function KnowledgeBasePage() {
                                     筛选
                                 </Button>
                             </div>
-                            <Button>
+                            <Button disabled>
                                 <PlusCircle className="mr-2" />
                                 新增条目
                             </Button>
@@ -116,10 +115,10 @@ export default function KnowledgeBasePage() {
                                         <TableCell>{format(new Date(), 'yyyy-MM-dd')}</TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex items-center justify-end gap-2">
-                                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                <Button variant="ghost" size="icon" className="h-8 w-8" disabled>
                                                     <Edit className="h-4 w-4" />
                                                 </Button>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" disabled>
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
                                             </div>

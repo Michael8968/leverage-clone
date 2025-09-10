@@ -32,11 +32,11 @@ function CompanyInfoForm() {
       <CardContent className="space-y-8">
         <div className="space-y-4">
             <h3 className="font-medium">供应商LOGO</h3>
-            <Button variant="outline"><Upload className="mr-2"/> 上传图片</Button>
+            <Button variant="outline" disabled><Upload className="mr-2"/> 上传图片</Button>
         </div>
         <div className="space-y-4">
             <h3 className="font-medium">营业执照</h3>
-            <Button variant="outline"><Upload className="mr-2"/> 上传文件</Button>
+            <Button variant="outline" disabled><Upload className="mr-2"/> 上传文件</Button>
         </div>
         
         <Separator/>
@@ -59,7 +59,7 @@ function CompanyInfoForm() {
         <SupplementaryFieldsManager fields={fields} onFieldsChange={setFields} title="补充内容" />
         
         <div className="flex justify-end">
-           <Button>保存基本信息</Button>
+           <Button disabled>保存基本信息</Button>
        </div>
       </CardContent>
     </Card>
@@ -285,7 +285,7 @@ function ProductServiceItem({ product, onUpdate, onRemove }: {
 
       <div className="space-y-4">
         <h4 className="font-semibold">相关媒体</h4>
-        <Button variant="outline"><Upload className="mr-2"/> 上传文件</Button>
+        <Button variant="outline" disabled><Upload className="mr-2"/> 上传文件</Button>
       </div>
 
       <SupplementaryFieldsManager fields={localProduct.supplementaryFields || []} onFieldsChange={handleFieldsChange} title="详细介绍产品或服务" />

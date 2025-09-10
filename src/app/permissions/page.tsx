@@ -151,10 +151,10 @@ export default function PermissionsPage() {
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent className="w-40">
-                                        <DropdownMenuItem>管理员</DropdownMenuItem>
-                                        <DropdownMenuItem>供应商</DropdownMenuItem>
-                                        <DropdownMenuItem>普通用户</DropdownMenuItem>
-                                        <DropdownMenuItem>创意者</DropdownMenuItem>
+                                        <DropdownMenuItem disabled>管理员</DropdownMenuItem>
+                                        <DropdownMenuItem disabled>供应商</DropdownMenuItem>
+                                        <DropdownMenuItem disabled>普通用户</DropdownMenuItem>
+                                        <DropdownMenuItem disabled>创意者</DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             </TableCell>
@@ -166,18 +166,18 @@ export default function PermissionsPage() {
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
-                                        <DropdownMenuItem>
+                                        <DropdownMenuItem disabled>
                                             <Check className="mr-2"/> 保存角色
                                         </DropdownMenuItem>
                                         <DropdownMenuSeparator />
-                                        <DropdownMenuItem>
+                                        <DropdownMenuItem disabled>
                                             <UserX className="mr-2"/> 设为暂停
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem>
+                                        <DropdownMenuItem disabled>
                                             <X className="mr-2"/> 加入黑名单
                                         </DropdownMenuItem>
                                         <DropdownMenuSeparator />
-                                        <DropdownMenuItem className="text-destructive">
+                                        <DropdownMenuItem className="text-destructive" disabled>
                                             <Trash2 className="mr-2"/> 删除用户
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
