@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import Link from 'next/link';
 import { createUserWithEmailAndPassword, getAuth } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
-import { collection, doc, getCount, writeBatch, setDoc } from 'firebase/firestore';
+import { collection, doc, getCountFromServer, writeBatch, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Role, User } from '@/store/auth';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -41,10 +41,10 @@ const seedInitialData = async () => {
     const productsRef = collection(db, 'products');
     const suppliersRef = collection(db, 'suppliers');
     
-    const designersSnap = await getCount(designersRef);
-    const demandsSnap = await getCount(demandsRef);
-    const productsSnap = await getCount(productsRef);
-    const suppliersSnap = await getCount(suppliersRef);
+    const designersSnap = await getCountFromServer(designersRef);
+    const demandsSnap = await getCountFromServer(demandsRef);
+    const productsSnap = await getCountFromServer(productsRef);
+    const suppliersSnap = await getCountFromServer(suppliersRef);
 
     const isSeedingNeeded = designersSnap.data().count === 0 || demandsSnap.data().count === 0 || productsSnap.data().count === 0 || suppliersSnap.data().count === 0;
 
@@ -140,7 +140,7 @@ export default function RegisterPage() {
 
         // 1. Check if this is the first user ever
         const usersCollection = collection(db, 'users');
-        const userCountSnap = await getCount(usersCollection);
+        const userCountSnap = await getCountFromServer(usersCollection);
         const isFirstUser = userCountSnap.data().count === 0;
         
         // 2. Create user in Firebase Auth
@@ -285,3 +285,5 @@ export default function RegisterPage() {
     </div>
   );
 }
+
+    
