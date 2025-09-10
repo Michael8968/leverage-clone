@@ -29,6 +29,7 @@ import { recommendCreatives } from '@/ai/flows/demand-matching';
 import type { RecommendCreativesOutput } from '@/ai/flows/demand-matching';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 export default function DemandPoolPage() {
   const [demands] = useState<Demand[]>(mockDemands);
@@ -140,12 +141,23 @@ export default function DemandPoolPage() {
       </div>
       <RecommendationDialog
         open={isRecDialogOpen}
-        onOpenChange={setIsRecDialogOpen}
+        onOpenChange={(isOpen) => {
+            if (!isOpen) {
+                setSelectedDemand(null);
+            }
+            setIsRecDialogOpen(isOpen);
+        }}
         demand={selectedDemand}
         selectedDemands={selectedRows.length > 0 && !selectedDemand ? mockDemands.filter(d => selectedRows.includes(d.id)) : null}
       />
     </AppLayout>
   );
+}
+
+type BatchResult = {
+    demand: Demand;
+    recommendations: RecommendCreativesOutput | null;
+    error?: string;
 }
 
 function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
@@ -155,25 +167,38 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
   selectedDemands: Demand[] | null;
 }) {
     const [isLoading, setIsLoading] = useState(false);
-    const [aiResults, setAiResults] = useState<RecommendCreativesOutput | null>(null);
+    const [aiResults, setAiResults] = useState<BatchResult[] | null>(null);
     const { toast } = useToast();
 
     const handleAiRecommend = async () => {
-        if (!demand) return; // For now, batch recommend is a mock
+        const demandsToProcess = demand ? [demand] : selectedDemands;
+        if (!demandsToProcess || demandsToProcess.length === 0) return;
+        
         setIsLoading(true);
         setAiResults(null);
+        
         try {
-            const result = await recommendCreatives({ demand, creatives: mockCreatives.map(c => ({...c, id: c.id.toString()})) });
-            setAiResults(result);
+            const results = await Promise.all(
+              demandsToProcess.map(async (d): Promise<BatchResult> => {
+                    try {
+                        const result = await recommendCreatives({ demand: d, creatives: mockCreatives.map(c => ({...c, id: c.id.toString()})) });
+                        return { demand: d, recommendations: result };
+                    } catch (error) {
+                        console.error(`AI recommendation failed for demand ${d.id}`, error);
+                        return { demand: d, recommendations: null, error: 'AI推荐服务调用失败。' };
+                    }
+                })
+            );
+            setAiResults(results);
         } catch (error) {
-            console.error("AI recommendation failed", error);
-            toast({ title: '错误', description: 'AI推荐服务调用失败。', variant: 'destructive' });
+            console.error("Batch AI recommendation failed", error);
+            toast({ title: '错误', description: '批量AI推荐过程中发生意外错误。', variant: 'destructive' });
         } finally {
             setIsLoading(false);
         }
     };
     
-    const targetDemand = demand || (selectedDemands && selectedDemands[0]);
+    const targetDemands = demand ? [demand] : selectedDemands;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -184,11 +209,11 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
                         {demand ? `为需求“${demand.title}”匹配最合适的创意。` : `为 ${selectedDemands?.length} 个选中的需求进行批量匹配。`}
                     </DialogDescription>
                 </DialogHeader>
-                <div className="py-4">
+                <div className="py-4 max-h-[60vh] overflow-y-auto pr-2">
                     {!aiResults && !isLoading && (
                         <div className="text-center space-y-4">
                             <p className="text-muted-foreground">准备好后，点击下方按钮启动AI分析和推荐。</p>
-                            <Button variant="accent" onClick={handleAiRecommend} disabled={!targetDemand}>
+                            <Button variant="accent" onClick={handleAiRecommend} disabled={!targetDemands?.length}>
                                 <BrainCircuit className="mr-2"/>
                                 启动AI推荐
                             </Button>
@@ -198,7 +223,7 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
                        <div className="space-y-4">
                             <div className="flex items-center justify-center gap-2 text-muted-foreground">
                                 <Loader2 className="animate-spin" />
-                                <span>AI正在分析需求并匹配创意...</span>
+                                <span>AI正在分析需求并匹配创意... (处理 {targetDemands?.length} 项)</span>
                             </div>
                             <Skeleton className="h-24 w-full" />
                             <Skeleton className="h-24 w-full" />
@@ -207,21 +232,31 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
                     {aiResults && (
                         <div className="space-y-4">
                             <h3 className="font-semibold text-lg">推荐结果</h3>
-                            {aiResults.recommendations.map(rec => {
-                                const creative = mockCreatives.find(c => c.id === rec.creativeId);
-                                return (
-                                <Card key={rec.creativeId}>
-                                    <CardHeader>
-                                        <CardTitle className="text-base">{creative?.name}</CardTitle>
-                                        <div className="flex gap-2 pt-1">
-                                            {creative?.tags.map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <p className="text-sm text-muted-foreground">{rec.reason}</p>
-                                    </CardContent>
-                                </Card>
-                            )})}
+                            <Accordion type="multiple" defaultValue={aiResults.map(r => r.demand.id)}>
+                                {aiResults.map(result => (
+                                    <AccordionItem value={result.demand.id} key={result.demand.id}>
+                                        <AccordionTrigger>{result.demand.title}</AccordionTrigger>
+                                        <AccordionContent>
+                                            {result.error && <p className="text-destructive text-sm">{result.error}</p>}
+                                            {result.recommendations && result.recommendations.recommendations.map(rec => {
+                                                const creative = mockCreatives.find(c => c.id === rec.creativeId);
+                                                return (
+                                                <Card key={rec.creativeId} className="mb-2">
+                                                    <CardHeader className="p-4">
+                                                        <CardTitle className="text-base">{creative?.name}</CardTitle>
+                                                        <div className="flex gap-2 pt-1">
+                                                            {creative?.tags.map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}
+                                                        </div>
+                                                    </CardHeader>
+                                                    <CardContent className="p-4 pt-0">
+                                                        <p className="text-sm text-muted-foreground">{rec.reason}</p>
+                                                    </CardContent>
+                                                </Card>
+                                            )})}
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                ))}
+                            </Accordion>
                              <Button variant="outline" className="w-full" onClick={() => setAiResults(null)}>重新匹配</Button>
                         </div>
                     )}
@@ -230,3 +265,5 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
         </Dialog>
     )
 }
+
+    
