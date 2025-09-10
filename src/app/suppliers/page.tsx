@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { PlusCircle, Trash2, Loader2, Building, Package, Upload } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Building, Package, Upload, FileCog } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { DataProcessor } from '@/components/features/data-processor';
 import { useAuthStore } from '@/store/auth';
@@ -186,16 +186,19 @@ export default function SuppliersPage() {
         </header>
 
         <Tabs defaultValue="info">
-            <TabsList className="grid w-full grid-cols-2 max-w-md">
+            <TabsList className="grid w-full grid-cols-3 max-w-lg">
                 <TabsTrigger value="info"><Building className="mr-2"/> 基本信息</TabsTrigger>
                 <TabsTrigger value="products"><Package className="mr-2"/> 商品/服务</TabsTrigger>
+                <TabsTrigger value="batch"><FileCog className="mr-2"/> 批量处理</TabsTrigger>
             </TabsList>
             <TabsContent value="info" className="mt-6">
                 <CompanyInfoForm />
             </TabsContent>
             <TabsContent value="products" className="mt-6">
                 <ProductManagement />
-                <DataProcessor className="mt-8"/>
+            </TabsContent>
+            <TabsContent value="batch" className="mt-6">
+                <DataProcessor />
             </TabsContent>
         </Tabs>
       </div>
@@ -251,9 +254,11 @@ function ProductServiceItem({ product, onUpdate, onRemove }: {
   }
   
   useEffect(() => {
+    // This effect is for cleaning up the debounce timer on unmount.
+    const timeoutRef = debounceTimeoutRef.current;
     return () => {
-        if (debounceTimeoutRef.current) {
-            clearTimeout(debounceTimeoutRef.current);
+        if (timeoutRef) {
+            clearTimeout(timeoutRef);
         }
     };
   }, []);
@@ -272,13 +277,21 @@ function ProductServiceItem({ product, onUpdate, onRemove }: {
         <Textarea name="description" placeholder="产品描述" value={localProduct.description} onChange={handleChange} />
       </div>
 
+      <div className="space-y-4">
+        <h4 className="font-semibold">相关媒体</h4>
+        <Button variant="outline"><Upload className="mr-2"/> 上传文件</Button>
+      </div>
+
       <SupplementaryFieldsManager fields={localProduct.supplementaryFields || []} onFieldsChange={handleFieldsChange} title="详细介绍产品或服务" />
 
       <div className="flex justify-end items-center gap-4">
         {isSaving && <Loader2 className="animate-spin text-muted-foreground" />}
+        <Button variant="default" size="sm" onClick={() => triggerUpdate(localProduct)}>
+          保存商品服务
+        </Button>
         <Button variant="destructive" size="sm" onClick={() => onRemove(product.id)}>
           <Trash2 className="mr-2 h-4 w-4" />
-          删除此产品
+          删除
         </Button>
       </div>
     </div>
