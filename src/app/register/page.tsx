@@ -167,8 +167,8 @@ export default function RegisterPage() {
               title: '注册成功',
               description: '您的账户已创建，即将自动登录。',
             });
-            router.push('/dashboard');
-            router.refresh();
+            // router.push('/dashboard'); <-- REMOVED
+            // router.refresh(); <-- REMOVED
         }
 
       } catch (e: any) {

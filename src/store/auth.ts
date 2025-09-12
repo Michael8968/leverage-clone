@@ -29,42 +29,43 @@ export const useAuthStore = create<AuthState>()(
       firebaseUser: null,
       isLoading: true,
       setUser: async (firebaseUser: FirebaseUser | null) => {
-        if (firebaseUser === get().firebaseUser && !get().isLoading) {
+        // Optimization: prevent re-fetching if user hasn't changed
+        if (firebaseUser?.uid === get().firebaseUser?.uid && !get().isLoading) {
           return;
         }
+        
+        set({ firebaseUser, isLoading: true });
 
         if (firebaseUser) {
-            set({ isLoading: true });
             try {
                 const userDocRef = doc(db, 'users', firebaseUser.uid);
                 const userDocSnap = await getDoc(userDocRef);
 
                 if (userDocSnap.exists()) {
-                    set({ user: userDocSnap.data() as User, firebaseUser, isLoading: false });
+                    set({ user: userDocSnap.data() as User, isLoading: false });
                 } else {
+                    // This case can happen briefly during registration before the user doc is created.
+                    // We can create a temporary partial user object or wait.
+                    // For a smoother UX, we'll wait a bit then re-check, or rely on a second auth state change.
+                    // For now, we just log it and the UI will show a loader.
                     console.warn(`User document not found for UID: ${firebaseUser.uid}. This may happen during registration.`);
-                    const partialUser: User = {
-                        id: firebaseUser.uid,
-                        email: firebaseUser.email!,
-                        // This role will be updated once the user doc is created.
-                        role: 'user', 
-                        name: firebaseUser.displayName || firebaseUser.email!,
-                        avatar: firebaseUser.photoURL || `https://picsum.photos/seed/${firebaseUser.uid}/100/100`,
-                    };
-                    set({ user: partialUser, firebaseUser, isLoading: false });
+                    set({ user: null, isLoading: false }); // Explicitly set user to null if doc not found
                 }
             } catch (error) {
                 console.error("Error fetching user data from Firestore:", error);
-                set({ user: null, firebaseUser: null, isLoading: false });
+                set({ user: null, isLoading: false });
             }
         } else {
-            set({ user: null, firebaseUser: null, isLoading: false });
+            set({ user: null, isLoading: false });
         }
       },
       logout: () => {
         const auth = getAuth();
-        auth.signOut();
-        set({ user: null, firebaseUser: null, isLoading: false });
+        auth.signOut().then(() => {
+            // This will trigger the onAuthStateChanged listener,
+            // which will in turn call setUser(null) and update the state.
+            // No need to manually set state here.
+        });
       },
     }),
 );
