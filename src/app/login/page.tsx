@@ -14,8 +14,9 @@ import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
-import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
+import { auth } from '@/lib/firebase';
 
 const formSchema = z.object({
   email: z.string().email({ message: '请输入有效的邮箱地址。' }),
@@ -40,14 +41,11 @@ export default function LoginPage() {
     setError(null);
     startTransition(async () => {
       try {
-        const auth = getAuth();
         await signInWithEmailAndPassword(auth, values.email, values.password);
         toast({
           title: '登录成功',
           description: '欢迎回来！即将跳转到主页。',
         });
-        // router.push('/dashboard'); <-- REMOVED
-        // router.refresh(); <-- REMOVED
       } catch (e: any) {
         if (e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
           setError('邮箱或密码不正确，请重试。');

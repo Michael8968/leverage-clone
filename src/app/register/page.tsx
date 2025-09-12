@@ -14,10 +14,10 @@ import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
-import { createUserWithEmailAndPassword, getAuth } from 'firebase/auth';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { collection, doc, getCountFromServer, writeBatch, setDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import type { Role, User } from '@/store/auth';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Demand, ProductService, Supplier } from '@/lib/types';
@@ -136,8 +136,6 @@ export default function RegisterPage() {
     setError(null);
     startTransition(async () => {
       try {
-        const auth = getAuth();
-
         // 1. Check if this is the first user ever
         const usersCollection = collection(db, 'users');
         const userCountSnap = await getCountFromServer(usersCollection);
@@ -167,8 +165,6 @@ export default function RegisterPage() {
               title: '注册成功',
               description: '您的账户已创建，即将自动登录。',
             });
-            // router.push('/dashboard'); <-- REMOVED
-            // router.refresh(); <-- REMOVED
         }
 
       } catch (e: any) {
@@ -285,5 +281,3 @@ export default function RegisterPage() {
     </div>
   );
 }
-
-    
