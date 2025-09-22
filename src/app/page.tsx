@@ -22,11 +22,8 @@ function GlobalLoader() {
 
 export default function RootPage() {
   const router = useRouter();
-  const { user, role, isLoading, setUser } = useAuthStore();
+  const { user, role, isLoading } = useAuthStore();
 
-  // The onAuthStateChanged listener is the single source of truth.
-  // It is implicitly called by the store's setup, but we must ensure
-  // the store's state hydration is complete before routing.
   useEffect(() => {
     // This effect runs whenever isLoading, user, or role state changes.
     if (!isLoading) {
@@ -44,6 +41,6 @@ export default function RootPage() {
   }, [user, role, isLoading, router]);
 
   // While isLoading is true, show a loader.
-  // This covers the initial auth state check.
+  // This covers the initial auth state check from RootLayout.
   return <GlobalLoader />;
 }
