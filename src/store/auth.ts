@@ -5,7 +5,7 @@ import { auth } from '@/lib/firebase';
 export type Role = 'admin' | 'supplier' | 'user' | 'creator';
 
 export interface User {
-  id: string;
+  uid: string;
   name: string;
   email: string;
   role: Role;
@@ -21,7 +21,6 @@ interface AuthState {
   logout: () => Promise<void>;
 }
 
-// Store现在只负责存储状态和提供同步更新方法
 const useAuthStore = create<AuthState>((set) => ({
   user: null,
   role: null,
@@ -30,7 +29,6 @@ const useAuthStore = create<AuthState>((set) => ({
   setIsLoading: (loading) => set({ isLoading: loading }),
   logout: async () => {
     await auth.signOut();
-    // 登出后，onAuthStateChanged会自动触发，无需手动set(null)
   },
 }));
 

@@ -53,7 +53,7 @@ export default function PermissionsPage() {
                 const usersCollection = collection(db, 'users');
                 const q = query(usersCollection, orderBy('email'));
                 const usersSnapshot = await getDocs(q);
-                const usersList = usersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+                const usersList = usersSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
                 setUsers(usersList);
             } catch (error) {
                 console.error("Error fetching users:", error);
@@ -116,7 +116,7 @@ export default function PermissionsPage() {
                         </TableRow>
                     ) : (
                         users.map(user => (
-                            <TableRow key={user.id}>
+                            <TableRow key={user.uid}>
                                 <TableCell>
                                     <div className="flex items-center gap-3">
                                         <Avatar className="w-8 h-8">

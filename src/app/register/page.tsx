@@ -57,7 +57,7 @@ export default function RegisterPage() {
 
         // 2. 在 Firestore 中创建用户文档
         const newUser: User = {
-            id: firebaseUser.uid,
+            uid: firebaseUser.uid,
             email: values.email,
             role: values.role as Role,
             name: values.email.split('@')[0], // 默认使用邮箱前缀作为名字
