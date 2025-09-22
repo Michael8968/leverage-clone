@@ -14,7 +14,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 
 const formSchema = z.object({
@@ -25,7 +24,6 @@ const formSchema = z.object({
 export default function LoginPage() {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -40,12 +38,9 @@ export default function LoginPage() {
     startTransition(async () => {
       try {
         await signInWithEmailAndPassword(auth, values.email, values.password);
-        toast({
-          title: '登录成功',
-          description: '欢迎回来！即将跳转到主页。',
-        });
-        // 跳转逻辑已由根页面(page.tsx)的全局路由守卫处理
-        // 此处无需再调用 router.push()
+        // 登录成功后，无需任何操作。
+        // 全局的 onAuthStateChanged 监听器 (在 page.tsx 中) 会自动处理后续的
+        // 数据获取和页面跳转逻辑。
       } catch (e: any) {
         if (e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
           setError('邮箱或密码不正确，请重试。');

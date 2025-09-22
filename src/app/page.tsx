@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -9,6 +9,7 @@ import { auth, db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import type { User } from '@/store/auth';
 import { Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 // 辅助函数：根据角色获取跳转路径
 const getRedirectPath = (role: string | null) => {
@@ -32,6 +33,7 @@ function InitialLoader() {
 export default function RootPage() {
   const router = useRouter();
   const { role, isLoading, setUser, setIsLoading } = useAuthStore();
+  const { toast } = useToast();
   
   // 关键：在useEffect中设置Firebase监听器
   useEffect(() => {
@@ -47,13 +49,23 @@ export default function RootPage() {
             // 在React组件上下文中调用setState，触发UI更新！
             setUser(userData, userData.role);
           } else {
-            console.warn(`User document not found for UID: ${firebaseUser.uid}. Logging out.`);
+            console.error(`Firestore user document not found for UID: ${firebaseUser.uid}.`);
+            toast({
+              title: "登录失败",
+              description: "用户数据不存在，请联系管理员检查后台数据库。",
+              variant: "destructive",
+            });
             // 用户存在于Auth但不存在于Firestore，强制登出
             await auth.signOut();
             setUser(null, null);
           }
         } catch (error) {
             console.error("获取用户数据失败:", error);
+            toast({
+              title: "登录失败",
+              description: "获取用户数据时发生错误，请稍后重试。",
+              variant: "destructive",
+            });
             await auth.signOut();
             setUser(null, null);
         }
