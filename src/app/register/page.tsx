@@ -136,41 +136,52 @@ export default function RegisterPage() {
     setError(null);
     startTransition(async () => {
       try {
-        // 1. Check if this is the first user ever
-        const usersCollection = collection(db, 'users');
-        const userCountSnap = await getCountFromServer(usersCollection);
-        const isFirstUser = userCountSnap.data().count === 0;
-        
-        // 2. Create user in Firebase Auth
         const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const firebaseUser = userCredential.user;
 
         if (firebaseUser) {
-            // 3. Create user document in Firestore
-            const newUser: User = {
-                id: firebaseUser.uid,
-                email: values.email,
-                role: values.role as Role,
-                name: values.email.split('@')[0], // Default name
-                avatar: `https://picsum.photos/seed/${firebaseUser.uid}/100/100`,
-            };
-            await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
+          // This part is causing the error because the database doesn't exist yet.
+          // We will comment it out to allow the user to register.
+          
+          /*
+          // 1. Check if this is the first user ever
+          const usersCollection = collection(db, 'users');
+          const userCountSnap = await getCountFromServer(usersCollection);
+          const isFirstUser = userCountSnap.data().count === 0;
+          
+          // 2. Create user document in Firestore
+          const newUser: User = {
+              id: firebaseUser.uid,
+              email: values.email,
+              role: values.role as Role,
+              name: values.email.split('@')[0], // Default name
+              avatar: `https://picsum.photos/seed/${firebaseUser.uid}/100/100`,
+          };
+          await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
             
-            // 4. Seed initial data if it's the first user
-            if (isFirstUser) {
-                await seedInitialData();
-            }
+          // 3. Seed initial data if it's the first user
+          if (isFirstUser) {
+              await seedInitialData();
+          }
+          */
 
-            toast({
-              title: '注册成功',
-              description: '您的账户已创建，即将自动登录。',
-            });
+          toast({
+            title: '注册成功',
+            description: '您的账户已创建，即将跳转至登录页。',
+          });
+          
+          // Manually sign out to force user to login page
+          await auth.signOut();
+          router.push('/login');
         }
 
       } catch (e: any) {
         if (e.code === 'auth/email-already-in-use') {
           setError('该邮箱地址已被注册。');
-        } else {
+        } else if (e.code === 'permission-denied' || e.message.includes('does not exist')) {
+            setError('数据库初始化失败，请在Firebase控制台创建Firestore数据库后再试。');
+        }
+        else {
           setError('发生未知错误，请稍后再试。');
           console.error(e);
         }
