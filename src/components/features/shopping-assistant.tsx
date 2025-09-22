@@ -53,7 +53,7 @@ export function ShoppingAssistant() {
             <Card className="lg:col-span-2 flex flex-col shadow-xl">
                 <CardHeader>
                     <CardTitle className="font-headline flex items-center gap-2"><Bot/> AI购物助手</CardTitle>
-                    <CardDescription>您好！我是您的专属购物助手。请问您在寻找什么？</p>
+                    <CardDescription>您好！我是您的专属购物助手。请问您在寻找什么？</CardDescription>
                 </CardHeader>
                 <CardContent className="flex-1 flex flex-col items-center justify-center text-center">
                     <Sparkles className="mx-auto h-16 w-16 text-accent mb-4" />
