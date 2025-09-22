@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect } from 'react';
@@ -6,12 +5,14 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { Loader2 } from 'lucide-react';
 
-const getRedirectPath = (role: string | null) => {
+const getRedirectPath = (role: string | null): string => {
     if (role === 'admin') {
         return '/demand-pool';
-    } else if (role) { // 'user', 'creator', 'supplier'
+    }
+    if (role) { // Covers 'user', 'creator', 'supplier'
         return '/dashboard';
     }
+    // If no role, the user is not logged in
     return '/login';
 };
 
@@ -23,16 +24,23 @@ function InitialLoader() {
     );
 }
 
+/**
+ * RootPage's single responsibility is to act as a routing guard.
+ * It waits for the AuthProvider to determine the authentication state (isLoading === false),
+ * and then redirects the user to the appropriate page based on their role.
+ */
 export default function RootPage() {
   const router = useRouter();
   const { role, isLoading } = useAuthStore();
 
   useEffect(() => {
+    // Only perform redirection after the initial authentication check is complete.
     if (!isLoading) {
       const path = getRedirectPath(role);
       router.replace(path);
     }
   }, [isLoading, role, router]);
 
+  // While the auth state is being determined by AuthProvider, show a loader.
   return <InitialLoader />;
 }

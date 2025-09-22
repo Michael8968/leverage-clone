@@ -42,17 +42,31 @@ export default function PromptManagementPage() {
     useEffect(() => {
         const fetchPrompts = async () => {
             setIsLoading(true);
+            // ==> DEBUG LOG 1: Announce the start of the fetch operation
+            console.log("[DB_TEST] Attempting to fetch documents from 'prompts' collection...");
+
             try {
                 const promptsCollection = collection(db, 'prompts');
                 const q = query(promptsCollection, orderBy('name'));
                 const promptsSnapshot = await getDocs(q);
+
+                // ==> DEBUG LOG 2: Report success and the number of documents found
+                console.log(`[DB_TEST] Successfully fetched ${promptsSnapshot.size} documents.`);
+                
+                if (promptsSnapshot.empty) {
+                    console.warn("[DB_TEST] The 'prompts' collection is empty or does not exist in the 'a001' database.");
+                }
+
                 const promptsList = promptsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Prompt));
                 setPrompts(promptsList);
+
             } catch (error) {
-                console.error("Error fetching prompts:", error);
+                // ==> DEBUG LOG 3: Report failure and log the detailed error object
+                console.error("[DB_TEST] Failed to fetch documents. Error:", error);
+                
                 toast({
                     title: '加载失败',
-                    description: '无法加载提示词列表，请检查数据库连接或稍后重试。',
+                    description: '无法加载提示词列表，请检查数据库连接或稍后重试。详细信息请查看开发者控制台。',
                     variant: 'destructive',
                 });
             } finally {

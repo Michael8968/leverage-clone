@@ -1,7 +1,6 @@
-
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
@@ -18,11 +17,14 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
 
-// Enable offline persistence asynchronously.
-// This is a "fire and forget" operation at the module level.
-// We wrap it in an IIFE to handle the promise and any potential errors.
+// Explicitly connect to the 'a001' database instance.
+const databaseId = "a001";
+console.log(`Attempting to connect to Firestore database: ${databaseId}`);
+const db = getFirestore(app, databaseId);
+
+// The offline persistence feature remains commented out for stability.
+/*
 (async () => {
     try {
         await enableIndexedDbPersistence(db);
@@ -35,5 +37,6 @@ const db = getFirestore(app);
         }
     }
 })();
+*/
 
 export { app, db, auth };

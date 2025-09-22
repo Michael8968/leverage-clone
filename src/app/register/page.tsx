@@ -1,187 +1,193 @@
-
 'use client';
 
 import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Logo } from '@/components/logo';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle, Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Logo } from '@/components/logo';
+import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuthStore } from '@/store/auth';
+
+import { auth, db } from '@/lib/firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
-import type { Role, User } from '@/store/auth';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const formSchema = z.object({
-  email: z.string().email({ message: '请输入有效的邮箱地址。' }),
-  password: z.string().min(6, { message: '密码至少需要6个字符。' }),
-  confirmPassword: z.string(),
-  role: z.enum(['user', 'supplier', 'creator', 'admin'], { required_error: '请选择一个角色。'}),
-}).refine(data => data.password === data.confirmPassword, {
-  message: '两次输入的密码不一致。',
-  path: ['confirmPassword'],
+  name: z.string().min(2, { message: "姓名必须至少包含2个字符。" }),
+  email: z.string().email({ message: "请输入有效的电子邮件地址。" }),
+  password: z.string().min(6, { message: "密码必须至少包含6个字符。" }),
+  role: z.enum(["user", "creator", "supplier"], { required_error: "请选择一个角色。" }),
 });
+
+const USER_SESSION_KEY = 'user_session';
+
+const getRedirectPath = (role: string | null) => {
+  if (role === 'admin') { // Should not happen on register, but for safety
+      return '/demand-pool';
+  }
+  return '/dashboard'; // Default for 'user', 'creator', 'supplier'
+};
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const { setUser } = useAuthStore();
+  const [isPending, startTransition] = useTransition();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      email: '',
-      password: '',
-      confirmPassword: '',
-      role: 'user',
+        name: "",
+        email: "",
+        password: "",
     },
   });
 
-  const handleRegister = (values: z.infer<typeof formSchema>) => {
-    setError(null);
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
     startTransition(async () => {
       try {
-        // 1. 在 Firebase Auth 中创建用户
+        // 1. 使用 Firebase Authentication 创建新用户
         const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const firebaseUser = userCredential.user;
 
-        // 2. 在 Firestore 中创建用户文档
-        const newUser: User = {
-            uid: firebaseUser.uid,
-            email: values.email,
-            role: values.role as Role,
-            name: values.email.split('@')[0], // 默认使用邮箱前缀作为名字
-            avatar: `https://i.pravatar.cc/150?u=${firebaseUser.uid}`, // 使用一个随机头像
+        const userPayload = {
+            id: firebaseUser.uid,
+            email: firebaseUser.email!,
+            name: values.name,
+            role: values.role,
+            avatar: `https://i.pravatar.cc/150?u=${firebaseUser.uid}`,
+            createdAt: new Date().toISOString(),
         };
-        await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
         
-        toast({
-          title: '注册成功！',
-          description: '您的账户已创建，即将带您进入主页。',
-        });
-        
-        // The redirection is now handled by the root page based on auth state change.
-        // No need to call router.push() here.
+        // 2. 在 Firestore 的 users 集合中创建对应的用户文档
+        await setDoc(doc(db, "users", firebaseUser.uid), userPayload);
 
-      } catch (e: any) {
-        if (e.code === 'auth/email-already-in-use') {
-          setError('该邮箱地址已被注册。');
-        } else {
-          setError('发生未知错误，请稍后再试。');
-          console.error(e);
+        // 3. 更新全局状态并存储会话
+        setUser(userPayload, values.role);
+        sessionStorage.setItem(USER_SESSION_KEY, JSON.stringify({ user: userPayload, role: values.role }));
+
+        toast({
+          title: "注册成功",
+          description: `欢迎您, ${values.name}！已为您自动登录并跳转。`,
+        });
+
+        // 4. 根据真实角色，直接跳转到对应的最终主页
+        const redirectPath = getRedirectPath(values.role);
+        router.push(redirectPath);
+
+      } catch (error: any) {
+        console.error("Registration failed:", error);
+        let description = "注册过程中发生未知错误。";
+        if (error.code === 'auth/email-already-in-use') {
+          description = "该电子邮件地址已被注册。";
         }
+        toast({
+          title: "注册失败",
+          description,
+          variant: "destructive",
+        });
       }
     });
   };
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-       <div className="w-full max-w-md">
+      <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-2 text-2xl font-headline font-semibold whitespace-nowrap">
             <Logo />
-            <h1 className="font-headline text-3xl">创建您的账户</h1>
+            <h1 className="font-headline text-3xl">Leverage&nbsp;力维利治</h1>
         </div>
         <Card>
-            <CardHeader>
-                <CardTitle className="font-headline text-2xl">注册</CardTitle>
-                <CardDescription>加入我们，开启智能匹配与创意生成的旅程。</CardDescription>
-            </CardHeader>
-            <CardContent>
-                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(handleRegister)} className="space-y-4">
-                        {error && (
-                            <Alert variant="destructive">
-                                <AlertTriangle className="h-4 w-4" />
-                                <AlertTitle>注册失败</AlertTitle>
-                                <AlertDescription>{error}</AlertDescription>
-                            </Alert>
-                        )}
-                        <FormField
-                            control={form.control}
-                            name="email"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>邮箱</FormLabel>
-                                    <FormControl>
-                                        <Input placeholder="name@example.com" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                         <FormField
-                            control={form.control}
-                            name="password"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>密码</FormLabel>
-                                    <FormControl>
-                                        <Input type="password" placeholder="至少6位字符" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                         <FormField
-                            control={form.control}
-                            name="confirmPassword"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>确认密码</FormLabel>
-                                    <FormControl>
-                                        <Input type="password" placeholder="再次输入密码" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                         <FormField
-                            control={form.control}
-                            name="role"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>选择角色</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                        <FormControl>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="选择您希望注册的角色类型" />
-                                            </SelectTrigger>
-                                        </FormControl>
-                                        <SelectContent>
-                                            <SelectItem value="user">普通用户 (体验AI购物)</SelectItem>
-                                            <SelectItem value="creator">创意者 (承接设计任务)</SelectItem>
-                                            <SelectItem value="supplier">供应商 (管理商品和服务)</SelectItem>
-                                            <SelectItem value="admin">管理员 (管理平台)</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                            />
-
-                        <Button type="submit" disabled={isPending} className="w-full">
-                            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            创建账户
-                        </Button>
-                    </form>
-                </Form>
-                 <div className="mt-6 text-center text-sm">
-                    已有账户？{' '}
-                    <Link href="/login" className="underline">
-                        直接登录
-                    </Link>
-                </div>
-            </CardContent>
+          <CardHeader>
+            <CardTitle className="font-headline text-2xl">创建您的账户</CardTitle>
+            <CardDescription>加入平台，开启智能匹配之旅。</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <Label>姓名</Label>
+                      <FormControl>
+                        <Input placeholder="您的称呼" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <Label>电子邮件</Label>
+                      <FormControl>
+                        <Input placeholder="you@example.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <Label>密码</Label>
+                      <FormControl>
+                        <Input type="password" placeholder="********" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="role"
+                  render={({ field }) => (
+                    <FormItem>
+                      <Label>您的角色</Label>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="请选择您的身份" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="user">普通用户</SelectItem>
+                          <SelectItem value="creator">创意者</SelectItem>
+                          <SelectItem value="supplier">供应商</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" className="w-full" disabled={isPending}>
+                  {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "创建账户"}
+                </Button>
+              </form>
+            </Form>
+            <div className="mt-6 text-center text-sm">
+              已经有账户了？{" "}
+              <Link href="/login" className="underline">
+                立即登录
+              </Link>
+            </div>
+          </CardContent>
         </Card>
       </div>
     </div>
