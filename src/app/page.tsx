@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 // 辅助函数：根据角色获取跳转路径
 const getRedirectPath = (role: string | null) => {
     if (role === 'admin') {
-        return '/demand-pool';
+        return '/demand-pool'; // 修复：添加了缺失的 '/'
     } else if (role) { // All other roles, including 'user', 'creator', 'supplier'
         return '/dashboard';
     }

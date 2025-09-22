@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import Link from 'next/link';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { useToast } from '@/hooks/use-toast';
 
 const formSchema = z.object({
   email: z.string().email({ message: '请输入有效的邮箱地址。' }),
@@ -24,6 +25,7 @@ const formSchema = z.object({
 export default function LoginPage() {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -38,6 +40,10 @@ export default function LoginPage() {
     startTransition(async () => {
       try {
         await signInWithEmailAndPassword(auth, values.email, values.password);
+        toast({
+          title: '登录成功',
+          description: '正在验证您的角色信息...',
+        });
         // 登录成功后，无需任何操作。
         // 全局的 onAuthStateChanged 监听器 (在 page.tsx 中) 会自动处理后续的
         // 数据获取和页面跳转逻辑。
