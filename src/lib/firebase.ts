@@ -1,7 +1,7 @@
 
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
@@ -19,6 +19,18 @@ const firebaseConfig = {
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+// Enable offline persistence
+try {
+    enableIndexedDbPersistence(db);
+    console.log("Firestore offline persistence enabled.");
+} catch (err: any) {
+    if (err.code === 'failed-precondition') {
+        console.warn("Firestore offline persistence could not be enabled: failed-precondition. This is likely due to multiple tabs open.");
+    } else if (err.code === 'unimplemented') {
+        console.warn("Firestore offline persistence could not be enabled: unimplemented. The current browser does not support it.");
+    }
+}
 
 
 export { app, db, auth };

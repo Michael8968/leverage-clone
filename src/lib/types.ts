@@ -1,3 +1,4 @@
+
 import type { SupplementaryField } from "@/components/features/supplementary-fields-manager";
 
 export type Demand = {
@@ -9,6 +10,7 @@ export type Demand = {
   status: '开放中' | '进行中' | '已完成';
   createdAt: Date;
   tags?: string[];
+  creatorId?: string;
 };
 
 export type Creative = {
@@ -31,8 +33,10 @@ export type ProductService = {
   purchaseUrl?: string;
   sku?: string;
   supplementaryFields?: SupplementaryField[];
-  creatorId?: string; // Added for creator attribution
-  createdAt?: Date; // Added for submission date
+  creatorId?: string;
+  createdAt?: Date;
+  status?: '审核中' | '已入库' | '需要修改';
+  imageUrl?: string;
 };
 
 export type Supplier = {
@@ -41,6 +45,16 @@ export type Supplier = {
   category: string;
   matchScore: number;
   recommendation: string;
+  // Detailed fields for Company Info
+  logoUrl?: string;
+  licenseUrl?: string;
+  contactPerson?: string;
+  jobTitle?: string;
+  mobile?: string;
+  phone?: string;
+  customerService?: string;
+  email?: string;
+  supplementaryFields?: SupplementaryField[];
 }
 
 export type UserProfile = {

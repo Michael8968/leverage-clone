@@ -1,0 +1,110 @@
+# **数据库与核心AI流程设计文档**
+
+**版本**: 1.0
+**日期**: 2024年8月6日
+
+---
+
+## 1. Firestore 数据库设计
+
+本文档详细描述了项目中使用的Firestore数据库集合的结构和它们之间的关联关系。
+
+### 1.1. `users` 集合
+
+存储平台所有用户的基本信息。
+
+| 字段名 | 数据类型 | 描述 |
+| :--- | :--- | :--- |
+| **id** | `string` | 文档ID，与Firebase Auth UID一致。 |
+| **name** | `string` | 用户姓名或昵称。 |
+| **email** | `string` | 用户注册邮箱 (唯一)。 |
+| **avatar** | `string` | 用户头像图片的URL。 |
+| **role** | `string` | 用户角色 (`admin`, `supplier`, `creator`, `user`)。 |
+
+### 1.2. `products` 集合
+
+存储所有由供应商或创作者提供的产品和服务。
+
+| 字段名 | 数据类型 | 描述 |
+| :--- | :--- | :--- |
+| **id** | `string` | 文档ID。 |
+| **name** | `string` | 产品或服务名称。 |
+| **description** | `string` | 详细描述。 |
+| **price** | `number` | 价格 (人民币)。 |
+| **category** | `string` | 所属类别 (例如: "3D模型", "消费电子产品")。 |
+| **supplierId** | `string` | (可选) 关联的供应商ID，对应 `suppliers` 集合中的文档ID。 |
+| **creatorId** | `string` | (可选) 关联的创作者ID，对应 `users` 集合中的文档ID。 |
+| **purchaseUrl** | `string` | (可选) 外部购买链接。 |
+| **imageUrl** | `string` | (可选) 产品主图的URL。 |
+| **status** | `string` | (仅创作者提交时) 审核状态 (`审核中`, `已入库`, `需要修改`)。 |
+| **createdAt** | `Timestamp`| 创建或提交日期。 |
+| **supplementaryFields** | `Array<Object>` | (可选) 补充字段，用于存储动态的产品规格。 |
+
+### 1.3. `demands` 集合
+
+存储由用户发布的需求。
+
+| 字段名 | 数据类型 | 描述 |
+| :--- | :--- | :--- |
+| **id** | `string` | 文档ID。 |
+| **title** | `string` | 需求标题。 |
+| **description** | `string` | 需求的详细描述。 |
+| **budget** | `number` | 预算 (人民币)。 |
+| **category** | `string` | 需求类别。 |
+| **status** | `string` | 需求状态 (`开放中`, `进行中`, `已完成`)。 |
+| **requesterId** | `string` | 发布者ID，对应 `users` 集合的文档ID。 |
+| **requesterName** | `string` | 发布者姓名。 |
+| **requesterAvatar**| `string` | 发布者头像URL。 |
+| **creatorId** | `string` | (可选) 接受此需求的创作者ID。 |
+| **createdAt** | `Timestamp`| 发布日期。 |
+
+### 1.4. `suppliers` 集合
+
+存储供应商的公司信息。
+
+| 字段名 | 数据类型 | 描述 |
+| :--- | :--- | :--- |
+| **id** | `string` | 文档ID，与供应商用户的UID一致。 |
+| **name** | `string` | 公司名称。 |
+| **email** | `string` | 公司联系邮箱。 |
+| **contactPerson** | `string` | 主要联系人姓名。 |
+| **jobTitle** | `string` | 联系人职位。 |
+| **mobile** | `string` | 联系人手机。 |
+| **...** | `...` | 其他在 `CompanyInfoForm` 中定义的联系方式字段。 |
+| **supplementaryFields** | `Array<Object>` | (可选) 补充信息字段。 |
+
+### 1.5. 其他集合
+
+*   **`prompts`**: 存储用于AI流程的提示词模板。
+*   **`resources`**: 存储公共资源，如外部API链接。
+
+---
+
+## 2. 核心AI流程 (Genkit Flows)
+
+项目中使用Genkit构建的核心AI流程如下：
+
+*   **`generateUserProfile`**:
+    *   **输入**: 用户需求描述 (文本)、可选的参考图片。
+    *   **功能**: 分析输入，生成用户画像总结和关键词标签。
+    *   **调用位置**: `AI购物助手` (`ShoppingAssistant.tsx`)。
+
+*   **`getProductRecommendations`**:
+    *   **输入**: 用户画像、所有产品/服务数据、所有供应商数据。
+    *   **功能**: 根据用户画像，从产品和服务中进行匹配，返回推荐列表。
+    *   **调用位置**: `AI购物助手` (`ShoppingAssistant.tsx`)。
+
+*   **`recommendCreatives`**:
+    *   **输入**: 一个或多个需求、所有“创意方”（产品+供应商）数据。
+    *   **功能**: 为指定需求匹配最合适的创意方，并给出理由。
+    *   **调用位置**: `需求池` 页面 (`demand-pool/page.tsx`)。
+
+*   **`generate3dModel`**:
+    *   **输入**: 文本提示 (Prompt)。
+    *   **功能**: 调用AI模型（如Tripo Studio），根据文本生成3D模型的预览图。
+    *   **调用位置**: `创意者工作台` (`creator-workbench/page.tsx`)。
+
+*   **`evaluateSellerData`**:
+    *   **输入**: CSV文件数据 (Data URI格式)。
+    *   **功能**: 解析CSV内容，评估其中每一行代表的供应商与平台的匹配度，并返回结构化数据。
+    *   **调用位置**: `批量数据处理` 组件 (`DataProcessor.tsx`)。
