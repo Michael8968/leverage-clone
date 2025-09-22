@@ -1,6 +1,7 @@
+
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, initializeFirestore, memoryLocalCache } from "firebase/firestore";
+import { getFirestore, initializeFirestore, memoryLocalCache, Firestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
@@ -17,10 +18,29 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-const db = initializeFirestore(app, {
+// Lazy-loaded Firestore instance
+let db: Firestore;
+
+try {
+  db = initializeFirestore(app, {
     databaseId: "a003",
     localCache: memoryLocalCache(),
-});
+  });
+} catch (e) {
+  if (
+    typeof e === 'object' &&
+    e &&
+    'code' in e &&
+    e.code === 'failed-precondition'
+  ) {
+    // This can happen in a dev environment with hot-reloading.
+    // In this case, we just get the existing instance.
+    db = getFirestore(app, "a003");
+  } else {
+    throw e;
+  }
+}
+
 
 const auth = getAuth(app);
 
