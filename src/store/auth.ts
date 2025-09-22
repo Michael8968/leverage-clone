@@ -1,5 +1,5 @@
+
 import { create } from 'zustand';
-import type { User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
 export type Role = 'admin' | 'supplier' | 'user' | 'creator';
@@ -14,28 +14,29 @@ export interface User {
 
 interface AuthState {
   user: User | null;
-  isLoading: boolean;
   role: Role | null;
+  isLoading: boolean;
   setUser: (user: User | null) => void;
+  setIsLoading: (loading: boolean) => void;
   logout: () => Promise<void>;
 }
 
 const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
-      isLoading: true, // Start as true until the auth state is first determined
       role: null,
+      isLoading: true, // isLoading is true only on initial load, until Firebase auth state is determined.
       setUser: (user) => {
         set({ 
             user, 
             role: user ? user.role : null,
-            isLoading: false 
         });
       },
+      setIsLoading: (loading) => set({ isLoading: loading }),
       logout: async () => {
         try {
           await auth.signOut();
-          set({ user: null, role: null, isLoading: false });
+          // onAuthStateChanged in RootLayout will handle setting user to null and isLoading to false
         } catch (error) {
           console.error("Error signing out: ", error);
           // Even if signout fails, force state to logged out

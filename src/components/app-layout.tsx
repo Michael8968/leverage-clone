@@ -45,7 +45,6 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
-import { auth } from '@/lib/firebase';
 
 interface NavItem {
   href: string;
@@ -85,8 +84,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [user, isLoading, mounted, router]);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.replace('/login');
   };
 
