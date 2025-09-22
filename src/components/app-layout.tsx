@@ -76,8 +76,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     setMounted(true);
   }, []);
 
-  // This is a robust way to handle route guarding on the client side.
-  // It waits for the component to be mounted and the auth state to be resolved.
+  // 此处的路由守卫仅作为备用，主要的守卫逻辑在 page.tsx 中。
+  // 它确保在 layout 渲染时，如果 auth 状态已明确为未登录，则跳转。
   useEffect(() => {
     if (mounted && !isLoading && !user) {
       router.replace('/login');
@@ -86,10 +86,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   const handleLogout = async () => {
     await logout();
-    router.replace('/login');
+    // 登出后，根页面的监听器会处理跳转到 /login
   };
 
-  // While auth state is loading or not yet mounted, show a loader.
+  // 在认证状态加载完成前，显示骨架屏。
   if (!mounted || isLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
@@ -104,12 +104,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
   
-  // If loading is finished but there's no user, we shouldn't render the layout.
-  // The useEffect above will handle the redirection.
+  // 如果加载完成但没有用户，不渲染布局，让根页面的守卫来处理跳转。
   if (!user || !role) {
     return null; 
   }
-
 
   const currentNavItems = navItems.filter((item) => item.roles.includes(role));
 

@@ -31,59 +31,54 @@ function InitialLoader() {
 
 export default function RootPage() {
   const router = useRouter();
-  const { user, role, isLoading, setUser, setIsLoading } = useAuthStore();
-  const [authChecked, setAuthChecked] = useState(false);
-
-  // 监听 Firebase Auth 状态变化
+  const { role, isLoading, setUser, setIsLoading } = useAuthStore();
+  
+  // 关键：在useEffect中设置Firebase监听器
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
+        // 用户已登录
         try {
           const userDocRef = doc(db, 'users', firebaseUser.uid);
           const userDocSnap = await getDoc(userDocRef);
 
           if (userDocSnap.exists()) {
             const userData = userDocSnap.data() as User;
+            // 在React组件上下文中调用setState，触发UI更新！
             setUser(userData, userData.role);
           } else {
-             console.warn(`User document not found for UID: ${firebaseUser.uid}. Logging out.`);
-             await auth.signOut();
-             setUser(null, null);
+            console.warn(`User document not found for UID: ${firebaseUser.uid}. Logging out.`);
+            // 用户存在于Auth但不存在于Firestore，强制登出
+            await auth.signOut();
+            setUser(null, null);
           }
         } catch (error) {
-            console.error("Error fetching user data from Firestore:", error);
-            if ((error as any).code === 'unavailable' || (error as any).message.includes('offline')) {
-              // This can happen on first load if offline persistence is not yet ready.
-              // Let's not log out the user immediately. The UI should show a loading/error state.
-              console.warn("Firestore is offline. User data could not be fetched.");
-            } else {
-              await auth.signOut();
-              setUser(null, null);
-            }
-        } finally {
-          setIsLoading(false);
-          setAuthChecked(true);
+            console.error("获取用户数据失败:", error);
+            await auth.signOut();
+            setUser(null, null);
         }
       } else {
+        // 用户未登录
         setUser(null, null);
-        setIsLoading(false);
-        setAuthChecked(true);
       }
+      // 无论登录与否，初始认证流程都已完成
+      setIsLoading(false);
     });
     
+    // 组件卸载时取消监听
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // 空依赖数组，确保只在挂载时运行一次
 
-  // 根据认证状态执行路由跳转
+  // 在同一个组件内，另一个useEffect负责路由跳转
   useEffect(() => {
-    if (!isLoading && authChecked) {
+    // 只有在初始加载完成后才执行跳转逻辑
+    if (!isLoading) {
       const path = getRedirectPath(role);
       router.replace(path);
     }
-  }, [isLoading, authChecked, role, router]);
+  }, [isLoading, role, router]); // 依赖isLoading和role的变化
 
-
-  // 在认证状态检查完成前，显示加载动画
+  // 在认证状态确认前，显示加载动画
   return <InitialLoader />;
 }

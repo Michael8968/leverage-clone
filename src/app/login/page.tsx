@@ -2,7 +2,6 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/logo';
@@ -24,7 +23,6 @@ const formSchema = z.object({
 });
 
 export default function LoginPage() {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -46,8 +44,8 @@ export default function LoginPage() {
           title: '登录成功',
           description: '欢迎回来！即将跳转到主页。',
         });
-        // The redirection is now handled by the root page based on auth state change.
-        // No need to call router.push() here.
+        // 跳转逻辑已由根页面(page.tsx)的全局路由守卫处理
+        // 此处无需再调用 router.push()
       } catch (e: any) {
         if (e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
           setError('邮箱或密码不正确，请重试。');

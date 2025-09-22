@@ -15,21 +15,22 @@ export interface User {
 interface AuthState {
   user: User | null;
   role: Role | null;
-  isLoading: boolean;
+  isLoading: boolean; // 仅用于表示初始认证状态是否加载完毕
   setUser: (user: User | null, role: Role | null) => void;
   setIsLoading: (loading: boolean) => void;
   logout: () => Promise<void>;
 }
 
+// Store现在只负责存储状态和提供同步更新方法
 const useAuthStore = create<AuthState>((set) => ({
   user: null,
   role: null,
-  isLoading: true,
+  isLoading: true, // 初始为true，表示正在等待Firebase的第一次认证回音
   setUser: (user, role) => set({ user, role }),
   setIsLoading: (loading) => set({ isLoading: loading }),
   logout: async () => {
     await auth.signOut();
-    set({ user: null, role: null, isLoading: false });
+    // 登出后，onAuthStateChanged会自动触发，无需手动set(null)
   },
 }));
 
