@@ -4,7 +4,6 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
-import { onAuthStateChanged, getAuth } from 'firebase/auth';
 import { Skeleton } from '@/components/ui/skeleton';
 
 function GlobalLoader() {
@@ -23,32 +22,28 @@ function GlobalLoader() {
 
 export default function RootPage() {
   const router = useRouter();
-  const { user, isLoading, setUser } = useAuthStore();
+  const { user, role, isLoading, setUser } = useAuthStore();
 
+  // The onAuthStateChanged listener is the single source of truth.
+  // It is implicitly called by the store's setup, but we must ensure
+  // the store's state hydration is complete before routing.
   useEffect(() => {
-    const auth = getAuth();
-    // This is the single source of truth for auth state changes.
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
-    });
-    // Cleanup subscription on unmount
-    return () => unsubscribe();
-  }, [setUser]);
-
-
-  useEffect(() => {
-    // This effect runs whenever isLoading or user state changes.
+    // This effect runs whenever isLoading, user, or role state changes.
     if (!isLoading) {
-      if (user) {
-        router.replace('/dashboard');
+      if (user && role) {
+        // Role-based redirection
+        if (role === 'admin') {
+           router.replace('/demand-pool');
+        } else {
+           router.replace('/dashboard');
+        }
       } else {
         router.replace('/login');
       }
     }
-  }, [user, isLoading, router]);
+  }, [user, role, isLoading, router]);
 
   // While isLoading is true, show a loader.
+  // This covers the initial auth state check.
   return <GlobalLoader />;
 }
-
-

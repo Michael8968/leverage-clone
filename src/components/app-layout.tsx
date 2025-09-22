@@ -41,9 +41,11 @@ import {
   Wrench,
   Database,
   Library,
+  Home,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
+import { auth } from '@/lib/firebase';
 
 interface NavItem {
   href: string;
@@ -53,7 +55,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: '/', label: 'AI智能匹配', icon: Bot, roles: ['user', 'admin', 'supplier', 'creator'] },
+  { href: '/dashboard', label: 'AI智能匹配', icon: Home, roles: ['user', 'admin', 'supplier', 'creator'] },
   { href: '/demand-pool', label: '需求池', icon: LayoutGrid, roles: ['admin', 'user', 'supplier', 'creator'] },
   { href: '/designers', label: '创意设计师', icon: Users, roles: ['user', 'admin', 'supplier', 'creator'] },
   { href: '/creator-workbench', label: '创意者工作台', icon: PenSquare, roles: ['creator'] },
@@ -66,7 +68,7 @@ const navItems: NavItem[] = [
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
-  const { role, user, logout } = useAuthStore();
+  const { role, user, isLoading, logout } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
@@ -75,18 +77,21 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     setMounted(true);
   }, []);
 
+  // This is a robust way to handle route guarding on the client side.
+  // It waits for the component to be mounted and the auth state to be resolved.
   useEffect(() => {
-    if (mounted && !role) {
+    if (mounted && !isLoading && !user) {
       router.replace('/login');
     }
-  }, [role, router, mounted]);
+  }, [user, isLoading, mounted, router]);
 
   const handleLogout = () => {
     logout();
-    router.push('/login');
+    router.replace('/login');
   };
 
-  if (!mounted || !role) {
+  // While auth state is loading or not yet mounted, show a loader.
+  if (!mounted || isLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -99,6 +104,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
+  
+  // If loading is finished but there's no user, we shouldn't render the layout.
+  // The useEffect above will handle the redirection.
+  if (!user || !role) {
+    return null; 
+  }
+
 
   const currentNavItems = navItems.filter((item) => item.roles.includes(role));
 
