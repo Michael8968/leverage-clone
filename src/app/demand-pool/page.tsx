@@ -31,15 +31,23 @@ import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { db } from '@/lib/firebase';
-import { collection, doc, getDocs, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
+
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Textarea } from '@/components/ui/textarea';
+
 
 export default function DemandPoolPage() {
   const [demands, setDemands] = useState<Demand[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const [isRecDialogOpen, setIsRecDialogOpen] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedDemand, setSelectedDemand] = useState<Demand | null>(null);
   const { role } = useAuthStore();
   const { toast } = useToast();
@@ -173,7 +181,7 @@ export default function DemandPoolPage() {
                     </Button>
                 )}
               </div>
-              <Button disabled>
+              <Button onClick={() => setIsCreateDialogOpen(true)}>
                 <PlusCircle className="mr-2"/>
                 发布新需求
               </Button>
@@ -283,8 +291,145 @@ export default function DemandPoolPage() {
         demand={selectedDemand}
         selectedDemands={selectedRows.length > 0 && !selectedDemand ? demands.filter(d => selectedRows.includes(d.id)) : null}
       />
+      <CreateDemandDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        onDemandCreated={fetchDemands}      
+      />
     </AppLayout>
   );
+}
+
+// ... (RecommendationDialog component remains the same)
+
+
+const demandSchema = z.object({
+  title: z.string().min(5, { message: "标题至少需要5个字符。" }),
+  description: z.string().min(20, { message: "描述至少需要20个字符。" }),
+  budget: z.preprocess(
+    (a) => parseFloat(z.string().parse(a)),
+    z.number().positive({ message: "预算必须为正数。" })
+  ),
+  category: z.string().min(1, { message: "请选择一个类别。" }),
+});
+
+function CreateDemandDialog({ open, onOpenChange, onDemandCreated }: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onDemandCreated: () => void;
+}) {
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const { toast } = useToast();
+    const { user } = useAuthStore();
+
+    const form = useForm<z.infer<typeof demandSchema>>({
+        resolver: zodResolver(demandSchema),
+        defaultValues: {
+            title: "",
+            description: "",
+            budget: 1000,
+            category: "3D模型",
+        },
+    });
+
+    const handleSubmit = async (values: z.infer<typeof demandSchema>) => {
+        if (!user) {
+            toast({ title: "错误", description: "您需要登录才能发布需求。", variant: "destructive" });
+            return;
+        }
+        setIsSubmitting(true);
+        try {
+            await addDoc(collection(db, "demands"), {
+                ...values,
+                status: "开放中",
+                requesterId: user.uid,
+                createdAt: serverTimestamp(),
+            });
+            toast({ title: "成功", description: "您的需求已成功发布到需求池！" });
+            onDemandCreated(); 
+            onOpenChange(false); 
+            form.reset();
+        } catch (error) {
+            console.error("Error creating demand:", error);
+            toast({ title: "发布失败", description: "创建需求时发生错误，请重试。", variant: "destructive" });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle className="font-headline">发布新需求</DialogTitle>
+                    <DialogDescription>请详细描述您的需求，以便获得更精准的匹配。</DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 py-4">
+                        <FormField
+                            control={form.control}
+                            name="title"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>需求标题</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="例如：需要一个赛博朋克风格的城市模型" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="description"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>详细描述</FormLabel>
+                                    <FormControl>
+                                        <Textarea placeholder="请尽可能详细地描述您的需求..." {...field} rows={5} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="category"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>类别</FormLabel>
+                                     <FormControl>
+                                        <Input placeholder="例如：3D模型, Logo设计, 动画" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="budget"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>预算 (元)</FormLabel>
+                                    <FormControl>
+                                        <Input type="number" placeholder="1000" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <div className="flex justify-end gap-2 pt-4">
+                            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>取消</Button>
+                            <Button type="submit" disabled={isSubmitting}>
+                                {isSubmitting && <Loader2 className="animate-spin mr-2"/>}
+                                立即发布
+                            </Button>
+                        </div>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
 }
 
 type BatchResult = {

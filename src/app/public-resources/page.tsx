@@ -1,4 +1,3 @@
-
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -7,32 +6,23 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Download, Edit, Library, Link, PlusCircle, Trash2, Upload } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useToast } from '@/hooks/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
 
-const apiResources = [
-    {
-        name: '天气查询 API',
-        endpoint: 'https://api.weather.com/v1/weather/...',
-        authType: 'API Key',
-        status: '生效中',
-        docsUrl: '#',
-    },
-    {
-        name: '地图路线规划 API',
-        endpoint: 'https://api.mapservice.com/v2/routes/...',
-        authType: 'OAuth 2.0',
-        status: '生效中',
-        docsUrl: '#',
-    },
-    {
-        name: '内部产品价格查询',
-        endpoint: 'https://internal.api/products/price',
-        authType: 'JWT',
-        status: '已停用',
-        docsUrl: '#',
-    },
-];
+// 定义 Resource 数据的 TypeScript 接口
+interface Resource {
+    id: string;
+    name: string;
+    endpoint: string;
+    authType: string;
+    status: '生效中' | '已停用';
+    docsUrl?: string;
+}
 
-const getStatusBadge = (status: string) => {
+const getStatusBadge = (status: Resource['status']) => {
     switch (status) {
         case '生效中':
             return <Badge variant="default" className="bg-green-500 hover:bg-green-600">{status}</Badge>;
@@ -44,6 +34,33 @@ const getStatusBadge = (status: string) => {
 }
 
 export default function PublicResourcesPage() {
+    const [resources, setResources] = useState<Resource[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const { toast } = useToast();
+
+    useEffect(() => {
+        const fetchResources = async () => {
+            setIsLoading(true);
+            try {
+                const resourcesCollection = collection(db, 'resources');
+                const q = query(resourcesCollection, orderBy('name'));
+                const resourcesSnapshot = await getDocs(q);
+                const resourcesList = resourcesSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Resource));
+                setResources(resourcesList);
+            } catch (error) {
+                console.error("Error fetching resources:", error);
+                toast({
+                    title: '加载失败',
+                    description: '无法加载资源列表，请检查数据库连接或稍后重试。',
+                    variant: 'destructive',
+                });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchResources();
+    }, [toast]);
+
     return (
         <AppLayout>
             <div className="p-4 md:p-8 space-y-8">
@@ -87,33 +104,52 @@ export default function PublicResourcesPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {apiResources.map((item) => (
-                                    <TableRow key={item.name}>
-                                        <TableCell className="font-medium">{item.name}</TableCell>
-                                        <TableCell className="font-mono text-xs text-muted-foreground">{item.endpoint}</TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline">{item.authType}</Badge>
-                                        </TableCell>
-                                        <TableCell>{getStatusBadge(item.status)}</TableCell>
-                                        <TableCell>
-                                            <Button variant="link" size="sm" asChild className="p-0 h-auto" disabled>
-                                                <a href={item.docsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm">
-                                                    查看文档 <Link className="w-3 h-3"/>
-                                                </a>
-                                            </Button>
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <Button variant="ghost" size="icon" className="h-8 w-8" disabled>
-                                                    <Edit className="h-4 w-4" />
-                                                </Button>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" disabled>
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
+                                {isLoading ? (
+                                     Array.from({ length: 3 }).map((_, i) => (
+                                        <TableRow key={i}>
+                                            <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                                            <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+                                            <TableCell><Skeleton className="h-6 w-20 rounded-md" /></TableCell>
+                                            <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
+                                            <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                                            <TableCell className="text-right"><Skeleton className="h-8 w-24 rounded-md ml-auto" /></TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : resources.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="h-24 text-center">
+                                            数据库中暂无资源。请在 Firestore 中创建 'resources' 集合并添加数据。
                                         </TableCell>
                                     </TableRow>
-                                ))}
+                                ) : (
+                                    resources.map((item) => (
+                                        <TableRow key={item.id}>
+                                            <TableCell className="font-medium">{item.name}</TableCell>
+                                            <TableCell className="font-mono text-xs text-muted-foreground">{item.endpoint}</TableCell>
+                                            <TableCell>
+                                                <Badge variant="outline">{item.authType}</Badge>
+                                            </TableCell>
+                                            <TableCell>{getStatusBadge(item.status)}</TableCell>
+                                            <TableCell>
+                                                <Button variant="link" size="sm" asChild className="p-0 h-auto" disabled={!item.docsUrl}>
+                                                    <a href={item.docsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm">
+                                                        查看文档 <Link className="w-3 h-3"/>
+                                                    </a>
+                                                </Button>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8" disabled>
+                                                        <Edit className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" disabled>
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
                             </TableBody>
                         </Table>
                     </CardContent>
@@ -122,5 +158,3 @@ export default function PublicResourcesPage() {
         </AppLayout>
     );
 }
-
-    

@@ -1,4 +1,3 @@
-
 import type { SupplementaryField } from "@/components/features/supplementary-fields-manager";
 
 export type Demand = {
@@ -32,6 +31,8 @@ export type ProductService = {
   purchaseUrl?: string;
   sku?: string;
   supplementaryFields?: SupplementaryField[];
+  creatorId?: string; // Added for creator attribution
+  createdAt?: Date; // Added for submission date
 };
 
 export type Supplier = {

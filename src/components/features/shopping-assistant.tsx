@@ -363,7 +363,7 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
             {recommendations.map((rec) => (
                 <Card key={rec.id} className="overflow-hidden">
                    <div className="aspect-video relative w-full">
-                     <Image src={`https://picsum.photos/seed/${rec.id}/300/200`} alt={rec.name} fill style={{objectFit: "cover"}} data-ai-hint="product design"/>
+                     <Image src={rec.imageUrl || `https://picsum.photos/seed/${rec.id}/300/200`} alt={rec.name} fill style={{objectFit: "cover"}} data-ai-hint="product design"/>
                    </div>
                    <div className="p-3">
                         <div className='flex justify-between items-start gap-2'>

@@ -46,6 +46,7 @@ export default function LoginPage() {
           title: '登录成功',
           description: '欢迎回来！即将跳转到主页。',
         });
+        // The redirection is handled by the root page guard.
       } catch (e: any) {
         if (e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
           setError('邮箱或密码不正确，请重试。');
