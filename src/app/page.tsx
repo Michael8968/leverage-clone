@@ -5,6 +5,10 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { Skeleton } from '@/components/ui/skeleton';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth, db } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import type { User } from '@/store/auth';
 
 function GlobalLoader() {
     return (
@@ -22,13 +26,43 @@ function GlobalLoader() {
 
 export default function RootPage() {
   const router = useRouter();
-  const { user, role, isLoading } = useAuthStore();
+  const { user, role, isLoading, setUser, setIsLoading } = useAuthStore();
 
   useEffect(() => {
-    // This effect runs whenever isLoading, user, or role state changes.
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const userDocRef = doc(db, 'users', firebaseUser.uid);
+          const userDocSnap = await getDoc(userDocRef);
+
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data() as User;
+            setUser(userData, userData.role);
+          } else {
+             console.warn(`User document not found for UID: ${firebaseUser.uid}. Logging out.`);
+             await auth.signOut();
+             setUser(null, null);
+          }
+        } catch (error) {
+            console.error("Error fetching user data from Firestore:", error);
+            await auth.signOut();
+            setUser(null, null);
+        }
+      } else {
+        setUser(null, null);
+      }
+      setIsLoading(false);
+    });
+    
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
+  useEffect(() => {
     if (!isLoading) {
       if (user && role) {
-        // Role-based redirection
         if (role === 'admin') {
            router.replace('/demand-pool');
         } else {
@@ -40,7 +74,5 @@ export default function RootPage() {
     }
   }, [user, role, isLoading, router]);
 
-  // While isLoading is true, show a loader.
-  // This covers the initial auth state check from RootLayout.
   return <GlobalLoader />;
 }
