@@ -43,9 +43,11 @@
     *   `name` (string): 场景的业务名称。
     *   `description` (string): 场景的功能描述。
     *   `configuredPromptKey` (string): 绑定的 `prompts` 集合中的 `promptKey`。
-    *   `startsAt` (Timestamp, 可选): 此条配置的生效时间。
-    *   `expiresAt` (Timestamp, 可选): 此条配置的失效时间。
-    *   `targetUserRoles` (Array<string>, 可选): 目标用户角色数组。若存在，则此配置仅对数组内的角色生效。
+    *   `repetition` (`'none' | 'daily' | 'weekly'`, 可选): 重复策略。
+    *   `daysOfWeek` (`Array<string>`, 可选): 当 `repetition` 为 `'weekly'` 时，存储选中的星期 (`mon`, `tue`, ...)。
+    *   `startTime`, `endTime` (`string`, 可选): 当启用重复策略时，存储 `HH:mm` 格式的时间窗口。
+    *   `startsAt`, `expiresAt` (`Timestamp`, 可选): 当 `repetition` 为 `'none'` 时，定义绝对的生效和失效时间。
+    *   `targetUserRoles` (`Object`, 可选): 目标用户角色及星级。键为角色名，值为星级数组。例如 `{ "creator": [8, 9, 10] }`。
     *   `ruleLogic` (`'and' | 'or'`, 可选): "时间"与"用户"两个维度规则的组合逻辑，默认为 `'and'`。
 
 #### d. `SUPPORTED_PROVIDERS` (后端硬编码)
@@ -60,7 +62,7 @@
 1.  **接收标准输入**: 函数接收`PromptExecutionInput`对象，该对象新增了一个可选的`scenario`字段和`userId`字段。
 2.  **查询配置 (核心路由)**:
     *   **第一优先级：场景查询**: 如果提供了 `scenario`，则**首先**从`ai_scenarios`集合中查找对应的文档。如果文档存在：
-        *   **规则校验**: 根据 `ruleLogic` 字段（默认为 'and'），组合判断当前时间和（如果提供了`userId`）用户角色是否满足该配置文档中定义的 `startsAt`, `expiresAt`, `targetUserRoles` 等规则。
+        *   **规则校验**: 根据 `ruleLogic` 字段（默认为 'and'），组合判断当前时间和（如果提供了`userId`）用户角色/星级是否满足该配置文档中定义的所有规则（`repetition`, `daysOfWeek`, `startTime`, `endTime`, `startsAt`, `expiresAt`, `targetUserRoles`）。
         *   **应用配置**: 如果所有规则都满足，则该文档中配置的`configuredPromptKey`将覆盖所有其他输入，成为本次调用的最终执行目标。
     *   **第二优先级：提示词Key**: 如果没有场景覆盖，且提供了 `promptKey`，则从`prompts`集合中查找对应的提示词文档，获取其 `content` 和绑定的 `modelId`。
     *   **第三优先级：模型ID**: 如果以上两者都未提供，则直接使用传入的 `modelId`进行调用。
@@ -76,7 +78,7 @@
 // 示例：clarifyDemandDetailsFlow 的新实现
 const result = await executePrompt({
     scenario: 'chat-assistant', // 这是唯一的场景标识
-    userId: 'some-user-uid', // 用于后端进行用户角色校验
+    userId: 'some-user-uid', // 用于后端进行用户角色和星级校验
     messages: [/* ... */],
 });
 ```
@@ -85,7 +87,7 @@ const result = await executePrompt({
 #### b. AI场景配置页面 (`/ai-scenario-config`)
 这是一个专为`admin`角色设计的新页面，用于管理`ai_scenarios`集合。
 *   **功能**: 列出平台所有可配置的AI场景，并允许管理员为每个场景选择并绑定一个已存在的提示词（`promptKey`）。
-*   **高级配置 (新)**: 在编辑弹窗中，提供日历控件来设置生效/失效时间，并提供复选框来限定此配置生效的用户角色。
+*   **高级配置 (新)**: 在编辑弹窗中，通过复选框、时间选择器和日历控件，为配置添加复杂的“时间维度”和“用户维度”规则。
 
 ---
 
@@ -95,7 +97,7 @@ const result = await executePrompt({
 *   **配置即服务**: 管理员可在独立的UI界面完成模型的添加、编辑、删除和状态切换。
 *   **连接健康检查**: 提供一键“测试连接”功能，实时验证API Key和网络配置的有效性。
 *   **统一调用接口**: 平台所有AI能力都通过调用`executePrompt`这一个函数来完成。
-*   **场景化配置 (新)**: 实现了业务逻辑与AI实现的终极解耦。管理员可以在`ai-scenario-config`页面为特定业务场景（如聊天助理、商品推荐）绑定一个提示词，并可添加时间或用户角色限制，实现最高优先级的行为覆盖。
+*   **场景化配置 (新)**: 实现了业务逻辑与AI实现的终极解耦。管理员可以在`ai-scenario-config`页面为特定业务场景（如聊天助理、商品推荐）绑定一个提示词，并可添加基于重复策略、时间窗口、用户角色和星级的复合规则，实现最高优先级的行为覆盖。
 *   **提示词与模型绑定**: 允许在创建或编辑提示词时，为其指定一个执行模型和调用优先级。
 *   **提示词知识产权保护**: 通过`promptKey`调用机制，保护了提示词内容不被非授权用户查看。
 *   **高可维护性**: 模型支持列表集中在后端管理；所有配置均支持预设与自定义输入，兼顾易用性和扩展性。
