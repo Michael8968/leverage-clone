@@ -138,10 +138,14 @@
 | **name** | `string` | 场景的业务名称 (例如: "聊天对话-AI助理")。 |
 | **description**| `string` | 场景的功能描述。 |
 | **configuredPromptKey** | `string` | **(核心)** 绑定的 `prompts` 集合中的 `promptKey`。 |
-| **repetition** | `string` | (可选) 重复策略 (`none`, `monthly`, `daily`, `hourly`, `minutely`)。 |
-| **startsAt** | `Timestamp` | (可选) 此条配置的生效时间。对于重复策略，此字段的**时间部分**（时/分/秒）作为重复的基准。 |
-| **expiresAt**| `Timestamp` | (可选) 此条配置的失效时间。对于重复策略，此字段的**时间部分**（时/分/秒）作为重复的结束基准。 |
+| **repetition** | `string` | (可选) 重复策略 (`none`, `daily`, `weekly`)。 |
+| **daysOfWeek** | `Array<string>` | (可选) 当`repetition`为`weekly`时，存储一周的日子（`mon`, `tue`...）。 |
+| **startTime** | `string` | (可选) 当启用重复策略时，定义时间窗口的开始时间（`HH:mm`）。 |
+| **endTime** | `string` | (可选) 当启用重复策略时，定义时间窗口的结束时间（`HH:mm`）。 |
+| **startsAt** | `Timestamp` | (可选) 当`repetition`为`none`时，配置的绝对生效时间。 |
+| **expiresAt**| `Timestamp` | (可选) 当`repetition`为`none`时，配置的绝对失效时间。 |
 | **targetUserRoles**| `Array<string>`| (可选) 目标用户角色数组。若存在，则此配置仅对数组内的角色生效。 |
+
 
 ### 1.9. 其他集合
 

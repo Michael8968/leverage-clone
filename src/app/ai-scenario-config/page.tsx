@@ -25,7 +25,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Input } from '@/components/ui/input';
 import { TimePicker } from '@/components/ui/time-picker';
 
 
@@ -33,7 +32,8 @@ import { TimePicker } from '@/components/ui/time-picker';
 // TYPE DEFINITIONS & MOCK DATA
 // =================================================================
 
-type Repetition = 'none' | 'monthly' | 'daily' | 'hourly' | 'minutely';
+type Repetition = 'none' | 'daily' | 'weekly';
+type DayOfWeek = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 
 type ScenarioDefinition = {
     id: string;
@@ -43,7 +43,12 @@ type ScenarioDefinition = {
 
 type ScenarioConfig = {
     configuredPromptKey: string;
+    // New, more detailed time configuration
     repetition?: Repetition;
+    daysOfWeek?: DayOfWeek[];
+    startTime?: string; // HH:mm format
+    endTime?: string; // HH:mm format
+    // Absolute time is still supported
     startsAt?: Timestamp;
     expiresAt?: Timestamp;
     targetUserRoles?: Role[];
@@ -78,6 +83,11 @@ const ROLE_NAMES: Record<Role, string> = {
     supplier: '供应商',
     user: '普通用户'
 };
+const DAYS_OF_WEEK: { id: DayOfWeek; label: string }[] = [
+    { id: 'mon', label: '周一' }, { id: 'tue', label: '周二' }, { id: 'wed', label: '周三' },
+    { id: 'thu', label: '周四' }, { id: 'fri', label: '周五' }, { id: 'sat', label: '周六' },
+    { id: 'sun', label: '周日' }
+];
 
 
 // =================================================================
@@ -97,27 +107,47 @@ function ScenarioEditDialog({
     onSaveSuccess: () => void
 }) {
     const [selectedPromptKey, setSelectedPromptKey] = useState('default');
-    const [repetition, setRepetition] = useState<Repetition>('daily');
-    const [startsAt, setStartsAt] = useState<Date | undefined>();
-    const [expiresAt, setExpiresAt] = useState<Date | undefined>();
-    const [targetUserRoles, setTargetUserRoles] = useState<Role[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
+    
+    // Time config state
     const [isRepetitionEnabled, setIsRepetitionEnabled] = useState(false);
+    const [repetition, setRepetition] = useState<Repetition>('daily');
+    const [daysOfWeek, setDaysOfWeek] = useState<DayOfWeek[]>([]);
+    const [startTime, setStartTime] = useState<Date | undefined>();
+    const [endTime, setEndTime] = useState<Date | undefined>();
+    const [startsAt, setStartsAt] = useState<Date | undefined>();
+    const [expiresAt, setExpiresAt] = useState<Date | undefined>();
+
+    const [targetUserRoles, setTargetUserRoles] = useState<Role[]>([]);
 
     useEffect(() => {
         if(scenario) {
             const isRepEnabled = scenario.repetition && scenario.repetition !== 'none';
-            setSelectedPromptKey(scenario.configuredPromptKey || 'default');
-            setRepetition(isRepEnabled ? scenario.repetition! : 'daily');
             setIsRepetitionEnabled(isRepEnabled);
+            setSelectedPromptKey(scenario.configuredPromptKey || 'default');
+            setTargetUserRoles(scenario.targetUserRoles || []);
+            
+            // Repetition Config
+            setRepetition(isRepEnabled ? scenario.repetition! : 'daily');
+            setDaysOfWeek(scenario.daysOfWeek || []);
+            const now = new Date();
+            const [startH, startM] = (scenario.startTime || "00:00").split(':').map(Number);
+            const [endH, endM] = (scenario.endTime || "23:59").split(':').map(Number);
+            setStartTime(new Date(now.getFullYear(), now.getMonth(), now.getDate(), startH, startM));
+            setEndTime(new Date(now.getFullYear(), now.getMonth(), now.getDate(), endH, endM));
+
+            // Absolute Time Config
             setStartsAt(scenario.startsAt ? scenario.startsAt.toDate() : undefined);
             setExpiresAt(scenario.expiresAt ? scenario.expiresAt.toDate() : undefined);
-            setTargetUserRoles(scenario.targetUserRoles || []);
-        } else {
+
+        } else { // Reset for new
             setSelectedPromptKey('default');
-            setRepetition('daily');
             setIsRepetitionEnabled(false);
+            setRepetition('daily');
+            setDaysOfWeek([]);
+            setStartTime(undefined);
+            setEndTime(undefined);
             setStartsAt(undefined);
             setExpiresAt(undefined);
             setTargetUserRoles([]);
@@ -129,14 +159,19 @@ function ScenarioEditDialog({
         setIsSaving(true);
         try {
             const scenarioRef = doc(db, 'ai_scenarios', scenario.id);
-            const dataToSave: any = {
+            const dataToSave: ScenarioConfig = {
                 name: scenario.name,
                 description: scenario.description,
                 configuredPromptKey: selectedPromptKey === 'default' ? '' : selectedPromptKey,
-                repetition: isRepetitionEnabled ? repetition : 'none',
-                startsAt: startsAt ? Timestamp.fromDate(startsAt) : null,
-                expiresAt: expiresAt ? Timestamp.fromDate(expiresAt) : null,
                 targetUserRoles: targetUserRoles,
+                repetition: isRepetitionEnabled ? repetition : 'none',
+                // Absolute time fields
+                startsAt: isRepetitionEnabled ? null : (startsAt ? Timestamp.fromDate(startsAt) : null),
+                expiresAt: isRepetitionEnabled ? null : (expiresAt ? Timestamp.fromDate(expiresAt) : null),
+                // Repetition time fields
+                daysOfWeek: isRepetitionEnabled && repetition === 'weekly' ? daysOfWeek : [],
+                startTime: isRepetitionEnabled && startTime ? format(startTime, 'HH:mm') : null,
+                endTime: isRepetitionEnabled && endTime ? format(endTime, 'HH:mm') : null,
             };
             
             await setDoc(scenarioRef, dataToSave, { merge: true });
@@ -165,6 +200,12 @@ function ScenarioEditDialog({
         );
     };
 
+    const handleDayToggle = (day: DayOfWeek) => {
+        setDaysOfWeek(prev => 
+            prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+        );
+    };
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-2xl">
@@ -177,92 +218,90 @@ function ScenarioEditDialog({
                         <Label htmlFor="prompt-select" className="text-sm font-medium">配置使用的提示词</Label>
                         <Select value={selectedPromptKey} onValueChange={setSelectedPromptKey}>
                             <SelectTrigger id="prompt-select">
-                            <div className="flex items-center gap-2">
-                                <Workflow className="w-4 h-4 text-muted-foreground"/>
-                                <SelectValue placeholder="选择一个提示词..." />
-                            </div>
-                        </SelectTrigger>
-                        <SelectContent>
-                             <SelectItem value="default">-- (不配置, 使用系统默认行为) --</SelectItem>
-                            {prompts.map(p => (
-                                <SelectItem key={p.promptKey} value={p.promptKey}>{p.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                                <div className="flex items-center gap-2">
+                                    <Workflow className="w-4 h-4 text-muted-foreground"/>
+                                    <SelectValue placeholder="选择一个提示词..." />
+                                </div>
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="default">-- (不配置, 使用系统默认行为) --</SelectItem>
+                                {prompts.map(p => (
+                                    <SelectItem key={p.promptKey} value={p.promptKey}>{p.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     <Accordion type="multiple" className="w-full">
                         <AccordionItem value="time-config">
                             <AccordionTrigger><div className="flex items-center gap-2"><Clock className="w-4 h-4"/> 时间维度配置 (可选)</div></AccordionTrigger>
                             <AccordionContent className="space-y-4 pt-2">
-                                <div className="grid grid-cols-2 gap-4 items-end">
-                                    <div className="flex items-center space-x-2">
-                                        <Checkbox
-                                            id="enable-repetition"
-                                            checked={isRepetitionEnabled}
-                                            onCheckedChange={(checked) => setIsRepetitionEnabled(Boolean(checked))}
-                                        />
-                                        <Label htmlFor="enable-repetition" className="font-medium">启用重复策略</Label>
-                                    </div>
-                                    <Select value={repetition} onValueChange={(v) => setRepetition(v as Repetition)} disabled={!isRepetitionEnabled}>
-                                        <SelectTrigger>
-                                            <div className="flex items-center gap-2">
-                                                <Repeat className="w-4 h-4 text-muted-foreground" />
-                                                <SelectValue />
+                                <div className="flex items-center space-x-2">
+                                    <Checkbox id="enable-repetition" checked={isRepetitionEnabled} onCheckedChange={(checked) => setIsRepetitionEnabled(Boolean(checked))} />
+                                    <Label htmlFor="enable-repetition" className="font-medium">启用重复策略</Label>
+                                </div>
+
+                                {isRepetitionEnabled ? (
+                                    <div className="p-4 border rounded-md space-y-4 bg-muted/50">
+                                        <div className="grid grid-cols-2 gap-4 items-center">
+                                            <div>
+                                                <Label>重复频率</Label>
+                                                <Select value={repetition} onValueChange={(v) => setRepetition(v as Repetition)}>
+                                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="daily">每天</SelectItem>
+                                                        <SelectItem value="weekly">每周</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
                                             </div>
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="monthly">按月重复</SelectItem>
-                                            <SelectItem value="daily">按天重复</SelectItem>
-                                            <SelectItem value="hourly">按小时重复</SelectItem>
-                                            <SelectItem value="minutely">按分钟重复</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div>
-                                    <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                                        <Info className="w-3 h-3" />
-                                        {isRepetitionEnabled
-                                            ? "对于重复策略, 系统将只使用下方选择的“时间”部分作为生效窗口。"
-                                            : "为该配置设置一个绝对的生效和失效日期。"}
-                                    </Label>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label>生效时间</Label>
-                                        <Popover>
-                                            <PopoverTrigger asChild>
-                                                <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !startsAt && "text-muted-foreground")}>
-                                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                                    {startsAt ? format(startsAt, "yyyy-MM-dd HH:mm") : <span>选择日期与时间</span>}
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-auto p-0">
-                                                <Calendar mode="single" selected={startsAt} onSelect={setStartsAt} initialFocus/>
-                                                <div className="p-3 border-t border-border">
-                                                    <TimePicker setDate={setStartsAt} date={startsAt} />
+                                            {repetition === 'weekly' && (
+                                                <div>
+                                                    <Label>选择星期</Label>
+                                                    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+                                                        {DAYS_OF_WEEK.map(day => (
+                                                            <div key={day.id} className="flex items-center space-x-1">
+                                                                <Checkbox id={`day-${day.id}`} checked={daysOfWeek.includes(day.id)} onCheckedChange={() => handleDayToggle(day.id)} />
+                                                                <Label htmlFor={`day-${day.id}`} className="text-xs font-normal">{day.label}</Label>
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 </div>
-                                            </PopoverContent>
-                                        </Popover>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <Label>生效时间窗口</Label>
+                                            <div className="flex items-center gap-2">
+                                                <TimePicker date={startTime} setDate={setStartTime} />
+                                                <span>-</span>
+                                                <TimePicker date={endTime} setDate={setEndTime} />
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>失效时间</Label>
-                                        <Popover>
-                                            <PopoverTrigger asChild>
-                                                <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !expiresAt && "text-muted-foreground")}>
-                                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                                    {expiresAt ? format(expiresAt, "yyyy-MM-dd HH:mm") : <span>选择日期与时间</span>}
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-auto p-0">
-                                                <Calendar mode="single" selected={expiresAt} onSelect={setExpiresAt} />
-                                                <div className="p-3 border-t border-border">
-                                                    <TimePicker setDate={setExpiresAt} date={expiresAt} />
-                                                </div>
-                                            </PopoverContent>
-                                        </Popover>
+                                ) : (
+                                    <div className="p-4 border rounded-md space-y-4 bg-muted/50">
+                                        <Label>绝对时间范围 (一次性)</Label>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !startsAt && "text-muted-foreground")}>
+                                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                                        {startsAt ? format(startsAt, "yyyy-MM-dd HH:mm") : <span>选择生效时间</span>}
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={startsAt} onSelect={setStartsAt} initialFocus/><div className="p-3 border-t border-border"><TimePicker setDate={setStartsAt} date={startsAt} /></div></PopoverContent>
+                                            </Popover>
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !expiresAt && "text-muted-foreground")}>
+                                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                                        {expiresAt ? format(expiresAt, "yyyy-MM-dd HH:mm") : <span>选择失效时间</span>}
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={expiresAt} onSelect={setExpiresAt} /><div className="p-3 border-t border-border"><TimePicker setDate={setExpiresAt} date={expiresAt} /></div></PopoverContent>
+                                            </Popover>
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                             </AccordionContent>
                         </AccordionItem>
                         <AccordionItem value="user-config">
@@ -272,11 +311,7 @@ function ScenarioEditDialog({
                                 <div className="grid grid-cols-4 gap-2 mt-2">
                                     {ALL_ROLES.map(role => (
                                         <div key={role} className="flex items-center space-x-2">
-                                            <Checkbox
-                                                id={`role-${role}`}
-                                                checked={targetUserRoles.includes(role)}
-                                                onCheckedChange={() => handleRoleToggle(role)}
-                                            />
+                                            <Checkbox id={`role-${role}`} checked={targetUserRoles.includes(role)} onCheckedChange={() => handleRoleToggle(role)} />
                                             <Label htmlFor={`role-${role}`} className="text-sm font-normal">{ROLE_NAMES[role]}</Label>
                                         </div>
                                     ))}
@@ -477,3 +512,4 @@ export default function AIScenarioConfigPage() {
 }
 
     
+
