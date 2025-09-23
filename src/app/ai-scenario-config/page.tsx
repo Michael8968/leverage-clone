@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Puzzle, Edit, Workflow, Loader2, Frown, Users, Clock, Settings2, Calendar as CalendarIcon, Repeat } from 'lucide-react';
+import { Puzzle, Edit, Workflow, Loader2, Frown, Users, Clock, Settings2, Calendar as CalendarIcon, Repeat, Info } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore, type Role } from '@/store/auth';
 import { useRouter } from 'next/navigation';
@@ -25,6 +25,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { TimePicker } from '@/components/ui/time-picker';
 
 
 // =================================================================
@@ -94,8 +96,8 @@ function ScenarioEditDialog({
     onOpenChange: (open: boolean) => void,
     onSaveSuccess: () => void
 }) {
-    const [selectedPromptKey, setSelectedPromptKey] = useState('');
-    const [repetition, setRepetition] = useState<Repetition>('none');
+    const [selectedPromptKey, setSelectedPromptKey] = useState('default');
+    const [repetition, setRepetition] = useState<Repetition>('daily');
     const [startsAt, setStartsAt] = useState<Date | undefined>();
     const [expiresAt, setExpiresAt] = useState<Date | undefined>();
     const [targetUserRoles, setTargetUserRoles] = useState<Role[]>([]);
@@ -107,7 +109,7 @@ function ScenarioEditDialog({
         if(scenario) {
             const isRepEnabled = scenario.repetition && scenario.repetition !== 'none';
             setSelectedPromptKey(scenario.configuredPromptKey || 'default');
-            setRepetition(isRepEnabled ? scenario.repetition! : 'daily'); // Default to 'daily' if enabled but not set
+            setRepetition(isRepEnabled ? scenario.repetition! : 'daily');
             setIsRepetitionEnabled(isRepEnabled);
             setStartsAt(scenario.startsAt ? scenario.startsAt.toDate() : undefined);
             setExpiresAt(scenario.expiresAt ? scenario.expiresAt.toDate() : undefined);
@@ -165,7 +167,7 @@ function ScenarioEditDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-xl">
+            <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle className="font-headline">编辑场景: {scenario?.name}</DialogTitle>
                     <DialogDescription>{scenario?.description}</DialogDescription>
@@ -192,15 +194,15 @@ function ScenarioEditDialog({
                     <Accordion type="multiple" className="w-full">
                         <AccordionItem value="time-config">
                             <AccordionTrigger><div className="flex items-center gap-2"><Clock className="w-4 h-4"/> 时间维度配置 (可选)</div></AccordionTrigger>
-                            <AccordionContent className="grid grid-cols-2 gap-4 pt-2">
-                                <div className="col-span-2 grid grid-cols-2 gap-2 items-end">
+                            <AccordionContent className="space-y-4 pt-2">
+                                <div className="grid grid-cols-2 gap-4 items-end">
                                     <div className="flex items-center space-x-2">
                                         <Checkbox
                                             id="enable-repetition"
                                             checked={isRepetitionEnabled}
                                             onCheckedChange={(checked) => setIsRepetitionEnabled(Boolean(checked))}
                                         />
-                                        <Label htmlFor="enable-repetition" className="font-medium">启用重复</Label>
+                                        <Label htmlFor="enable-repetition" className="font-medium">启用重复策略</Label>
                                     </div>
                                     <Select value={repetition} onValueChange={(v) => setRepetition(v as Repetition)} disabled={!isRepetitionEnabled}>
                                         <SelectTrigger>
@@ -217,25 +219,50 @@ function ScenarioEditDialog({
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="col-span-2"><Label>绝对时间范围 (对重复策略同样生效)</Label></div>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !startsAt && "text-muted-foreground")}>
-                                            {startsAt ? format(startsAt, "PPP HH:mm") : <span>生效时间</span>}
-                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={startsAt} onSelect={setStartsAt} initialFocus/></PopoverContent>
-                                </Popover>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !expiresAt && "text-muted-foreground")}>
-                                            {expiresAt ? format(expiresAt, "PPP HH:mm") : <span>失效时间</span>}
-                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={expiresAt} onSelect={setExpiresAt} /></PopoverContent>
-                                </Popover>
+                                <div>
+                                    <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                                        <Info className="w-3 h-3" />
+                                        {isRepetitionEnabled
+                                            ? "对于重复策略, 系统将只使用下方选择的“时间”部分作为生效窗口。"
+                                            : "为该配置设置一个绝对的生效和失效日期。"}
+                                    </Label>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>生效时间</Label>
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !startsAt && "text-muted-foreground")}>
+                                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                                    {startsAt ? format(startsAt, "yyyy-MM-dd HH:mm") : <span>选择日期与时间</span>}
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-auto p-0">
+                                                <Calendar mode="single" selected={startsAt} onSelect={setStartsAt} initialFocus/>
+                                                <div className="p-3 border-t border-border">
+                                                    <TimePicker setDate={setStartsAt} date={startsAt} />
+                                                </div>
+                                            </PopoverContent>
+                                        </Popover>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>失效时间</Label>
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !expiresAt && "text-muted-foreground")}>
+                                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                                    {expiresAt ? format(expiresAt, "yyyy-MM-dd HH:mm") : <span>选择日期与时间</span>}
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-auto p-0">
+                                                <Calendar mode="single" selected={expiresAt} onSelect={setExpiresAt} />
+                                                <div className="p-3 border-t border-border">
+                                                    <TimePicker setDate={setExpiresAt} date={expiresAt} />
+                                                </div>
+                                            </PopoverContent>
+                                        </Popover>
+                                    </div>
+                                </div>
                             </AccordionContent>
                         </AccordionItem>
                         <AccordionItem value="user-config">
@@ -438,6 +465,7 @@ export default function AIScenarioConfigPage() {
             </div>
             
             <ScenarioEditDialog 
+                key={selectedScenario?.id || 'new'}
                 scenario={selectedScenario}
                 prompts={prompts}
                 open={isDialogOpen}

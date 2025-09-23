@@ -75,31 +75,43 @@ const executePromptFlow = ai.defineFlow(
             const expiresAt = scenarioData.expiresAt?.toDate();
 
             if (repetition && repetition !== 'none' && startsAt && expiresAt) {
-                // Logic for recurring schedules
+                // Logic for recurring schedules: only compare the time part
                 const nowTime = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
                 const startTime = startsAt.getHours() * 3600 + startsAt.getMinutes() * 60 + startsAt.getSeconds();
                 const endTime = expiresAt.getHours() * 3600 + expiresAt.getMinutes() * 60 + expiresAt.getSeconds();
 
-                switch (repetition) {
-                    case 'minutely':
-                        isTimeValid = now.getSeconds() >= startsAt.getSeconds() && now.getSeconds() <= expiresAt.getSeconds();
-                        break;
-                    case 'hourly':
-                         isTimeValid = now.getMinutes() >= startsAt.getMinutes() && now.getMinutes() <= expiresAt.getMinutes();
-                        break;
-                    case 'daily':
-                        isTimeValid = nowTime >= startTime && nowTime <= endTime;
-                        break;
-                    case 'monthly':
-                        isTimeValid = now.getDate() === startsAt.getDate() && nowTime >= startTime && nowTime <= endTime;
-                        break;
-                    default:
-                        // fall back to absolute time check
-                         isTimeValid = (!startsAt || now >= startsAt) && (!expiresAt || now <= expiresAt);
-                        break;
+                // Check if current date is within the absolute date range of the config
+                const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                const startDateOnly = new Date(startsAt.getFullYear(), startsAt.getMonth(), startsAt.getDate());
+                const endDateOnly = new Date(expiresAt.getFullYear(), expiresAt.getMonth(), expiresAt.getDate());
+
+                if (nowDateOnly >= startDateOnly && nowDateOnly <= endDateOnly) {
+                    switch (repetition) {
+                        case 'minutely':
+                             // This is tricky, usually for minute-based repetition you check against a second part.
+                             // For simplicity, we'll assume it's valid if within the hour/day.
+                             isTimeValid = now.getSeconds() >= startsAt.getSeconds() && now.getSeconds() <= expiresAt.getSeconds();
+                            break;
+                        case 'hourly':
+                            isTimeValid = now.getMinutes() >= startsAt.getMinutes() && now.getMinutes() <= expiresAt.getMinutes();
+                            break;
+                        case 'daily':
+                            isTimeValid = nowTime >= startTime && nowTime <= endTime;
+                            break;
+                        case 'monthly':
+                             // Effective if it's the same day of the month AND within the time window
+                            isTimeValid = now.getDate() === startsAt.getDate() && nowTime >= startTime && nowTime <= endTime;
+                            break;
+                        default:
+                            isTimeValid = false; // Unknown repetition
+                            break;
+                    }
+                } else {
+                    isTimeValid = false; // Outside of the absolute date range for repetition
                 }
+
             } else {
-                 // Absolute time window check
+                 // Absolute time window check (if no repetition)
                  isTimeValid = (!startsAt || now >= startsAt) && (!expiresAt || now <= expiresAt);
             }
 
