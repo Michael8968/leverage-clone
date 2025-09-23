@@ -122,17 +122,12 @@ const getPromptsFlow = ai.defineFlow({
     outputSchema: GetPromptsOutputSchema
 }, async () => {
     const promptsCollection = collection(db, 'prompts');
-    const q = query(
-        promptsCollection,
-        where("status", "==", "生效中"),
-        orderBy("name")
-    );
-    const snapshot = await getDocs(q);
+    const snapshot = await getDocs(promptsCollection);
 
-    // Apply the second filter for "scope" client-side to avoid composite index
     const prompts = snapshot.docs
         .map(doc => doc.data())
-        .filter(data => data.scope === '通用')
+        .filter(data => data.status === '生效中' && data.scope === '通用')
+        .sort((a, b) => a.name.localeCompare(b.name))
         .map(data => ({
             name: data.name,
             promptKey: data.promptKey,
