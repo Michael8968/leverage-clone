@@ -56,7 +56,7 @@ const promptSchema = z.object({
   content: z.string().min(10, "提示词内容至少需要10个字符。"),
   scope: z.enum(['通用', '专属']),
   status: z.enum(['生效中', '已停用']),
-  modelId: z.string().optional().or(z.literal('')),
+  modelId: z.string().optional(),
   priority: z.preprocess(
     (val) => val ? parseInt(String(val), 10) : undefined,
     z.number().int().min(1).optional()
@@ -285,7 +285,8 @@ function PromptEditDialog({ prompt, llms, open, onOpenChange, onSave }: {
     const isEditing = !!prompt?.id;
 
     // Determine if the current user has permission to edit the content
-    const canEditContent = !isEditing || role === 'admin' || prompt.ownerId === user?.uid;
+    // Admin can edit anything. Creator can only edit their own prompts' content.
+    const canEditContent = role === 'admin' || (isEditing ? prompt.ownerId === user?.uid : true);
 
 
     const form = useForm<z.infer<typeof promptSchema>>({
@@ -325,11 +326,16 @@ function PromptEditDialog({ prompt, llms, open, onOpenChange, onSave }: {
 
         setIsSubmitting(true);
         try {
-            const dataToSave: Partial<Prompt> = { 
+            const dataToSave: any = { 
                 ...values, 
-                modelId: values.modelId || undefined,
-                priority: values.priority || undefined,
+                modelId: values.modelId || null,
+                priority: values.priority || null,
             };
+            
+            // Clean up empty optional fields so they are removed from firestore
+            if (!dataToSave.modelId) delete dataToSave.modelId;
+            if (!dataToSave.priority) delete dataToSave.priority;
+
 
             if (isEditing) {
                 const docRef = doc(db, 'prompts', prompt!.id!);
@@ -411,10 +417,9 @@ function PromptEditDialog({ prompt, llms, open, onOpenChange, onSave }: {
                                 render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>绑定模型</FormLabel>
-                                     <Select onValueChange={field.onChange} value={field.value || ''}>
+                                     <Select onValueChange={field.onChange} value={field.value}>
                                         <FormControl><SelectTrigger><SelectValue placeholder="使用系统默认模型" /></SelectTrigger></FormControl>
                                         <SelectContent>
-                                            <SelectItem value="">-- 使用系统默认 --</SelectItem>
                                             {llms.map(llm => <SelectItem key={llm.id} value={llm.id}>{llm.modelName} ({llm.provider})</SelectItem>)}
                                         </SelectContent>
                                     </Select>
