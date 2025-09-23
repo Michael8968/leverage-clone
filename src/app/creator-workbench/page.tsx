@@ -29,6 +29,7 @@ import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
+import { Label } from '@/components/ui/label';
 
 // =================================================================
 // TASKS TAB
@@ -383,7 +384,7 @@ function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
                 </AlertDescription>
             </Alert>
             <div className="space-y-2">
-                <FormLabel htmlFor="tripo-key">Tripo3D API Key</FormLabel>
+                <Label htmlFor="tripo-key">Tripo3D API Key</Label>
                 <Input id="tripo-key" type="password" placeholder="sk-..." value={apiKey} onChange={(e) => handleApiKeyChange(e.target.value)} />
             </div>
              <div className="flex gap-2">
