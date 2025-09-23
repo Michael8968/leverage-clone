@@ -56,7 +56,7 @@ const promptSchema = z.object({
   content: z.string().min(10, "提示词内容至少需要10个字符。"),
   scope: z.enum(['通用', '专属']),
   status: z.enum(['生效中', '已停用']),
-  modelId: z.string().optional(),
+  modelId: z.string().optional().default(''), // Allow empty string for default
   priority: z.preprocess(
     (val) => val ? parseInt(String(val), 10) : undefined,
     z.number().int().min(1).optional()
@@ -100,11 +100,14 @@ export default function PromptManagementPage() {
 
             // Fetch active LLMs for the dropdown
             const llmsCollection = collection(db, 'llm_connections');
-            const llmsQuery = query(llmsCollection, where("status", "==", "活跃"), orderBy("priority"));
+            // FIX: Query first, then filter in client to avoid error on empty collection
+            const llmsQuery = query(llmsCollection, orderBy("priority"));
             const llmsSnapshot = await getDocs(llmsQuery);
-            setLlms(llmsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as LlmConnection)));
+            const allLlms = llmsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as LlmConnection));
+            setLlms(allLlms.filter(llm => llm.status === '活跃'));
 
         } catch (error) {
+            console.error("Data loading failed:", error)
             toast({ title: '加载失败', description: '无法加载数据。', variant: 'destructive' });
         } finally {
             setIsLoading(false);
@@ -417,7 +420,7 @@ function PromptEditDialog({ prompt, llms, open, onOpenChange, onSave }: {
                                 render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>绑定模型</FormLabel>
-                                     <Select onValueChange={field.onChange} value={field.value}>
+                                     <Select onValueChange={field.onChange} value={field.value || ''}>
                                         <FormControl><SelectTrigger><SelectValue placeholder="使用系统默认模型" /></SelectTrigger></FormControl>
                                         <SelectContent>
                                             {llms.map(llm => <SelectItem key={llm.id} value={llm.id}>{llm.modelName} ({llm.provider})</SelectItem>)}
