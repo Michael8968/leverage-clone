@@ -28,7 +28,8 @@ const PromptExecutionInputSchema = z.object({
   promptKey: z.string().optional().describe("The business key of the prompt in the prompts collection. Required if modelId is not provided."),
   messages: z.array(PromptMessageSchema).describe("The conversation history. The content from the prompt document will be used as the 'system' message if a promptKey is provided."),
   temperature: z.number().optional().default(0.7),
-  // other generic parameters can be added here
+  // New field for scenario-based configuration
+  scenario: z.string().optional().describe("The predefined AI scenario key (e.g., 'chat-assistant') to look up a configured prompt."),
 });
 export type PromptExecutionInput = z.infer<typeof PromptExecutionInputSchema>;
 
@@ -51,18 +52,32 @@ const executePromptFlow = ai.defineFlow(
     inputSchema: PromptExecutionInputSchema,
     outputSchema: PromptExecutionOutputSchema,
   },
-  async ({ modelId, promptKey, messages, temperature }) => {
+  async ({ modelId, promptKey, messages, temperature, scenario }) => {
+    let finalPromptKey = promptKey;
+
+    // 1. Scenario-based configuration lookup (highest priority)
+    if (scenario) {
+        const scenarioRef = doc(db, 'ai_scenarios', scenario);
+        const scenarioSnap = await getDoc(scenarioRef);
+        if (scenarioSnap.exists()) {
+            const scenarioData = scenarioSnap.data();
+            if (scenarioData.configuredPromptKey) {
+                finalPromptKey = scenarioData.configuredPromptKey;
+            }
+        }
+    }
+    
     let connection: LlmConnection;
     let systemPromptContent: string | undefined;
 
-    if (promptKey) {
+    if (finalPromptKey) {
         // --- Logic for promptKey based execution ---
         const promptsCollection = collection(db, 'prompts');
-        const q = query(promptsCollection, where("promptKey", "==", promptKey));
+        const q = query(promptsCollection, where("promptKey", "==", finalPromptKey));
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
-            throw new Error(`Prompt with key "${promptKey}" not found.`);
+            throw new Error(`Prompt with key "${finalPromptKey}" not found.`);
         }
         const promptDoc = querySnapshot.docs[0].data();
         
@@ -71,7 +86,7 @@ const executePromptFlow = ai.defineFlow(
         const effectiveModelId = promptDoc.modelId || modelId; // Use prompt's model, fallback to direct modelId if provided
 
         if (!effectiveModelId) {
-             throw new Error(`No modelId was associated with promptKey "${promptKey}" and no default was provided.`);
+             throw new Error(`No modelId was associated with promptKey "${finalPromptKey}" and no default was provided.`);
         }
         
         const llmConnectionRef = doc(db, 'llm_connections', effectiveModelId);
@@ -92,7 +107,7 @@ const executePromptFlow = ai.defineFlow(
         }
         connection = llmConnectionSnap.data() as LlmConnection;
     } else {
-        throw new Error("Either 'modelId' or 'promptKey' must be provided.");
+        throw new Error("An execution target is required: either 'modelId', 'promptKey', or a valid 'scenario' must be provided.");
     }
 
 
@@ -110,7 +125,7 @@ const executePromptFlow = ai.defineFlow(
     const { provider, modelName, apiKey } = connection;
     const { apiBaseUrl } = providerInfo;
 
-    // 2. Isolate system prompt and conversation messages
+    // Isolate system prompt and conversation messages
     let systemPromptMessage = messages.find(m => m.role === 'system');
     const conversationMessages = messages.filter(m => m.role !== 'system');
     
@@ -125,7 +140,7 @@ const executePromptFlow = ai.defineFlow(
     };
     let requestBody: any;
 
-    // 3. Adapt request based on provider
+    // Adapt request based on provider
     switch (provider.toLowerCase()) {
       case 'google':
         requestUrl = `${apiBaseUrl}/${modelName}:generateContent?key=${apiKey}`;
@@ -164,7 +179,7 @@ const executePromptFlow = ai.defineFlow(
         break;
     }
 
-    // 4. Send native fetch request
+    // Send native fetch request
     const response = await fetch(requestUrl, {
       method: 'POST',
       headers: requestHeaders,
@@ -179,7 +194,7 @@ const executePromptFlow = ai.defineFlow(
 
     const responseData = await response.json();
 
-    // 5. Parse response and return standardized output
+    // Parse response and return standardized output
     let outputText = '';
     switch (provider.toLowerCase()) {
         case 'google':

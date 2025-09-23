@@ -10,6 +10,8 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { executePrompt } from './prompt-execution-flow';
+
 
 const ChatMessageSchema = z.object({
     id: z.string(),
@@ -35,12 +37,8 @@ export async function clarifyDemandDetails(input: ClarifyDemandDetailsInput): Pr
   return clarifyDemandDetailsFlow(input);
 }
 
-
-const prompt = ai.definePrompt({
-  name: 'clarifyDemandDetailsPrompt',
-  input: { schema: ClarifyDemandDetailsInputSchema },
-  output: { schema: ClarifyDemandDetailsOutputSchema },
-  prompt: `You are an intelligent and friendly assistant for a creative designer. 
+// The original prompt content, now used as a fallback or within a prompt document.
+const defaultClarifyPrompt = `You are an intelligent and friendly assistant for a creative designer. 
 Your goal is to help the designer understand a client's needs by asking clarifying questions. The designer is busy and has asked you to take over the initial conversation.
 
 Here is the client's original request:
@@ -64,8 +62,7 @@ Example questions:
 - "这个模型的具体尺寸大概需要多大呢？"
 
 Based on the provided information, what is the best next question to ask?
-`,
-});
+`;
 
 
 const clarifyDemandDetailsFlow = ai.defineFlow(
@@ -75,10 +72,34 @@ const clarifyDemandDetailsFlow = ai.defineFlow(
     outputSchema: ClarifyDemandDetailsOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input);
-    if (!output) {
+    // This flow now acts as a simple wrapper around the unified executePrompt gateway.
+    // It passes a 'scenario' key, allowing its behavior to be configured remotely
+    // from the 'ai_scenarios' collection in Firestore.
+
+    const chatHistoryText = input.chatHistory
+        .map(m => `${m.isAIMessage ? 'AI Assistant' : 'Client'}: ${m.text}`)
+        .join('\n');
+    
+    const userContent = `
+        Demand Title: ${input.demandTitle}
+        Demand Description: ${input.demandDescription}
+        Chat History:
+        ${chatHistoryText}
+    `;
+
+    const result = await executePrompt({
+        scenario: 'chat-assistant', // This is the key for scenario-based config
+        messages: [
+            // If no scenario or prompt is configured, this system message acts as a fallback.
+            { role: 'system', content: defaultClarifyPrompt }, 
+            { role: 'user', content: userContent }
+        ],
+    });
+
+    if (!result.text) {
       throw new Error("AI failed to generate a clarification question.");
     }
-    return output;
+    
+    return { clarification: result.text };
   }
 );
