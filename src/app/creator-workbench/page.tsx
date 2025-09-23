@@ -6,7 +6,7 @@ import { AppLayout } from '@/components/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuthStore } from '@/store/auth';
-import { Frown, Bot, Loader2, ArrowRight, Wand2, Send, PackagePlus, Info } from 'lucide-react';
+import { Frown, Bot, Loader2, ArrowRight, Wand2, Send, PackagePlus, Info, UploadCloud, FileImage } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { generate3dModel, type Generate3dModelOutput } from '@/ai/flows/generate-3d-model';
 import { generateTripo3dModel } from '@/ai/flows/generate-tripo3d-model';
 import { getTripo3dModelStatus } from '@/ai/flows/get-tripo3d-model-status';
+import { generateNanoBananaImage } from '@/ai/flows/generate-nanobanana-image';
 
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -430,14 +431,115 @@ function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
 }
 
 // =================================================================
-// Luma AI TAB (Placeholder)
+// Nano-Banana (Gemini 2.5 Flash Image) TAB
 // =================================================================
-function LumaAIPlaceholder() {
+const fileToDataUri = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+};
+
+function NanoBananaGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => void }) {
+    const [prompt, setPrompt] = useState('');
+    const [imageFile, setImageFile] = useState<File | null>(null);
+    const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [isGenerating, startGeneration] = useTransition();
+    const [aiResult, setAiResult] = useState<string | null>(null);
+    const { toast } = useToast();
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setImageFile(file);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setImagePreview(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleGenerate = () => {
+        if (!prompt) {
+            toast({ title: '提示', description: '请输入您的编辑或创作指令。' });
+            return;
+        }
+        setAiResult(null);
+        startGeneration(async () => {
+            try {
+                let imageDataUri: string | undefined;
+                if (imageFile) {
+                    imageDataUri = await fileToDataUri(imageFile);
+                }
+                const result = await generateNanoBananaImage({ prompt, imageDataUri });
+                setAiResult(result.imageDataUri);
+            } catch (error: any) {
+                console.error("Nano-banana generation failed:", error);
+                toast({ title: '生成失败', description: error.message || 'AI 模型创作时发生错误，请稍后重试。', variant: 'destructive' });
+            }
+        });
+    };
+
+    const handleSuccess = () => {
+        setAiResult(null);
+        setPrompt('');
+        setImageFile(null);
+        setImagePreview(null);
+        onSubmissionSuccess();
+    };
+
     return (
-        <div className="text-center p-8 space-y-4 border-2 border-dashed rounded-lg">
-            <Loader2 className="mx-auto h-12 w-12 text-muted-foreground" />
-            <h3 className="font-headline text-lg">Luma AI 集成</h3>
-            <p className="text-muted-foreground">此功能正在开发中，敬请期待。</p>
+        <div className="space-y-6">
+            <Alert>
+                <Info className="h-4 w-4" />
+                <AlertTitle>Gemini 2.5 Flash Image (Nano-Banana) 集成</AlertTitle>
+                <AlertDescription>
+                    此功能使用先进的图像生成模型。您可以上传一张图片作为编辑基础，或者仅通过文本指令进行创作。
+                </AlertDescription>
+            </Alert>
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                <div className='space-y-2'>
+                    <Label htmlFor="image-upload">原始图片 (可选)</Label>
+                    <div className="relative border-2 border-dashed border-muted-foreground/50 rounded-lg p-4 h-40 flex items-center justify-center text-center">
+                        <Input id="image-upload" type="file" accept="image/*" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                        {imagePreview ? (
+                            <Image src={imagePreview} alt="Image preview" layout="fill" objectFit="contain" className="rounded-md" />
+                        ) : (
+                            <div className="flex flex-col items-center gap-1 text-muted-foreground">
+                                <UploadCloud className="h-8 w-8" />
+                                <span>点击或拖拽上传图片</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+                 <div className="flex flex-col gap-2">
+                    <Label htmlFor="nano-prompt">编辑/创作指令</Label>
+                    <Textarea 
+                        id="nano-prompt"
+                        placeholder="例如：把这只猫变成赛博朋克风格, 加上霓虹灯和机械义肢" 
+                        value={prompt}
+                        onChange={(e) => setPrompt(e.target.value)}
+                        className="h-full"
+                        rows={5}
+                    />
+                </div>
+            </div>
+             <Button onClick={handleGenerate} disabled={isGenerating} className="w-full">
+                {isGenerating ? <Loader2 className="animate-spin mr-2"/> : <Wand2 className="mr-2"/>}
+                {isGenerating ? '正在生成中...' : (imagePreview ? '开始编辑' : '开始创作')}
+            </Button>
+            
+            {isGenerating && (
+                <div className="text-center p-8 space-y-4">
+                    <Loader2 className="mx-auto h-12 w-12 animate-spin text-accent" />
+                    <p className="text-muted-foreground">AI 图像大模型正在全力创作中，请稍候...</p>
+                </div>
+            )}
+            
+            {aiResult && <SubmissionForm imageUrl={aiResult} onSubmissionSuccess={handleSuccess} toolName="Gemini Nano-Banana" />}
         </div>
     );
 }
@@ -465,7 +567,7 @@ function SubmissionsTab({ refreshKey }: { refreshKey: number }) {
                 let subsList = snapshot.docs.map(doc => {
                     const data = doc.data();
                     // Firestore Timestamps need to be converted to JS Date objects
-                    const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : new Date();
+                    const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : null;
                     return { id: doc.id, ...data, createdAt } as ProductService;
                 });
                 
@@ -553,15 +655,15 @@ function CreationsTab({ onSubmissionSuccess }: { onSubmissionSuccess: () => void
     return (
         <Card>
             <CardHeader>
-                <CardTitle className="font-headline">3D AI 创作</CardTitle>
-                <CardDescription>选择您偏好的创作工具，输入创意描述，AI将为您生成3D模型预览图，完成后可直接提交入库审核。</CardDescription>
+                <CardTitle className="font-headline">AI 图像创作</CardTitle>
+                <CardDescription>选择您偏好的创作工具，输入创意描述，AI将为您生成预览图，完成后可直接提交入库审核。</CardDescription>
             </CardHeader>
             <CardContent>
-                 <Tabs defaultValue="built-in" className="w-full">
+                 <Tabs defaultValue="nano-banana" className="w-full">
                     <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="built-in">内置AI模型</TabsTrigger>
+                        <TabsTrigger value="built-in">内置模型</TabsTrigger>
                         <TabsTrigger value="tripo3d">Tripo3D</TabsTrigger>
-                        <TabsTrigger value="luma">Luma AI</TabsTrigger>
+                        <TabsTrigger value="nano-banana">Gemini Image</TabsTrigger>
                     </TabsList>
                     <TabsContent value="built-in" className="pt-6">
                         <BuiltInGenerator onSubmissionSuccess={onSubmissionSuccess} />
@@ -569,8 +671,8 @@ function CreationsTab({ onSubmissionSuccess }: { onSubmissionSuccess: () => void
                     <TabsContent value="tripo3d" className="pt-6">
                         <Tripo3DGenerator onSubmissionSuccess={onSubmissionSuccess} />
                     </TabsContent>
-                    <TabsContent value="luma" className="pt-6">
-                        <LumaAIPlaceholder />
+                    <TabsContent value="nano-banana" className="pt-6">
+                        <NanoBananaGenerator onSubmissionSuccess={onSubmissionSuccess} />
                     </TabsContent>
                 </Tabs>
             </CardContent>
@@ -602,7 +704,7 @@ function CreatorWorkbench() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-3 max-w-lg mx-auto">
           <TabsTrigger value="tasks">任务与需求</TabsTrigger>
-          <TabsTrigger value="3d-creation">3D AI 创作</TabsTrigger>
+          <TabsTrigger value="3d-creation">AI 创作</TabsTrigger>
           <TabsTrigger value="submissions">我的提交</TabsTrigger>
         </TabsList>
         <TabsContent value="tasks" className="mt-6"><TasksTab /></TabsContent>
