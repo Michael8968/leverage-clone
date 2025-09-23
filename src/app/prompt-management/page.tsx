@@ -467,7 +467,6 @@ Based on the context, provide a clear and concise answer. If the context does no
                                      <Select onValueChange={field.onChange} value={field.value || ''}>
                                         <FormControl><SelectTrigger><SelectValue placeholder="使用系统默认模型" /></SelectTrigger></FormControl>
                                         <SelectContent>
-                                            <SelectItem value="">-- 使用系统默认 --</SelectItem>
                                             {llms.map(llm => <SelectItem key={llm.id} value={llm.id}>{llm.modelName} ({llm.provider})</SelectItem>)}
                                         </SelectContent>
                                     </Select>
@@ -492,4 +491,3 @@ Based on the context, provide a clear and concise answer. If the context does no
         </Dialog>
     );
 }
-
