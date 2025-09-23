@@ -38,7 +38,7 @@ const RoleBadge = ({ role }: { role: Role }) => {
         user: { label: '普通用户', color: 'bg-gray-500 hover:bg-gray-600' },
     };
     const { label, color } = roleConfig[role] || { label: role, color: 'bg-gray-400' };
-    return <Badge className={color}>{label}</Badge>;
+    return <Badge className={cn(color, 'text-white')}>{label}</Badge>;
 };
 
 // StarRating component now takes an optional onClick handler for interactivity
@@ -52,7 +52,7 @@ const StarRating = ({ rating = 0, onSetRating }: { rating?: number; onSetRating?
                     className={cn(
                         "w-4 h-4",
                         i < rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300',
-                        onSetRating && 'cursor-pointer'
+                        onSetRating && 'cursor-pointer hover:scale-125 transition-transform'
                     )}
                     onClick={onSetRating ? () => onSetRating(i + 1) : undefined}
                 />
@@ -112,7 +112,7 @@ function UserActionsCell({ user, onUserUpdate }: { user: User; onUserUpdate: (up
                         <DropdownMenuSubContent>
                             {(['admin', 'supplier', 'creator', 'user'] as Role[]).map(role => (
                                 <DropdownMenuItem key={role} onClick={() => handleChangeRole(role)} disabled={user.role === role}>
-                                    {role.charAt(0).toUpperCase() + role.slice(1)}
+                                    <RoleBadge role={role} />
                                 </DropdownMenuItem>
                             ))}
                         </DropdownMenuSubContent>
@@ -129,6 +129,10 @@ function UserActionsCell({ user, onUserUpdate }: { user: User; onUserUpdate: (up
                                     <StarRating rating={i + 1}/>
                                 </DropdownMenuItem>
                             ))}
+                             <DropdownMenuSeparator />
+                             <DropdownMenuItem onClick={() => handleSetRating(0)}>
+                                清除星级
+                             </DropdownMenuItem>
                         </DropdownMenuSubContent>
                     </DropdownMenuPortal>
                 </DropdownMenuSub>
@@ -208,7 +212,7 @@ export default function PermissionsPage() {
                                 <TableCell><div className="flex items-center gap-3"><Skeleton className="h-8 w-8 rounded-full" /><Skeleton className="h-4 w-24" /></div></TableCell>
                                 <TableCell><Skeleton className="h-4 w-40" /></TableCell>
                                 <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
-                                <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                                <TableCell><Skeleton className="h-4 w-36" /></TableCell>
                                 <TableCell className="text-right"><Skeleton className="h-8 w-8 rounded-md ml-auto" /></TableCell>
                             </TableRow>
                         ))
