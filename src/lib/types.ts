@@ -81,3 +81,14 @@ export type Chat = {
   messages: ChatMessage[];
   participants: string[]; // Array of user UIDs
 };
+
+export interface LlmConnection {
+    id: string;
+    modelName: string;
+    provider: string;
+    apiKey?: string;
+    priority: number;
+    status: '活跃' | '已禁用';
+    scope?: '通用' | '专属';
+    category?: '文本' | '图像';
+}

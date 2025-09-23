@@ -25,6 +25,8 @@ import * as z from 'zod';
 import { useAuthStore } from '@/store/auth';
 import { useRouter } from 'next/navigation';
 
+import { getPlatformAssets, type LlmProvider } from '@/ai/flows/admin-management-flows';
+
 
 // =================================================================
 // TYPE DEFINITIONS
@@ -44,11 +46,13 @@ interface Prompt {
 
 interface LLMConfig {
     id: string;
-    name: string;
+    modelName: string;
     provider: string;
-    apiKeyRef?: string;
+    apiKey?: string;
     priority: number;
-    status: '生效中' | '已停用';
+    status: '活跃' | '已禁用';
+    scope?: '通用' | '专属';
+    category?: '文本' | '图像';
 }
 
 // =================================================================
@@ -63,15 +67,17 @@ const promptSchema = z.object({
   content: z.string().min(20, "提示词内容至少需要20个字符"),
 });
 
-const llmConfigSchema = z.object({
-  name: z.string().min(3, "模型名称至少3个字符"),
-  provider: z.string().min(2, "请填写供应商"),
-  apiKeyRef: z.string().optional(),
+const llmConnectionSchema = z.object({
+  provider: z.string({ required_error: "请选择一个厂商。" }),
+  modelName: z.string({ required_error: "请选择一个模型。" }),
+  apiKey: z.string().min(1, "API Key 不能为空。"),
   priority: z.preprocess(
       (val) => val ? parseInt(String(val), 10) : 0,
-      z.number().int().min(0, "优先级不能为负")
+      z.number().int().min(1, "优先级必须大于0").max(100, "优先级不能大于100")
   ),
-  status: z.enum(['生效中', '已停用']),
+  status: z.enum(['活跃', '已禁用']),
+  scope: z.enum(['通用', '专属']),
+  category: z.enum(['文本', '图像']),
 });
 
 
@@ -82,10 +88,12 @@ const llmConfigSchema = z.object({
 const getStatusBadge = (status: Prompt['status'] | LLMConfig['status']) => {
     switch (status) {
         case '生效中':
+        case '活跃':
             return <Badge variant="default" className="bg-green-500 hover:bg-green-600">{status}</Badge>;
         case '草稿':
             return <Badge variant="secondary">{status}</Badge>;
         case '已停用':
+        case '已禁用':
             return <Badge variant="outline">{status}</Badge>;
         default:
             return <Badge>{status}</Badge>;
@@ -205,35 +213,58 @@ function LLMConfigDialog({ llm, open, onOpenChange, onSave }: {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
     const isEditing = !!llm?.id;
+    const [providers, setProviders] = useState<LlmProvider[]>([]);
 
-    const form = useForm<z.infer<typeof llmConfigSchema>>({
-        resolver: zodResolver(llmConfigSchema),
-        defaultValues: { name: '', provider: '', priority: 10, status: '生效中', apiKeyRef: '' },
+    useEffect(() => {
+        if (open) {
+            getPlatformAssets().then(assets => {
+                setProviders(assets.providers);
+            });
+        }
+    }, [open]);
+
+    const form = useForm<z.infer<typeof llmConnectionSchema>>({
+        resolver: zodResolver(llmConnectionSchema),
+        defaultValues: {
+            provider: '', modelName: '', apiKey: '', priority: 10,
+            status: '活跃', scope: '通用', category: '文本',
+        },
     });
 
     useEffect(() => {
         if (open && llm) {
             form.reset(llm);
         } else if (!open) {
-            form.reset({ name: '', provider: '', priority: 10, status: '生效中', apiKeyRef: '' });
+            form.reset();
         }
     }, [open, llm, form]);
+    
+    const selectedProviderName = form.watch("provider");
 
-    const handleSubmit = async (values: z.infer<typeof llmConfigSchema>) => {
+    const availableModels = useMemo(() => {
+        const selectedProvider = providers.find(p => p.providerName === selectedProviderName);
+        return selectedProvider ? selectedProvider.models : [];
+    }, [selectedProviderName, providers]);
+
+    useEffect(() => {
+        form.setValue("modelName", "");
+    }, [selectedProviderName, form]);
+
+    const handleSubmit = async (values: z.infer<typeof llmConnectionSchema>) => {
         setIsSubmitting(true);
         try {
             if (isEditing) {
-                const docRef = doc(db, 'llms', llm!.id!);
+                const docRef = doc(db, 'llm_connections', llm!.id!);
                 await updateDoc(docRef, values);
-                toast({ title: "成功", description: "模型配置已更新。" });
+                toast({ title: "成功", description: "模型连接已更新。" });
             } else {
-                await addDoc(collection(db, 'llms'), { ...values, createdAt: serverTimestamp() });
-                toast({ title: "成功", description: "新模型配置已添加。" });
+                await addDoc(collection(db, 'llm_connections'), { ...values, createdAt: serverTimestamp() });
+                toast({ title: "成功", description: "新模型连接已添加。" });
             }
             onSave();
             onOpenChange(false);
         } catch (error) {
-            console.error("Error saving LLM config:", error);
+            console.error("Error saving LLM connection:", error);
             toast({ title: "保存失败", description: "操作失败，请重试。", variant: "destructive" });
         } finally {
             setIsSubmitting(false);
@@ -251,17 +282,56 @@ function LLMConfigDialog({ llm, open, onOpenChange, onSave }: {
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
-                    <DialogTitle className="font-headline">{isEditing ? `编辑模型: ${llm?.name}` : '新增LLM模型配置'}</DialogTitle>
+                    <DialogTitle className="font-headline">{isEditing ? `编辑模型连接: ${llm?.modelName}` : '新增LLM连接'}</DialogTitle>
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 py-4">
-                        <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>模型名称</FormLabel><FormControl><Input placeholder="例如: gemini-2.5-flash" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                        <FormField control={form.control} name="provider" render={({ field }) => (<FormItem><FormLabel>供应商</FormLabel><FormControl><Input placeholder="例如: Google" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                        <FormField control={form.control} name="apiKeyRef" render={({ field }) => (<FormItem><FormLabel>API Key 引用 (可选)</FormLabel><FormControl><Input placeholder="公共资源库中的API Key ID" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                        
                         <div className="grid grid-cols-2 gap-4">
-                             <FormField control={form.control} name="priority" render={({ field }) => (<FormItem><FormLabel>优先级</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                             <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>状态</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="生效中">生效中</SelectItem><SelectItem value="已停用">已停用</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
+                            <FormField
+                                control={form.control}
+                                name="provider"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>厂商</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <FormControl><SelectTrigger><SelectValue placeholder="选择厂商" /></SelectTrigger></FormControl>
+                                            <SelectContent>
+                                                {providers.map(p => <SelectItem key={p.id} value={p.providerName}>{p.providerName}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="modelName"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>模型名称</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value} disabled={!selectedProviderName}>
+                                            <FormControl><SelectTrigger><SelectValue placeholder="选择模型" /></SelectTrigger></FormControl>
+                                            <SelectContent>
+                                                {availableModels.map(model => <SelectItem key={model} value={model}>{model}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
                         </div>
+                        <FormField control={form.control} name="apiKey" render={({ field }) => (<FormItem><FormLabel>API Key</FormLabel><FormControl><Input type="password" placeholder="输入您的 API Key" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+
+                        <div className="grid grid-cols-2 gap-4">
+                             <FormField control={form.control} name="priority" render={({ field }) => (<FormItem><FormLabel>优先级 (1-100)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                             <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>状态</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="活跃">活跃</SelectItem><SelectItem value="已禁用">已禁用</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                             <FormField control={form.control} name="scope" render={({ field }) => (<FormItem><FormLabel>范围</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="通用">通用</SelectItem><SelectItem value="专属">专属</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
+                             <FormField control={form.control} name="category" render={({ field }) => (<FormItem><FormLabel>类别</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="文本">文本</SelectItem><SelectItem value="图像">图像</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
+                        </div>
+
                         <DialogFooter className="pt-4 !mt-8">
                             <Button type="button" variant="outline" onClick={handleTestAvailability}><TestTube2 className="mr-2"/>可用性测试</Button>
                             <div className="flex-grow"></div>
@@ -294,7 +364,7 @@ export default function PromptManagementPage() {
 
     const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
     const [selectedLLM, setSelectedLLM] = useState<LLMConfig | null>(null);
-    const [itemToDelete, setItemToDelete] = useState<{id: string; name: string; type: 'prompt' | 'llm'} | null>(null);
+    const [itemToDelete, setItemToDelete] = useState<{id: string; name: string; type: 'prompt' | 'llm_connections'} | null>(null);
 
     const { toast } = useToast();
     const { user, role, isLoading: isAuthLoading } = useAuthStore();
@@ -328,12 +398,13 @@ export default function PromptManagementPage() {
         if (role !== 'admin') return;
         setIsLoadingLLMs(true);
         try {
-            const llmsCollection = collection(db, 'llms');
+            const llmsCollection = collection(db, 'llm_connections');
             const q = query(llmsCollection, orderBy('priority'));
             const llmsSnapshot = await getDocs(q);
             setLlms(llmsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as LLMConfig)));
         } catch (error) {
-            toast({ title: '加载失败', description: '无法加载LLM配置列表。', variant: 'destructive' });
+            console.log(error);
+            toast({ title: '加载失败', description: '无法加载LLM连接列表。', variant: 'destructive' });
         } finally {
             setIsLoadingLLMs(false);
         }
@@ -358,12 +429,12 @@ export default function PromptManagementPage() {
 
     const handleEditLLM = (llm: LLMConfig) => { setSelectedLLM(llm); setIsLLMDialogOpen(true); };
     const handleAddLLM = () => { setSelectedLLM(null); setIsLLMDialogOpen(true); };
-    const handleDeleteLLM = (llm: LLMConfig) => { setItemToDelete({id: llm.id, name: llm.name, type: 'llm'}); setIsAlertOpen(true); };
+    const handleDeleteLLM = (llm: LLMConfig) => { setItemToDelete({id: llm.id, name: llm.modelName, type: 'llm_connections'}); setIsAlertOpen(true); };
     
     const confirmDelete = async () => {
         if (!itemToDelete) return;
         try {
-            await deleteDoc(doc(db, itemToDelete.type === 'prompt' ? 'prompts' : 'llms', itemToDelete.id));
+            await deleteDoc(doc(db, itemToDelete.type, itemToDelete.id));
             toast({ title: "成功", description: `“${itemToDelete.name}”已删除。` });
             if (itemToDelete.type === 'prompt') fetchPrompts();
             else fetchLLMs();
@@ -400,10 +471,10 @@ export default function PromptManagementPage() {
                         <CardHeader>
                             <div className="flex justify-between items-center">
                                 <div>
-                                    <CardTitle className="font-headline flex items-center gap-2"><Settings2 /> LLM 模型配置</CardTitle>
+                                    <CardTitle className="font-headline flex items-center gap-2"><Settings2 /> LLM 模型连接</CardTitle>
                                     <CardDescription>管理平台可用的大语言模型，设置优先级和可用性。</CardDescription>
                                 </div>
-                                <Button onClick={handleAddLLM}><PlusCircle className="mr-2"/> 新增模型</Button>
+                                <Button onClick={handleAddLLM}><PlusCircle className="mr-2"/> 新增连接</Button>
                             </div>
                         </CardHeader>
                         <CardContent>
@@ -412,7 +483,7 @@ export default function PromptManagementPage() {
                                     <TableRow>
                                         <TableHead>优先级</TableHead>
                                         <TableHead>模型名称</TableHead>
-                                        <TableHead>供应商</TableHead>
+                                        <TableHead>厂商</TableHead>
                                         <TableHead>API Key</TableHead>
                                         <TableHead>状态</TableHead>
                                         <TableHead className="text-right">操作</TableHead>
@@ -429,15 +500,15 @@ export default function PromptManagementPage() {
                                             <TableCell className="text-right"><Skeleton className="h-8 w-24 rounded-md ml-auto" /></TableCell>
                                         </TableRow>
                                     )) : llms.length === 0 ? (
-                                        <TableRow><TableCell colSpan={6} className="h-24 text-center">暂无LLM配置。</TableCell></TableRow>
+                                        <TableRow><TableCell colSpan={6} className="h-24 text-center">暂无LLM连接配置。</TableCell></TableRow>
                                     ) : (
                                         llms.map((llm) => (
                                             <TableRow key={llm.id}>
                                                 <TableCell className="font-bold">{llm.priority}</TableCell>
-                                                <TableCell className="font-medium">{llm.name}</TableCell>
+                                                <TableCell className="font-medium">{llm.modelName}</TableCell>
                                                 <TableCell>{llm.provider}</TableCell>
                                                 <TableCell className="text-xs">
-                                                    {llm.apiKeyRef ? <span className="flex items-center gap-1"><KeyRound className="w-3 h-3 text-green-500"/> 已引用</span> : <span className="text-muted-foreground/50">未配置</span>}
+                                                    {llm.apiKey ? <span className="flex items-center gap-1"><KeyRound className="w-3 h-3 text-green-500"/> 已配置</span> : <span className="text-muted-foreground/50">未配置</span>}
                                                 </TableCell>
                                                 <TableCell>{getStatusBadge(llm.status)}</TableCell>
                                                 <TableCell className="text-right">
