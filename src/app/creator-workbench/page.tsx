@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { collection, getDocs, query, where, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Demand, ProductService } from '@/lib/types';
+import type { Resource } from '../public-resources/page';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -284,20 +285,38 @@ function BuiltInGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
 // TRIPO3D AI TAB
 // =================================================================
 function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => void }) {
-    const [apiKey, setApiKey] = useState('');
+    const [personalApiKey, setPersonalApiKey] = useState('');
+    const [globalApiKey, setGlobalApiKey] = useState('');
     const [prompt, setPrompt] = useState('');
     const [taskId, setTaskId] = useState<string | null>(null);
     const [taskStatus, setTaskStatus] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
     const { toast } = useToast();
 
+    // Fetch personal and global API keys on mount
     useEffect(() => {
         const storedKey = localStorage.getItem('tripo3d_api_key');
-        if (storedKey) setApiKey(storedKey);
+        if (storedKey) setPersonalApiKey(storedKey);
+
+        const fetchGlobalKey = async () => {
+            try {
+                const q = query(collection(db, 'resources'), where("name", "==", "Tripo3D API"));
+                const snapshot = await getDocs(q);
+                if (!snapshot.empty) {
+                    const resource = snapshot.docs[0].data() as Resource;
+                    if (resource.apiKey) {
+                        setGlobalApiKey(resource.apiKey);
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to fetch global Tripo3D API key:", err);
+            }
+        };
+        fetchGlobalKey();
     }, []);
 
     const handleApiKeyChange = (key: string) => {
-        setApiKey(key);
+        setPersonalApiKey(key);
         localStorage.setItem('tripo3d_api_key', key);
     };
 
@@ -330,12 +349,14 @@ function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
     }, []);
 
     const handleGenerate = async () => {
+        const apiKeyToUse = personalApiKey || globalApiKey;
+
         if (!prompt) {
             toast({ title: '提示', description: '请输入您的创意描述。' });
             return;
         }
-        if (!apiKey) {
-            toast({ title: '需要API Key', description: '请输入您的 Tripo3D API Key。', variant: 'destructive' });
+        if (!apiKeyToUse) {
+            toast({ title: '需要API Key', description: '请在下方输入您的个人API Key，或等待管理员配置平台全局Key。', variant: 'destructive' });
             return;
         }
 
@@ -348,7 +369,7 @@ function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`,
+                    'Authorization': `Bearer ${apiKeyToUse}`,
                 },
                 body: JSON.stringify({ type: 'text_to_model', prompt }),
             });
@@ -359,7 +380,7 @@ function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
             const data = await response.json();
             setTaskId(data.task_id);
             setTaskStatus(data);
-            pollTaskStatus(data.task_id, apiKey);
+            pollTaskStatus(data.task_id, apiKeyToUse);
         } catch (err: any) {
             setError(err.message);
             setTaskId(null);
@@ -378,14 +399,14 @@ function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
         <div className="space-y-6">
             <Alert>
                 <Info className="h-4 w-4" />
-                <AlertTitle>需要 Tripo3D API Key</AlertTitle>
+                <AlertTitle>Tripo3D 集成</AlertTitle>
                 <AlertDescription>
-                    此功能需要一个有效的 Tripo3D API Key。您可以从 <a href="https://platform.tripo3d.ai/" target="_blank" rel="noopener noreferrer" className="underline font-semibold">Tripo3D Platform</a> 获取。API Key 将被安全地保存在您的浏览器本地存储中。
+                    此功能使用 Tripo3D API。您可以输入个人 API Key（优先使用），或使用平台管理员配置的全局Key。个人Key将被安全地保存在您的浏览器本地存储中。您可以从 <a href="https://platform.tripo3d.ai/" target="_blank" rel="noopener noreferrer" className="underline font-semibold">Tripo3D Platform</a> 获取Key。
                 </AlertDescription>
             </Alert>
             <div className="space-y-2">
-                <Label htmlFor="tripo-key">Tripo3D API Key</Label>
-                <Input id="tripo-key" type="password" placeholder="sk-..." value={apiKey} onChange={(e) => handleApiKeyChange(e.target.value)} />
+                <Label htmlFor="tripo-key">个人 Tripo3D API Key (可选)</Label>
+                <Input id="tripo-key" type="password" placeholder="sk-..." value={personalApiKey} onChange={(e) => handleApiKeyChange(e.target.value)} />
             </div>
              <div className="flex gap-2">
                 <Textarea 
@@ -618,3 +639,5 @@ export default function CreatorWorkbenchPage() {
     if (role !== 'creator') { return <AppLayout><RestrictedAccess /></AppLayout>; }
     return <AppLayout><CreatorWorkbench /></AppLayout>;
 }
+
+    
