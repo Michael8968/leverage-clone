@@ -122,19 +122,24 @@ const getPromptsFlow = ai.defineFlow({
     outputSchema: GetPromptsOutputSchema
 }, async () => {
     const promptsCollection = collection(db, 'prompts');
+    // FIX: Simplified the query to filter on one field and order by another,
+    // which Firestore supports with automatic indexing. The second filter
+    // (for "scope") is now applied on the client-side after fetching.
     const q = query(
         promptsCollection, 
         where("status", "==", "生效中"), 
-        where("scope", "==", "通用"),
         orderBy("name")
     );
     const snapshot = await getDocs(q);
-    const prompts = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
+
+    // Apply the second filter client-side.
+    const prompts = snapshot.docs
+        .map(doc => doc.data())
+        .filter(data => data.scope === '通用')
+        .map(data => ({
             name: data.name,
             promptKey: data.promptKey,
-        };
-    });
+        }));
+        
     return { prompts };
 });
