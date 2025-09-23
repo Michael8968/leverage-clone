@@ -24,6 +24,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataProcessor } from '@/components/features/data-processor';
+import { Textarea } from '@/components/ui/textarea';
+import GenerateJson from '../api/generate/generate.json';
 
 
 // 更新后的 Resource 数据接口，以反映其作为数据源的本质
@@ -39,12 +41,14 @@ export interface Resource {
     // Fields from DataProcessor might also be present
     matchScore?: number;
     recommendation?: string;
+    apiKey?: string;
 }
 
 // 更新 Zod schema 以匹配新的数据模型
 const resourceSchema = z.object({
   name: z.string().min(2, "数据源名称至少需要2个字符"),
   sourceUrl: z.string().url("请输入有效的来源URL"),
+  apiKey: z.string().optional(),
   category: z.string().min(1, "类别不能为空"),
   tags: z.string().min(1, "至少需要一个标签").transform(val => val.split(/,|，|\s+/).filter(Boolean)), // 将逗号/空格分隔的字符串转换为数组
   updateFrequency: z.enum(['实时', '每日', '每周', '每月']),
@@ -66,6 +70,7 @@ function ResourceDialog({ resource, open, onOpenChange, onSave }: {
         defaultValues: {
             name: '',
             sourceUrl: '',
+            apiKey: '',
             category: '',
             tags: '',
             updateFrequency: '每日',
@@ -83,6 +88,7 @@ function ResourceDialog({ resource, open, onOpenChange, onSave }: {
             form.reset({
                 name: '',
                 sourceUrl: '',
+                apiKey: '',
                 category: '',
                 tags: '',
                 updateFrequency: '每日',
@@ -130,6 +136,7 @@ function ResourceDialog({ resource, open, onOpenChange, onSave }: {
                     <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto pr-4">
                         <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>数据源名称</FormLabel><FormControl><Input placeholder="例如：前沿科技动态" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                         <FormField control={form.control} name="sourceUrl" render={({ field }) => (<FormItem><FormLabel>数据来源 URL</FormLabel><FormControl><Input placeholder="https://example.com/data-feed" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                        <FormField control={form.control} name="apiKey" render={({ field }) => (<FormItem><FormLabel>API Key (可选)</FormLabel><FormControl><Input type="password" placeholder="如果需要，输入API Key" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                         <FormField control={form.control} name="category" render={({ field }) => (<FormItem><FormLabel>资讯类别</FormLabel><FormControl><Input placeholder="例如：人工智能" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                         <FormField control={form.control} name="tags" render={({ field }) => (<FormItem><FormLabel>标签 (用逗号或空格分隔)</FormLabel><FormControl><Input placeholder="例如: AI, 融资, 新产品" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                         
@@ -350,6 +357,7 @@ function ApiDataFetcher() {
     const [selectedResourceId, setSelectedResourceId] = useState<string>('');
     const [isLoading, setIsLoading] = useState(false);
     const [isFetching, setIsFetching] = useState(false);
+    const [jsonInput, setJsonInput] = useState(JSON.stringify(GenerateJson, null, 2));
     const [responseData, setResponseData] = useState<any>(null);
     const { toast } = useToast();
 
@@ -371,32 +379,58 @@ function ApiDataFetcher() {
         fetchAvailableResources();
     }, [toast]);
 
-    const handleFetchData = async () => {
-        if (!selectedResourceId) {
-            toast({ title: '提示', description: '请先选择一个数据源。' });
-            return;
+    useEffect(() => {
+        if (selectedResourceId) {
+            const resource = availableResources.find(r => r.id === selectedResourceId);
+            if (resource) {
+                try {
+                    const parsedJson = JSON.parse(jsonInput);
+                    parsedJson.url = resource.sourceUrl;
+                    if(resource.apiKey) {
+                        parsedJson.headers = {
+                            ...parsedJson.headers,
+                            'Authorization': `Bearer ${resource.apiKey}`,
+                        }
+                    }
+                    setJsonInput(JSON.stringify(parsedJson, null, 2));
+                } catch(e) {
+                    // ignore if json is invalid
+                }
+            }
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedResourceId, availableResources]);
 
-        const resource = availableResources.find(r => r.id === selectedResourceId);
-        if (!resource) {
-            toast({ title: '错误', description: '找不到所选的数据源。', variant: 'destructive' });
+    const handleFetchData = async () => {
+        let payload;
+        try {
+            payload = JSON.parse(jsonInput);
+        } catch (error) {
+            toast({ title: 'JSON 格式错误', description: '请输入有效的JSON配置。', variant: 'destructive'});
             return;
         }
 
         setIsFetching(true);
         setResponseData(null);
         try {
-            const response = await fetch(resource.sourceUrl);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            const response = await fetch('/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
             const data = await response.json();
+
+            if (!response.ok) {
+                 throw new Error(data.details || 'API请求失败');
+            }
+
             setResponseData(data);
-            toast({ title: '成功', description: `已从 "${resource.name}" 获取数据。` });
+            toast({ title: '成功', description: `已成功调用接口。` });
         } catch (error: any) {
             console.error("API fetch error:", error);
             setResponseData({ error: `获取数据失败: ${error.message}` });
-            toast({ title: '获取失败', description: '无法从该接口获取数据，请检查URL和网络连接。', variant: 'destructive' });
+            toast({ title: '获取失败', description: '无法从该接口获取数据，请检查配置和网络连接。', variant: 'destructive' });
         } finally {
             setIsFetching(false);
         }
@@ -406,26 +440,40 @@ function ApiDataFetcher() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle className="font-headline">接口数据调试</CardTitle>
-                <CardDescription>选择一个已配置的数据源，实时调用其API接口以获取并预览数据。</CardDescription>
+                <CardTitle className="font-headline">通用接口数据调试</CardTitle>
+                <CardDescription>通过构造JSON对象来调用任意RESTful API，实现对多种接口模式的通用解析和调试。</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                <div className="flex items-center gap-4">
-                    <Select onValueChange={setSelectedResourceId} value={selectedResourceId} disabled={isLoading}>
-                        <SelectTrigger className="flex-1">
-                            <SelectValue placeholder={isLoading ? '加载数据源中...' : '选择一个数据源...'} />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {availableResources.map(res => (
-                                <SelectItem key={res.id} value={res.id}>{res.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                    <Button onClick={handleFetchData} disabled={!selectedResourceId || isFetching} className="w-36">
-                        {isFetching ? <Loader2 className="animate-spin" /> : <Server className="mr-2" />}
-                        获取数据
-                    </Button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                    <div className="space-y-2">
+                        <FormLabel>选择数据源 (自动填充 URL/Key)</FormLabel>
+                        <Select onValueChange={setSelectedResourceId} value={selectedResourceId} disabled={isLoading}>
+                            <SelectTrigger>
+                                <SelectValue placeholder={isLoading ? '加载中...' : '选择一个已配置的数据源...'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {availableResources.map(res => (
+                                    <SelectItem key={res.id} value={res.id}>{res.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                     <div className="space-y-2">
+                        <FormLabel>JSON 请求配置</FormLabel>
+                        <Textarea 
+                            value={jsonInput}
+                            onChange={(e) => setJsonInput(e.target.value)}
+                            rows={8}
+                            placeholder='输入JSON格式的请求配置...'
+                            className="font-mono text-xs"
+                        />
+                    </div>
                 </div>
+
+                <Button onClick={handleFetchData} disabled={isFetching} className="w-full">
+                    {isFetching ? <Loader2 className="animate-spin" /> : <Server className="mr-2" />}
+                    发送请求
+                </Button>
 
                 {responseData && (
                     <div className="space-y-2 pt-4">
