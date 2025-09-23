@@ -6,28 +6,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuthStore } from '@/store/auth';
 import { Frown, Bot, Loader2, ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useTransition, useCallback } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
+import { useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import Image from 'next/image';
-import { generate3dModel } from '@/ai/flows/generate-3d-model';
 import { collection, getDocs, query, where, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Demand, ProductService } from '@/lib/types';
+import type { Demand } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { format } from 'date-fns';
 
 // =================================================================
-// TASKS TAB - The only component being modified in this step
+// TASKS TAB - The only component being actively developed in this step
 // =================================================================
-
 function TasksTab() {
   const [demands, setDemands] = useState<Demand[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -135,17 +126,42 @@ function TasksTab() {
 }
 
 // =================================================================
-// Unmodified Components (Placeholders)
+// Unmodified Components (Static Placeholders)
 // =================================================================
 
 function CreationForm() {
-    return <Card><CardHeader><CardTitle className="font-headline">3D AI 创作 (占位符)</CardTitle></CardHeader></Card>;
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="font-headline">3D AI 创作</CardTitle>
+                <CardDescription>此功能正在开发中，敬请期待。</CardDescription>
+            </CardHeader>
+            <CardContent className="text-center text-muted-foreground p-12">
+                <Bot className="h-16 w-16 mx-auto mb-4" />
+                <p>即将推出 AI 辅助创作工具</p>
+            </CardContent>
+        </Card>
+    );
 }
 
 function SubmissionsTab() {
-    return <Card><CardHeader><CardTitle className="font-headline">我的提交 (占位符)</CardTitle></CardHeader></Card>;
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="font-headline">我的提交</CardTitle>
+                <CardDescription>此功能正在开发中，敬请期待。</CardDescription>
+            </CardHeader>
+            <CardContent className="text-center text-muted-foreground p-12">
+                <Frown className="h-16 w-16 mx-auto mb-4" />
+                <p>您提交的作品将在这里展示</p>
+            </CardContent>
+        </Card>
+    );
 }
 
+// =================================================================
+// Parent Component and Page Entrypoint
+// =================================================================
 function CreatorWorkbench() {
   return (
     <div className="p-4 md:p-8">

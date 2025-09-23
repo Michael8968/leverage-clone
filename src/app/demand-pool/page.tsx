@@ -49,7 +49,7 @@ export default function DemandPoolPage() {
   const [isRecDialogOpen, setIsRecDialogOpen] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedDemand, setSelectedDemand] = useState<Demand | null>(null);
-  const { role } = useAuthStore();
+  const { role, user } = useAuthStore();
   const { toast } = useToast();
 
   const fetchDemands = async () => {
@@ -85,18 +85,23 @@ export default function DemandPoolPage() {
   }, []);
 
   const handleClaimDemand = async (demandId: string) => {
+    if (!user) {
+        toast({ title: '错误', description: '请先登录再进行操作。', variant: 'destructive' });
+        return;
+    }
     const originalDemands = [...demands];
     // Optimistic UI update
     setDemands(prevDemands =>
         prevDemands.map(d =>
-            d.id === demandId ? { ...d, status: '进行中' } : d
+            d.id === demandId ? { ...d, status: '进行中', creatorId: user.uid } : d
         )
     );
 
     try {
         const demandRef = doc(db, "demands", demandId);
         await updateDoc(demandRef, {
-            status: "进行中"
+            status: "进行中",
+            creatorId: user.uid,
         });
         toast({
             title: "成功",
@@ -251,12 +256,12 @@ export default function DemandPoolPage() {
                             <Sparkles className="mr-2 h-4 w-4" /> AI推荐
                           </Button>
                         )}
-                        {(role === 'user' || role === 'creator') && demand.status === '开放中' ? (
+                        {(role === 'supplier' || role === 'creator') && demand.status === '开放中' ? (
                             <Button variant="default" size="sm" onClick={() => handleClaimDemand(demand.id)}>
                                 抢单
                             </Button>
-                        ) : (role === 'user' || role === 'creator') && demand.status === '进行中' ? (
-                            <Button variant="outline" size="sm" disabled>
+                        ) : (role === 'supplier' || role === 'creator') && demand.status === '进行中' ? (
+                            <Button variant="outline" size="sm" disabled={demand.creatorId !== user?.uid}>
                                 <MessageSquare className="mr-2 h-4 w-4" />
                                 开始沟通
                             </Button>
@@ -300,17 +305,17 @@ export default function DemandPoolPage() {
   );
 }
 
-// ... (RecommendationDialog component remains the same)
+
 
 
 const demandSchema = z.object({
   title: z.string().min(5, { message: "标题至少需要5个字符。" }),
   description: z.string().min(20, { message: "描述至少需要20个字符。" }),
   budget: z.preprocess(
-    (a) => parseFloat(z.string().parse(a)),
-    z.number().positive({ message: "预算必须为正数。" })
+    (val) => val ? parseFloat(String(val)) : undefined,
+    z.number({invalid_error: "预算必须是一个数字。"}).positive({ message: "预算必须为正数。" })
   ),
-  category: z.string().min(1, { message: "请选择一个类别。" }),
+  category: z.string().min(1, { message: "请填写一个类别。" }),
 });
 
 function CreateDemandDialog({ open, onOpenChange, onDemandCreated }: {
@@ -341,8 +346,10 @@ function CreateDemandDialog({ open, onOpenChange, onDemandCreated }: {
         try {
             await addDoc(collection(db, "demands"), {
                 ...values,
-                status: "开放中",
                 requesterId: user.uid,
+                requesterName: user.name,
+                requesterAvatar: user.avatar,
+                status: "开放中",
                 createdAt: serverTimestamp(),
             });
             toast({ title: "成功", description: "您的需求已成功发布到需求池！" });
