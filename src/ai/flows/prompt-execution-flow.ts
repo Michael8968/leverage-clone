@@ -28,8 +28,7 @@ const PromptExecutionInputSchema = z.object({
   promptKey: z.string().optional().describe("The business key of the prompt in the prompts collection. Required if modelId is not provided."),
   messages: z.array(PromptMessageSchema).describe("The conversation history. The content from the prompt document will be used as the 'system' message if a promptKey is provided."),
   temperature: z.number().optional().default(0.7),
-  // New field for scenario-based configuration
-  scenario: z.string().optional().describe("The predefined AI scenario key (e.g., 'chat-assistant') to look up a configured prompt."),
+  scenario: z.string().optional().describe("A predefined AI scenario key (e.g., 'chat-assistant'). If provided, the system will look up a configured prompt for this scenario and use it with the highest priority."),
 });
 export type PromptExecutionInput = z.infer<typeof PromptExecutionInputSchema>;
 
@@ -53,6 +52,7 @@ const executePromptFlow = ai.defineFlow(
     outputSchema: PromptExecutionOutputSchema,
   },
   async ({ modelId, promptKey, messages, temperature, scenario }) => {
+    let finalModelId = modelId;
     let finalPromptKey = promptKey;
 
     // 1. Scenario-based configuration lookup (highest priority)
@@ -63,6 +63,7 @@ const executePromptFlow = ai.defineFlow(
             const scenarioData = scenarioSnap.data();
             if (scenarioData.configuredPromptKey) {
                 finalPromptKey = scenarioData.configuredPromptKey;
+                finalModelId = undefined; // Scenario's prompt key takes precedence over any passed modelId
             }
         }
     }
@@ -83,9 +84,11 @@ const executePromptFlow = ai.defineFlow(
         
         systemPromptContent = promptDoc.content;
         
-        const effectiveModelId = promptDoc.modelId || modelId; // Use prompt's model, fallback to direct modelId if provided
+        const effectiveModelId = promptDoc.modelId || finalModelId;
 
         if (!effectiveModelId) {
+             // Fallback to a system-default model if no model is specified anywhere.
+             // This part can be implemented later. For now, we require a model to be specified.
              throw new Error(`No modelId was associated with promptKey "${finalPromptKey}" and no default was provided.`);
         }
         
@@ -93,17 +96,17 @@ const executePromptFlow = ai.defineFlow(
         const llmConnectionSnap = await getDoc(llmConnectionRef);
 
         if (!llmConnectionSnap.exists()) {
-             throw new Error(`LLM Connection with ID "${effectiveModelId}" (from prompt) not found.`);
+             throw new Error(`LLM Connection with ID "${effectiveModelId}" (from prompt or input) not found.`);
         }
         connection = llmConnectionSnap.data() as LlmConnection;
 
-    } else if (modelId) {
+    } else if (finalModelId) {
         // --- Logic for direct modelId based execution ---
-        const llmConnectionRef = doc(db, 'llm_connections', modelId);
+        const llmConnectionRef = doc(db, 'llm_connections', finalModelId);
         const llmConnectionSnap = await getDoc(llmConnectionRef);
 
         if (!llmConnectionSnap.exists()) {
-            throw new Error(`LLM Connection with ID "${modelId}" not found.`);
+            throw new Error(`LLM Connection with ID "${finalModelId}" not found.`);
         }
         connection = llmConnectionSnap.data() as LlmConnection;
     } else {

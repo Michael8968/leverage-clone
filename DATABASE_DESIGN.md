@@ -1,6 +1,6 @@
 # **数据库与核心AI流程设计文档**
 
-**版本**: 1.3
+**版本**: 1.4
 **日期**: 2024年8月9日
 
 ---
@@ -110,7 +110,7 @@
 | **category** | `string` | 模型类别 (`文本`, `图像`)。 |
 | **createdAt**| `Timestamp`| 创建时间。 |
 
-### 1.7. `prompts` 集合 (核心更新)
+### 1.7. `prompts` 集合
 
 存储用于AI流程的提示词模板，实现对提示词的调用和知识产权保护。
 
@@ -128,7 +128,18 @@
 | **modelId** | `string` | **(核心)** (可选) 绑定的`llm_connections`文档ID。如果为空，则使用系统默认模型。 |
 | **priority** | `number` | **(核心)** (可选) 特定于此提示词的调用优先级。 |
 
-### 1.8. 其他集合
+### 1.8. `ai_scenarios` 集合 (新增)
+
+存储平台内固定的AI应用场景与提示词的绑定关系，实现业务逻辑与AI实现的解耦。
+
+| 字段名 | 数据类型 | 描述 |
+| :--- | :--- | :--- |
+| **ID** | `string` | 文档ID，即**场景的唯一标识符** (例如: `chat-assistant`)。 |
+| **name** | `string` | 场景的业务名称 (例如: "聊天对话-AI助理")。 |
+| **description**| `string` | 场景的功能描述。 |
+| **configuredPromptKey** | `string` | **(核心)** 绑定的 `prompts` 集合中的 `promptKey`。 |
+
+### 1.9. 其他集合
 
 *   **`resources`**: 存储公共资源，如外部API链接。
 *   **`designers`**: 存储设计师信息 (用于 `/designers` 页面)。
@@ -161,9 +172,9 @@
       
 *   **`clarifyDemandDetails`**:
     *   **输入**: 需求标题、需求描述、当前聊天记录。
-    *   **功能**: 作为AI助理，分析对话上下文，生成一个专业的问题来进一步澄清需求细节。
+    *   **功能**: 作为AI助理，分析对话上下文，生成一个专业的问题来进一步澄清需求细节。 **(已改造)** 现在通过调用 `executePrompt` 并传入 `scenario: 'chat-assistant'` 来执行。
 
 *   **`executePrompt` (核心网关)**:
-    *   **输入**: `modelId` (LLM连接的文档ID) 或 `promptKey` (提示词的业务KEY), `messages` (标准化的对话历史), `temperature` (可选参数)。
-    *   **功能**: 统一的API网关。根据`modelId`或`promptKey`查找配置，将请求适配到目标厂商（Google, OpenAI, ...）的API格式，并使用原生`fetch`发送请求，最后返回标准化的文本结果。
+    *   **输入**: `modelId` (可选), `promptKey` (可选), `scenario` (可选), `messages`, `temperature`。
+    *   **功能**: **(已升级)** 统一的API网关。按 `scenario` -> `promptKey` -> `modelId` 的优先级顺序确定执行目标。
     *   **调用位置**: 被所有需要调用大模型的上层业务流程调用。
