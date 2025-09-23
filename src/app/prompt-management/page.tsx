@@ -13,8 +13,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
-import { Edit, Trash2, Copy, Loader2, PlusCircle, Frown } from 'lucide-react';
-import { useEffect, useState, useMemo } from 'react';
+import { Edit, Trash2, Copy, Loader2, PlusCircle, Frown, Bot, Workflow, TestTube2, KeyRound } from 'lucide-react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { collection, getDocs, query, where, orderBy, doc, updateDoc, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -26,7 +26,10 @@ import { useAuthStore } from '@/store/auth';
 import { useRouter } from 'next/navigation';
 
 
-// 定义 Prompt 数据的 TypeScript 接口
+// =================================================================
+// TYPE DEFINITIONS
+// =================================================================
+
 interface Prompt {
     id: string;
     name: string;
@@ -39,6 +42,19 @@ interface Prompt {
     ownerName?: string; // For display
 }
 
+interface LLMConfig {
+    id: string;
+    name: string;
+    provider: string;
+    apiKeyRef?: string;
+    priority: number;
+    status: '生效中' | '已停用';
+}
+
+// =================================================================
+// ZOD SCHEMAS
+// =================================================================
+
 const promptSchema = z.object({
   name: z.string().min(2, "名称至少需要2个字符"),
   description: z.string().min(5, "描述至少需要5个字符"),
@@ -47,6 +63,48 @@ const promptSchema = z.object({
   content: z.string().min(20, "提示词内容至少需要20个字符"),
 });
 
+const llmConfigSchema = z.object({
+  name: z.string().min(3, "模型名称至少3个字符"),
+  provider: z.string().min(2, "请填写供应商"),
+  apiKeyRef: z.string().optional(),
+  priority: z.preprocess(
+      (val) => val ? parseInt(String(val), 10) : 0,
+      z.number().int().min(0, "优先级不能为负")
+  ),
+  status: z.enum(['生效中', '已停用']),
+});
+
+
+// =================================================================
+// HELPER & UTILITY COMPONENTS
+// =================================================================
+
+const getStatusBadge = (status: Prompt['status'] | LLMConfig['status']) => {
+    switch (status) {
+        case '生效中':
+            return <Badge variant="default" className="bg-green-500 hover:bg-green-600">{status}</Badge>;
+        case '草稿':
+            return <Badge variant="secondary">{status}</Badge>;
+        case '已停用':
+            return <Badge variant="outline">{status}</Badge>;
+        default:
+            return <Badge>{status}</Badge>;
+    }
+}
+
+function RestrictedAccess() {
+    return (
+        <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+            <Frown className="w-16 h-16 mb-4 text-destructive"/>
+            <h2 className="text-2xl font-bold font-headline mb-2">访问受限</h2>
+            <p className="text-muted-foreground">此页面仅对“管理员”和“创意者”角色的用户开放。</p>
+        </div>
+    );
+}
+
+// =================================================================
+// PROMPT EDIT DIALOG
+// =================================================================
 
 function PromptEditDialog({ prompt, open, onOpenChange, onSave }: {
     prompt: Partial<Prompt> | null;
@@ -134,118 +192,195 @@ function PromptEditDialog({ prompt, open, onOpenChange, onSave }: {
     );
 }
 
-const getStatusBadge = (status: Prompt['status']) => {
-    switch (status) {
-        case '生效中':
-            return <Badge variant="default" className="bg-green-500 hover:bg-green-600">{status}</Badge>;
-        case '草稿':
-            return <Badge variant="secondary">{status}</Badge>;
-        case '已停用':
-            return <Badge variant="outline">{status}</Badge>;
-        default:
-            return <Badge>{status}</Badge>;
-    }
-}
+// =================================================================
+// LLM CONFIG DIALOG
+// =================================================================
 
-function RestrictedAccess() {
+function LLMConfigDialog({ llm, open, onOpenChange, onSave }: {
+    llm: Partial<LLMConfig> | null;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onSave: () => void;
+}) {
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const { toast } = useToast();
+    const isEditing = !!llm?.id;
+
+    const form = useForm<z.infer<typeof llmConfigSchema>>({
+        resolver: zodResolver(llmConfigSchema),
+        defaultValues: { name: '', provider: '', priority: 10, status: '生效中', apiKeyRef: '' },
+    });
+
+    useEffect(() => {
+        if (open && llm) {
+            form.reset(llm);
+        } else if (!open) {
+            form.reset({ name: '', provider: '', priority: 10, status: '生效中', apiKeyRef: '' });
+        }
+    }, [open, llm, form]);
+
+    const handleSubmit = async (values: z.infer<typeof llmConfigSchema>) => {
+        setIsSubmitting(true);
+        try {
+            if (isEditing) {
+                const docRef = doc(db, 'llms', llm!.id!);
+                await updateDoc(docRef, values);
+                toast({ title: "成功", description: "模型配置已更新。" });
+            } else {
+                await addDoc(collection(db, 'llms'), { ...values, createdAt: serverTimestamp() });
+                toast({ title: "成功", description: "新模型配置已添加。" });
+            }
+            onSave();
+            onOpenChange(false);
+        } catch (error) {
+            console.error("Error saving LLM config:", error);
+            toast({ title: "保存失败", description: "操作失败，请重试。", variant: "destructive" });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleTestAvailability = () => {
+        toast({
+            title: "模拟测试",
+            description: "正在模拟API调用... 连接成功！",
+        });
+    };
+
     return (
-        <div className="flex flex-col items-center justify-center h-full p-4 text-center">
-            <Frown className="w-16 h-16 mb-4 text-destructive"/>
-            <h2 className="text-2xl font-bold font-headline mb-2">访问受限</h2>
-            <p className="text-muted-foreground">此页面仅对“管理员”和“创意者”角色的用户开放。</p>
-        </div>
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-xl">
+                <DialogHeader>
+                    <DialogTitle className="font-headline">{isEditing ? `编辑模型: ${llm?.name}` : '新增LLM模型配置'}</DialogTitle>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 py-4">
+                        <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>模型名称</FormLabel><FormControl><Input placeholder="例如: gemini-2.5-flash" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                        <FormField control={form.control} name="provider" render={({ field }) => (<FormItem><FormLabel>供应商</FormLabel><FormControl><Input placeholder="例如: Google" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                        <FormField control={form.control} name="apiKeyRef" render={({ field }) => (<FormItem><FormLabel>API Key 引用 (可选)</FormLabel><FormControl><Input placeholder="公共资源库中的API Key ID" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                        <div className="grid grid-cols-2 gap-4">
+                             <FormField control={form.control} name="priority" render={({ field }) => (<FormItem><FormLabel>优先级</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                             <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>状态</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="生效中">生效中</SelectItem><SelectItem value="已停用">已停用</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
+                        </div>
+                        <DialogFooter className="pt-4 !mt-8">
+                            <Button type="button" variant="outline" onClick={handleTestAvailability}><TestTube2 className="mr-2"/>可用性测试</Button>
+                            <div className="flex-grow"></div>
+                            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>取消</Button>
+                            <Button type="submit" disabled={isSubmitting}>
+                                {isSubmitting && <Loader2 className="animate-spin mr-2"/>}
+                                保存
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
     );
 }
 
+// =================================================================
+// MAIN PAGE COMPONENT
+// =================================================================
 
 export default function PromptManagementPage() {
     const [prompts, setPrompts] = useState<Prompt[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [llms, setLlms] = useState<LLMConfig[]>([]);
+    const [isLoadingPrompts, setIsLoadingPrompts] = useState(true);
+    const [isLoadingLLMs, setIsLoadingLLMs] = useState(true);
+    
+    const [isPromptDialogOpen, setIsPromptDialogOpen] = useState(false);
+    const [isLLMDialogOpen, setIsLLMDialogOpen] = useState(false);
     const [isAlertOpen, setIsAlertOpen] = useState(false);
+
     const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
+    const [selectedLLM, setSelectedLLM] = useState<LLMConfig | null>(null);
+    const [itemToDelete, setItemToDelete] = useState<{id: string; name: string; type: 'prompt' | 'llm'} | null>(null);
+
     const { toast } = useToast();
     const { user, role, isLoading: isAuthLoading } = useAuthStore();
     const router = useRouter();
 
-    const fetchPrompts = useMemo(() => async () => {
+    // --- DATA FETCHING ---
+    const fetchPrompts = useCallback(async () => {
         if (!user) return;
-        setIsLoading(true);
+        setIsLoadingPrompts(true);
         try {
             const promptsCollection = collection(db, 'prompts');
             let q;
             if (role === 'admin') {
-                // Admin sees all prompts
                 q = query(promptsCollection, orderBy('name'));
             } else if (role === 'creator') {
-                // Creator sees only their own prompts
                 q = query(promptsCollection, where('ownerId', '==', user.uid), orderBy('name'));
             } else {
-                // Other roles see nothing
                 setPrompts([]);
-                setIsLoading(false);
                 return;
             }
-
             const promptsSnapshot = await getDocs(q);
-            const promptsList = promptsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Prompt));
-            setPrompts(promptsList);
-
+            setPrompts(promptsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Prompt)));
         } catch (error) {
-            console.error("Failed to fetch prompts:", error);
-            toast({
-                title: '加载失败',
-                description: '无法加载提示词列表。',
-                variant: 'destructive',
-            });
+            toast({ title: '加载失败', description: '无法加载提示词列表。', variant: 'destructive' });
         } finally {
-            setIsLoading(false);
+            setIsLoadingPrompts(false);
         }
     }, [user, role, toast]);
+    
+    const fetchLLMs = useCallback(async () => {
+        if (role !== 'admin') return;
+        setIsLoadingLLMs(true);
+        try {
+            const llmsCollection = collection(db, 'llms');
+            const q = query(llmsCollection, orderBy('priority'));
+            const llmsSnapshot = await getDocs(q);
+            setLlms(llmsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as LLMConfig)));
+        } catch (error) {
+            toast({ title: '加载失败', description: '无法加载LLM配置列表。', variant: 'destructive' });
+        } finally {
+            setIsLoadingLLMs(false);
+        }
+    }, [role, toast]);
+
 
     useEffect(() => {
         if (!isAuthLoading) {
             if (role === 'admin' || role === 'creator') {
                 fetchPrompts();
             }
+            if (role === 'admin') {
+                fetchLLMs();
+            }
         }
-    }, [isAuthLoading, role, fetchPrompts]);
+    }, [isAuthLoading, role, fetchPrompts, fetchLLMs]);
     
-    const handleEdit = (prompt: Prompt) => {
-        setSelectedPrompt(prompt);
-        setIsDialogOpen(true);
-    };
+    // --- HANDLERS ---
+    const handleEditPrompt = (prompt: Prompt) => { setSelectedPrompt(prompt); setIsPromptDialogOpen(true); };
+    const handleAddPrompt = () => { setSelectedPrompt(null); setIsPromptDialogOpen(true); };
+    const handleDeletePrompt = (prompt: Prompt) => { setItemToDelete({id: prompt.id, name: prompt.name, type: 'prompt'}); setIsAlertOpen(true); };
 
-    const handleAdd = () => {
-        setSelectedPrompt(null);
-        setIsDialogOpen(true);
-    };
-
-    const handleDelete = (prompt: Prompt) => {
-        setSelectedPrompt(prompt);
-        setIsAlertOpen(true);
-    };
-
-     const confirmDelete = async () => {
-        if (!selectedPrompt) return;
+    const handleEditLLM = (llm: LLMConfig) => { setSelectedLLM(llm); setIsLLMDialogOpen(true); };
+    const handleAddLLM = () => { setSelectedLLM(null); setIsLLMDialogOpen(true); };
+    const handleDeleteLLM = (llm: LLMConfig) => { setItemToDelete({id: llm.id, name: llm.name, type: 'llm'}); setIsAlertOpen(true); };
+    
+    const confirmDelete = async () => {
+        if (!itemToDelete) return;
         try {
-            await deleteDoc(doc(db, 'prompts', selectedPrompt.id));
-            toast({ title: "成功", description: "提示词已删除。" });
-            fetchPrompts();
+            await deleteDoc(doc(db, itemToDelete.type === 'prompt' ? 'prompts' : 'llms', itemToDelete.id));
+            toast({ title: "成功", description: `“${itemToDelete.name}”已删除。` });
+            if (itemToDelete.type === 'prompt') fetchPrompts();
+            else fetchLLMs();
         } catch (error) {
              toast({ title: "删除失败", description: "操作失败，请重试。", variant: "destructive" });
         } finally {
             setIsAlertOpen(false);
-            setSelectedPrompt(null);
+            setItemToDelete(null);
         }
     };
     
-    const handleCopyId = (id: string) => {
-        navigator.clipboard.writeText(id);
-        toast({ title: "已复制", description: "提示词ID已复制到剪贴板。" });
+    const handleCopy = (text: string, entity: string) => {
+        navigator.clipboard.writeText(text);
+        toast({ title: "已复制", description: `${entity} ID已复制到剪贴板。` });
     }
 
-    // Auth check
+    // --- AUTH & RENDER ---
     useEffect(() => { if (!isAuthLoading && !user) { router.push('/login'); } }, [user, isAuthLoading, router]);
     if(isAuthLoading) { return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="animate-spin" /></div>; }
     if (!user || (role !== 'admin' && role !== 'creator')) { return <AppLayout><RestrictedAccess /></AppLayout>; }
@@ -255,35 +390,95 @@ export default function PromptManagementPage() {
         <AppLayout>
             <div className="p-4 md:p-8">
                 <header className="mb-8">
-                    <h1 className="text-2xl font-headline font-bold">提示词工程配置</h1>
-                    <p className="text-muted-foreground">在此集中配置、管理不同业务场景下使用的专业提示词（Prompt）。</p>
+                    <h1 className="text-2xl font-headline font-bold flex items-center gap-2"><Workflow />提示词工程与模型配置</h1>
+                    <p className="text-muted-foreground">在此集中配置、管理不同业务场景下使用的专业提示词（Prompt）与大语言模型（LLM）。</p>
                 </header>
-
-                <Card>
-                    <CardHeader>
-                        <div className="flex justify-between items-center">
-                            <div>
-                                <CardTitle className="font-headline">提示词库</CardTitle>
-                                <CardDescription>管理系统中所有生效的AI提示词。</CardDescription>
+                
+                <div className="space-y-8">
+                    {role === 'admin' && (
+                    <Card>
+                        <CardHeader>
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <CardTitle className="font-headline flex items-center gap-2"><Bot /> LLM 模型配置</CardTitle>
+                                    <CardDescription>管理平台可用的大语言模型，设置优先级和可用性。</CardDescription>
+                                </div>
+                                <Button onClick={handleAddLLM}><PlusCircle className="mr-2"/> 新增模型</Button>
                             </div>
-                            <Button onClick={handleAdd}><PlusCircle className="mr-2"/> 新增提示词</Button>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>提示词名称</TableHead>
-                                    <TableHead>创建者</TableHead>
-                                    <TableHead>功能简述</TableHead>
-                                    <TableHead>生效范围</TableHead>
-                                    <TableHead>状态</TableHead>
-                                    <TableHead className="text-right">操作</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {isLoading ? (
-                                    Array.from({ length: 4 }).map((_, i) => (
+                        </CardHeader>
+                        <CardContent>
+                             <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>优先级</TableHead>
+                                        <TableHead>模型名称</TableHead>
+                                        <TableHead>供应商</TableHead>
+                                        <TableHead>API Key</TableHead>
+                                        <TableHead>状态</TableHead>
+                                        <TableHead className="text-right">操作</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {isLoadingLLMs ? Array.from({ length: 2 }).map((_, i) => (
+                                        <TableRow key={i}>
+                                            <TableCell><Skeleton className="h-4 w-8" /></TableCell>
+                                            <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                                            <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                                            <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                                            <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
+                                            <TableCell className="text-right"><Skeleton className="h-8 w-24 rounded-md ml-auto" /></TableCell>
+                                        </TableRow>
+                                    )) : llms.length === 0 ? (
+                                        <TableRow><TableCell colSpan={6} className="h-24 text-center">暂无LLM配置。</TableCell></TableRow>
+                                    ) : (
+                                        llms.map((llm) => (
+                                            <TableRow key={llm.id}>
+                                                <TableCell className="font-bold">{llm.priority}</TableCell>
+                                                <TableCell className="font-medium">{llm.name}</TableCell>
+                                                <TableCell>{llm.provider}</TableCell>
+                                                <TableCell className="text-xs">
+                                                    {llm.apiKeyRef ? <span className="flex items-center gap-1"><KeyRound className="w-3 h-3 text-green-500"/> 已引用</span> : <span className="text-muted-foreground/50">未配置</span>}
+                                                </TableCell>
+                                                <TableCell>{getStatusBadge(llm.status)}</TableCell>
+                                                <TableCell className="text-right">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditLLM(llm)}><Edit className="h-4 w-4" /></Button>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteLLM(llm)}><Trash2 className="h-4 w-4" /></Button>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                    )}
+
+                    <Card>
+                        <CardHeader>
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <CardTitle className="font-headline">提示词库</CardTitle>
+                                    <CardDescription>管理系统中所有生效的AI提示词。</CardDescription>
+                                </div>
+                                <Button onClick={handleAddPrompt}><PlusCircle className="mr-2"/> 新增提示词</Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>提示词名称</TableHead>
+                                        <TableHead>创建者</TableHead>
+                                        <TableHead>功能简述</TableHead>
+                                        <TableHead>生效范围</TableHead>
+                                        <TableHead>状态</TableHead>
+                                        <TableHead className="text-right">操作</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {isLoadingPrompts ? Array.from({ length: 4 }).map((_, i) => (
                                         <TableRow key={i}>
                                             <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                                             <TableCell><Skeleton className="h-4 w-20" /></TableCell>
@@ -292,58 +487,44 @@ export default function PromptManagementPage() {
                                             <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
                                             <TableCell className="text-right"><Skeleton className="h-8 w-24 rounded-md ml-auto" /></TableCell>
                                         </TableRow>
-                                    ))
-                                ) : prompts.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={6} className="h-24 text-center">
-                                            暂无提示词。请点击右上角“新增提示词”来创建您的第一个提示词。
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    prompts.map((prompt) => (
-                                        <TableRow key={prompt.id}>
-                                            <TableCell className="font-medium">{prompt.name}</TableCell>
-                                            <TableCell className="text-xs">
-                                                {prompt.ownerType === 'platform' ? <Badge variant="secondary">平台</Badge> : <span className="text-muted-foreground">{prompt.ownerName}</span>}
-                                            </TableCell>
-                                            <TableCell className="text-muted-foreground text-xs">{prompt.description}</TableCell>
-                                            <TableCell>
-                                                <Badge variant="outline">{prompt.scope}</Badge>
-                                            </TableCell>
-                                            <TableCell>{getStatusBadge(prompt.status)}</TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                     <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleCopyId(prompt.id)}>
-                                                        <Copy className="h-3 w-3" />
-                                                    </Button>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(prompt)}>
-                                                        <Edit className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(prompt)}>
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
+                                    )) : prompts.length === 0 ? (
+                                        <TableRow><TableCell colSpan={6} className="h-24 text-center">暂无提示词。请点击右上角“新增提示词”。</TableCell></TableRow>
+                                    ) : (
+                                        prompts.map((prompt) => (
+                                            <TableRow key={prompt.id}>
+                                                <TableCell className="font-medium">{prompt.name}</TableCell>
+                                                <TableCell className="text-xs">
+                                                    {prompt.ownerType === 'platform' ? <Badge variant="secondary">平台</Badge> : <span className="text-muted-foreground">{prompt.ownerName}</span>}
+                                                </TableCell>
+                                                <TableCell className="text-muted-foreground text-xs">{prompt.description}</TableCell>
+                                                <TableCell><Badge variant="outline">{prompt.scope}</Badge></TableCell>
+                                                <TableCell>{getStatusBadge(prompt.status)}</TableCell>
+                                                <TableCell className="text-right">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleCopy(prompt.id, '提示词')}><Copy className="h-3 w-3" /></Button>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditPrompt(prompt)}><Edit className="h-4 w-4" /></Button>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeletePrompt(prompt)}><Trash2 className="h-4 w-4" /></Button>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
-             <PromptEditDialog 
-                open={isDialogOpen}
-                onOpenChange={setIsDialogOpen}
-                onSave={fetchPrompts}
-                prompt={selectedPrompt}
-            />
+
+            <PromptEditDialog open={isPromptDialogOpen} onOpenChange={setIsPromptDialogOpen} onSave={fetchPrompts} prompt={selectedPrompt}/>
+            <LLMConfigDialog open={isLLMDialogOpen} onOpenChange={setIsLLMDialogOpen} onSave={fetchLLMs} llm={selectedLLM} />
+
             <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>确认删除</AlertDialogTitle>
                         <AlertDialogDescription>
-                            您确定要删除提示词 “{selectedPrompt?.name}” 吗？此操作不可撤销。
+                            您确定要删除 “{itemToDelete?.name}” 吗？此操作不可撤销。
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

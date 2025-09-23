@@ -94,7 +94,20 @@
 | **timestamp** | `Timestamp`| 消息发送时间。 |
 | **isAIMessage**| `boolean` | (可选) 是否为AI助理发送的消息。 |
 
-### 1.6. 其他集合
+### 1.6. `llms` 集合 (新增)
+
+存储平台可用的大语言模型配置。
+
+| 字段名 | 数据类型 | 描述 |
+| :--- | :--- | :--- |
+| **id** | `string` | 文档ID。 |
+| **name** | `string` | 模型名称 (例如: `gemini-2.5-flash`)。 |
+| **provider** | `string` | 供应商 (例如: `Google`, `OpenAI`)。 |
+| **priority** | `number` | 优先级，数字越小越高。 |
+| **status** | `string` | 状态 (`生效中`, `已停用`)。 |
+| **apiKeyRef**| `string` | (可选) 关联的API Key，对应 `resources` 集合的文档ID。 |
+
+### 1.7. 其他集合
 
 *   **`prompts`**: 存储用于AI流程的提示词模板。
 *   **`resources`**: 存储公共资源，如外部API链接。
