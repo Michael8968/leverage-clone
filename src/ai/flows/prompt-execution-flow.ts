@@ -68,71 +68,61 @@ const executePromptFlow = ai.defineFlow(
             const scenarioData = scenarioSnap.data();
             const now = new Date();
             
-            let isTimeValid = true;
+            let isTimeValid = false;
+            // Check if any time-based rules are configured
+            if (scenarioData.repetition !== 'none' || scenarioData.startsAt || scenarioData.expiresAt) {
+                 const repetition = scenarioData.repetition || 'none';
+                 const startsAt = scenarioData.startsAt?.toDate();
+                 const expiresAt = scenarioData.expiresAt?.toDate();
+                 const daysOfWeek = scenarioData.daysOfWeek || [];
+                 const startTime = scenarioData.startTime;
+                 const endTime = scenarioData.endTime;
 
-            const repetition = scenarioData.repetition;
-            const startsAt = scenarioData.startsAt?.toDate();
-            const expiresAt = scenarioData.expiresAt?.toDate();
-
-            if (repetition && repetition !== 'none' && startsAt && expiresAt) {
-                // Logic for recurring schedules: only compare the time part
-                const nowTime = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
-                const startTime = startsAt.getHours() * 3600 + startsAt.getMinutes() * 60 + startsAt.getSeconds();
-                const endTime = expiresAt.getHours() * 3600 + expiresAt.getMinutes() * 60 + expiresAt.getSeconds();
-
-                // Check if current date is within the absolute date range of the config
-                const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                const startDateOnly = new Date(startsAt.getFullYear(), startsAt.getMonth(), startsAt.getDate());
-                const endDateOnly = new Date(expiresAt.getFullYear(), expiresAt.getMonth(), expiresAt.getDate());
-
-                if (nowDateOnly >= startDateOnly && nowDateOnly <= endDateOnly) {
-                    switch (repetition) {
-                        case 'minutely':
-                             // This is tricky, usually for minute-based repetition you check against a second part.
-                             // For simplicity, we'll assume it's valid if within the hour/day.
-                             isTimeValid = now.getSeconds() >= startsAt.getSeconds() && now.getSeconds() <= expiresAt.getSeconds();
-                            break;
-                        case 'hourly':
-                            isTimeValid = now.getMinutes() >= startsAt.getMinutes() && now.getMinutes() <= expiresAt.getMinutes();
-                            break;
-                        case 'daily':
-                            isTimeValid = nowTime >= startTime && nowTime <= endTime;
-                            break;
-                        case 'monthly':
-                             // Effective if it's the same day of the month AND within the time window
-                            isTimeValid = now.getDate() === startsAt.getDate() && nowTime >= startTime && nowTime <= endTime;
-                            break;
-                        default:
-                            isTimeValid = false; // Unknown repetition
-                            break;
-                    }
+                if (repetition === 'none') {
+                    // Absolute time window check
+                    isTimeValid = (!startsAt || now >= startsAt) && (!expiresAt || now <= expiresAt);
                 } else {
-                    isTimeValid = false; // Outside of the absolute date range for repetition
-                }
+                    // Repetitive schedule check
+                    const nowDay = now.toLocaleString('en-US', { weekday: 'short' }).toLowerCase(); // 'mon', 'tue', ...
+                    const nowTime = now.getHours() * 60 + now.getMinutes();
+                    const startMinutes = startTime ? parseInt(startTime.split(':')[0]) * 60 + parseInt(startTime.split(':')[1]) : 0;
+                    const endMinutes = endTime ? parseInt(endTime.split(':')[0]) * 60 + parseInt(endTime.split(':')[1]) : 1439; // 23:59
 
+                    const isDayMatch = repetition === 'daily' || (repetition === 'weekly' && daysOfWeek.includes(nowDay));
+                    
+                    if (isDayMatch && nowTime >= startMinutes && nowTime <= endMinutes) {
+                        isTimeValid = true;
+                    }
+                }
             } else {
-                 // Absolute time window check (if no repetition)
-                 isTimeValid = (!startsAt || now >= startsAt) && (!expiresAt || now <= expiresAt);
+                 isTimeValid = true; // No time rules, so time is always valid
             }
 
-
-            if (isTimeValid) {
-                let isUserRoleValid = true;
-                // User-based rule check
-                if (userId && Array.isArray(scenarioData.targetUserRoles) && scenarioData.targetUserRoles.length > 0) {
+            let isUserRoleValid = false;
+            // Check if any user-based rules are configured
+            if (Array.isArray(scenarioData.targetUserRoles) && scenarioData.targetUserRoles.length > 0) {
+                 if (userId) {
                     const userDoc = await getDoc(doc(db, 'users', userId));
                     if (userDoc.exists()) {
                         const userRole = userDoc.data().role as Role;
                         isUserRoleValid = scenarioData.targetUserRoles.includes(userRole);
-                    } else {
-                        isUserRoleValid = false; // User not found, rule fails
                     }
-                }
+                 }
+            } else {
+                isUserRoleValid = true; // No user rules, so user is always valid
+            }
+            
+            const ruleLogic = scenarioData.ruleLogic || 'and';
+            let isOverallValid = false;
+            if(ruleLogic === 'or') {
+                isOverallValid = isTimeValid || isUserRoleValid;
+            } else { // default to 'and'
+                isOverallValid = isTimeValid && isUserRoleValid;
+            }
 
-                if (isUserRoleValid && scenarioData.configuredPromptKey) {
-                    finalPromptKey = scenarioData.configuredPromptKey;
-                    finalModelId = undefined; // Scenario's prompt key takes precedence
-                }
+            if (isOverallValid && scenarioData.configuredPromptKey) {
+                finalPromptKey = scenarioData.configuredPromptKey;
+                finalModelId = undefined; // Scenario's prompt key takes precedence
             }
         }
     }

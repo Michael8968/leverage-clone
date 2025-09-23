@@ -26,6 +26,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { TimePicker } from '@/components/ui/time-picker';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 
 // =================================================================
@@ -34,6 +35,7 @@ import { TimePicker } from '@/components/ui/time-picker';
 
 type Repetition = 'none' | 'daily' | 'weekly';
 type DayOfWeek = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+type RuleLogic = 'and' | 'or';
 
 type ScenarioDefinition = {
     id: string;
@@ -52,6 +54,7 @@ type ScenarioConfig = {
     startsAt?: Timestamp;
     expiresAt?: Timestamp;
     targetUserRoles?: Role[];
+    ruleLogic?: RuleLogic;
 };
 
 type FullScenario = ScenarioDefinition & ScenarioConfig & {
@@ -120,6 +123,8 @@ function ScenarioEditDialog({
     const [expiresAt, setExpiresAt] = useState<Date | undefined>();
 
     const [targetUserRoles, setTargetUserRoles] = useState<Role[]>([]);
+    const [ruleLogic, setRuleLogic] = useState<RuleLogic>('and');
+
 
     useEffect(() => {
         if(scenario) {
@@ -127,6 +132,7 @@ function ScenarioEditDialog({
             setIsRepetitionEnabled(isRepEnabled);
             setSelectedPromptKey(scenario.configuredPromptKey || 'default');
             setTargetUserRoles(scenario.targetUserRoles || []);
+            setRuleLogic(scenario.ruleLogic || 'and');
             
             // Repetition Config
             setRepetition(isRepEnabled ? scenario.repetition! : 'daily');
@@ -151,6 +157,7 @@ function ScenarioEditDialog({
             setStartsAt(undefined);
             setExpiresAt(undefined);
             setTargetUserRoles([]);
+            setRuleLogic('and');
         }
     }, [scenario]);
 
@@ -159,19 +166,18 @@ function ScenarioEditDialog({
         setIsSaving(true);
         try {
             const scenarioRef = doc(db, 'ai_scenarios', scenario.id);
-            const dataToSave: ScenarioConfig = {
+            const dataToSave: Partial<FullScenario> = {
                 name: scenario.name,
                 description: scenario.description,
                 configuredPromptKey: selectedPromptKey === 'default' ? '' : selectedPromptKey,
                 targetUserRoles: targetUserRoles,
+                ruleLogic: ruleLogic,
                 repetition: isRepetitionEnabled ? repetition : 'none',
-                // Absolute time fields
-                startsAt: isRepetitionEnabled ? null : (startsAt ? Timestamp.fromDate(startsAt) : null),
-                expiresAt: isRepetitionEnabled ? null : (expiresAt ? Timestamp.fromDate(expiresAt) : null),
-                // Repetition time fields
+                startsAt: isRepetitionEnabled ? undefined : (startsAt ? Timestamp.fromDate(startsAt) : undefined),
+                expiresAt: isRepetitionEnabled ? undefined : (expiresAt ? Timestamp.fromDate(expiresAt) : undefined),
                 daysOfWeek: isRepetitionEnabled && repetition === 'weekly' ? daysOfWeek : [],
-                startTime: isRepetitionEnabled && startTime ? format(startTime, 'HH:mm') : null,
-                endTime: isRepetitionEnabled && endTime ? format(endTime, 'HH:mm') : null,
+                startTime: isRepetitionEnabled && startTime ? format(startTime, 'HH:mm') : undefined,
+                endTime: isRepetitionEnabled && endTime ? format(endTime, 'HH:mm') : undefined,
             };
             
             await setDoc(scenarioRef, dataToSave, { merge: true });
@@ -232,17 +238,17 @@ function ScenarioEditDialog({
                         </Select>
                     </div>
 
-                    <Accordion type="multiple" className="w-full">
+                    <Accordion type="multiple" className="w-full" defaultValue={['time-config', 'user-config']}>
                         <AccordionItem value="time-config">
-                            <AccordionTrigger><div className="flex items-center gap-2"><Clock className="w-4 h-4"/> 时间维度配置 (可选)</div></AccordionTrigger>
+                            <AccordionTrigger><div className="flex items-center gap-2"><Clock className="w-4 h-4"/> 时间维度配置</div></AccordionTrigger>
                             <AccordionContent className="space-y-4 pt-2">
-                                <div className="flex items-center space-x-2">
+                                <div className="flex items-center space-x-2 p-4 border rounded-md bg-muted/30">
                                     <Checkbox id="enable-repetition" checked={isRepetitionEnabled} onCheckedChange={(checked) => setIsRepetitionEnabled(Boolean(checked))} />
                                     <Label htmlFor="enable-repetition" className="font-medium">启用重复策略</Label>
                                 </div>
 
                                 {isRepetitionEnabled ? (
-                                    <div className="p-4 border rounded-md space-y-4 bg-muted/50">
+                                    <div className="p-4 border rounded-md space-y-4">
                                         <div className="grid grid-cols-2 gap-4 items-center">
                                             <div>
                                                 <Label>重复频率</Label>
@@ -278,8 +284,8 @@ function ScenarioEditDialog({
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="p-4 border rounded-md space-y-4 bg-muted/50">
-                                        <Label>绝对时间范围 (一次性)</Label>
+                                    <div className="p-4 border rounded-md space-y-4">
+                                        <Label>绝对时间范围 (一次性生效)</Label>
                                         <div className="grid grid-cols-2 gap-4">
                                             <Popover>
                                                 <PopoverTrigger asChild>
@@ -304,11 +310,25 @@ function ScenarioEditDialog({
                                 )}
                             </AccordionContent>
                         </AccordionItem>
+                        
+                        <div className="flex items-center justify-center py-2">
+                            <RadioGroup value={ruleLogic} onValueChange={(v) => setRuleLogic(v as RuleLogic)} className="flex items-center space-x-4 border p-2 rounded-lg bg-muted/30">
+                                <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="and" id="logic-and" />
+                                    <Label htmlFor="logic-and">同时满足 (与)</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="or" id="logic-or" />
+                                    <Label htmlFor="logic-or">满足任意一个 (或)</Label>
+                                </div>
+                            </RadioGroup>
+                        </div>
+
                         <AccordionItem value="user-config">
-                            <AccordionTrigger><div className="flex items-center gap-2"><Users className="w-4 h-4"/> 用户维度配置 (可选)</div></AccordionTrigger>
+                            <AccordionTrigger><div className="flex items-center gap-2"><Users className="w-4 h-4"/> 用户维度配置</div></AccordionTrigger>
                             <AccordionContent className="pt-4">
                                 <Label>限定目标用户角色 (不选则对所有用户生效)</Label>
-                                <div className="grid grid-cols-4 gap-2 mt-2">
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
                                     {ALL_ROLES.map(role => (
                                         <div key={role} className="flex items-center space-x-2">
                                             <Checkbox id={`role-${role}`} checked={targetUserRoles.includes(role)} onCheckedChange={() => handleRoleToggle(role)} />
@@ -398,16 +418,18 @@ export default function AIScenarioConfigPage() {
     
     const renderConfigBadge = (scenario: FullScenario) => {
         const parts = [];
-        if (scenario.targetUserRoles && scenario.targetUserRoles.length > 0) {
-            parts.push(`${scenario.targetUserRoles.length}个角色`);
-        }
         if (scenario.repetition && scenario.repetition !== 'none') {
             parts.push('有重复策略');
         } else if (scenario.startsAt || scenario.expiresAt) {
             parts.push('有时间限制');
         }
+
+        if (scenario.targetUserRoles && scenario.targetUserRoles.length > 0) {
+            parts.push(`${scenario.targetUserRoles.length}个角色`);
+        }
+       
         if (parts.length > 0) {
-            return <Badge variant="outline" className="text-xs ml-2"><Settings2 className="w-3 h-3 mr-1"/>{parts.join(', ')}</Badge>;
+            return <Badge variant="outline" className="text-xs ml-2"><Settings2 className="w-3 h-3 mr-1"/>{parts.join(scenario.ruleLogic === 'or' ? ' 或 ' : ' 且 ')}</Badge>;
         }
         return null;
     }
@@ -512,4 +534,5 @@ export default function AIScenarioConfigPage() {
 }
 
     
+
 

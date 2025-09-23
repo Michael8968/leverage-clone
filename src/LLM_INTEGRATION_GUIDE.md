@@ -46,6 +46,7 @@
     *   `startsAt` (Timestamp, 可选): 此条配置的生效时间。
     *   `expiresAt` (Timestamp, 可选): 此条配置的失效时间。
     *   `targetUserRoles` (Array<string>, 可选): 目标用户角色数组。若存在，则此配置仅对数组内的角色生效。
+    *   `ruleLogic` (`'and' | 'or'`, 可选): "时间"与"用户"两个维度规则的组合逻辑，默认为 `'and'`。
 
 #### d. `SUPPORTED_PROVIDERS` (后端硬编码)
 平台唯一权威的、支持的厂商及其模型列表，用于前端`Combobox`的预设选项。
@@ -59,7 +60,7 @@
 1.  **接收标准输入**: 函数接收`PromptExecutionInput`对象，该对象新增了一个可选的`scenario`字段和`userId`字段。
 2.  **查询配置 (核心路由)**:
     *   **第一优先级：场景查询**: 如果提供了 `scenario`，则**首先**从`ai_scenarios`集合中查找对应的文档。如果文档存在：
-        *   **规则校验**: 检查当前时间和（如果提供了`userId`）用户角色是否满足该配置文档中定义的 `startsAt`, `expiresAt`, `targetUserRoles` 等规则。
+        *   **规则校验**: 根据 `ruleLogic` 字段（默认为 'and'），组合判断当前时间和（如果提供了`userId`）用户角色是否满足该配置文档中定义的 `startsAt`, `expiresAt`, `targetUserRoles` 等规则。
         *   **应用配置**: 如果所有规则都满足，则该文档中配置的`configuredPromptKey`将覆盖所有其他输入，成为本次调用的最终执行目标。
     *   **第二优先级：提示词Key**: 如果没有场景覆盖，且提供了 `promptKey`，则从`prompts`集合中查找对应的提示词文档，获取其 `content` 和绑定的 `modelId`。
     *   **第三优先级：模型ID**: 如果以上两者都未提供，则直接使用传入的 `modelId`进行调用。
@@ -85,7 +86,6 @@ const result = await executePrompt({
 这是一个专为`admin`角色设计的新页面，用于管理`ai_scenarios`集合。
 *   **功能**: 列出平台所有可配置的AI场景，并允许管理员为每个场景选择并绑定一个已存在的提示词（`promptKey`）。
 *   **高级配置 (新)**: 在编辑弹窗中，提供日历控件来设置生效/失效时间，并提供复选框来限定此配置生效的用户角色。
-*   **数据流**: 页面加载时，会同时获取所有“场景”和所有“提示词”，为管理员提供一个下拉菜单来进行配置和保存。
 
 ---
 

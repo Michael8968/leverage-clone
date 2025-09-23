@@ -145,6 +145,7 @@
 | **startsAt** | `Timestamp` | (可选) 当`repetition`为`none`时，配置的绝对生效时间。 |
 | **expiresAt**| `Timestamp` | (可选) 当`repetition`为`none`时，配置的绝对失效时间。 |
 | **targetUserRoles**| `Array<string>`| (可选) 目标用户角色数组。若存在，则此配置仅对数组内的角色生效。 |
+| **ruleLogic** | `string` | (可选) "时间"与"用户"两个维度规则的组合逻辑 (`and`, `or`)，默认为 `and`。 |
 
 
 ### 1.9. 其他集合
