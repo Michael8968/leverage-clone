@@ -23,9 +23,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 // Database and AI Flow Imports
 import { db } from '@/lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
-import type { ProductService, Supplier } from '@/lib/types';
+import { ProductService, Supplier, UserProfile } from '@/lib/types';
 import { getProductRecommendations, GetProductRecommendationsOutput } from '@/ai/flows/shopping-assistant';
-import { UserProfile } from '@/ai/flows/user-profiling';
 import { useAuthStore } from '@/store/auth';
 import { getPrompts, GetPromptsOutput } from '@/ai/flows/admin-management-flows';
 import { executePrompt } from '@/ai/flows/prompt-execution-flow';
@@ -218,7 +217,10 @@ export function ShoppingAssistant() {
                         )}
                         <FormField control={form.control} name="promptKey" render={({ field }) => (
                             <FormItem>
-                                <Select onValueChange={field.onChange} value={field.value || ''}>
+                                <Select
+                                    onValueChange={(value) => field.onChange(value === 'default-logic' ? '' : value)}
+                                    value={field.value || 'default-logic'}
+                                >
                                     <FormControl>
                                         <SelectTrigger className="h-9 text-xs">
                                             <div className="flex items-center gap-2">
@@ -228,7 +230,7 @@ export function ShoppingAssistant() {
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="">-- 使用默认推荐逻辑 --</SelectItem>
+                                        <SelectItem value="default-logic">-- 使用默认推荐逻辑 --</SelectItem>
                                         {prompts.map(p => (
                                             <SelectItem key={p.promptKey} value={p.promptKey}>{p.name}</SelectItem>
                                         ))}
@@ -406,3 +408,5 @@ const DemandPoolConnector = () => {
         </Card>
     );
 }
+
+    
