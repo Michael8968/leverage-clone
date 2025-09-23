@@ -13,7 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
-import { Edit, Trash2, Copy, Loader2, PlusCircle, Frown, Bot, Workflow, TestTube2, KeyRound } from 'lucide-react';
+import { Edit, Trash2, Copy, Loader2, PlusCircle, Frown, Bot, Workflow, TestTube2, KeyRound, Settings2, Wrench } from 'lucide-react';
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { collection, getDocs, query, where, orderBy, doc, updateDoc, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -390,8 +390,8 @@ export default function PromptManagementPage() {
         <AppLayout>
             <div className="p-4 md:p-8">
                 <header className="mb-8">
-                    <h1 className="text-2xl font-headline font-bold flex items-center gap-2"><Workflow />提示词工程与模型配置</h1>
-                    <p className="text-muted-foreground">在此集中配置、管理不同业务场景下使用的专业提示词（Prompt）与大语言模型（LLM）。</p>
+                    <h1 className="text-2xl font-headline font-bold flex items-center gap-2"><Wrench />提示词工程与模型配置</h1>
+                    <p className="text-muted-foreground">在此集中配置、管理不同业务场景下使用的专业提示词 (Prompt) 与大语言模型 (LLM)。</p>
                 </header>
                 
                 <div className="space-y-8">
@@ -400,7 +400,7 @@ export default function PromptManagementPage() {
                         <CardHeader>
                             <div className="flex justify-between items-center">
                                 <div>
-                                    <CardTitle className="font-headline flex items-center gap-2"><Bot /> LLM 模型配置</CardTitle>
+                                    <CardTitle className="font-headline flex items-center gap-2"><Settings2 /> LLM 模型配置</CardTitle>
                                     <CardDescription>管理平台可用的大语言模型，设置优先级和可用性。</CardDescription>
                                 </div>
                                 <Button onClick={handleAddLLM}><PlusCircle className="mr-2"/> 新增模型</Button>
@@ -459,7 +459,7 @@ export default function PromptManagementPage() {
                         <CardHeader>
                             <div className="flex justify-between items-center">
                                 <div>
-                                    <CardTitle className="font-headline">提示词库</CardTitle>
+                                    <CardTitle className="font-headline flex items-center gap-2"><Workflow />提示词库</CardTitle>
                                     <CardDescription>管理系统中所有生效的AI提示词。</CardDescription>
                                 </div>
                                 <Button onClick={handleAddPrompt}><PlusCircle className="mr-2"/> 新增提示词</Button>
