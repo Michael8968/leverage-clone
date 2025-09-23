@@ -70,42 +70,51 @@ const executePromptFlow = ai.defineFlow(
             
             let isTimeValid = false;
             // Check if any time-based rules are configured
-            if (scenarioData.repetition !== 'none' || scenarioData.startsAt || scenarioData.expiresAt) {
-                 const repetition = scenarioData.repetition || 'none';
-                 const startsAt = scenarioData.startsAt?.toDate();
-                 const expiresAt = scenarioData.expiresAt?.toDate();
+            if (scenarioData.repetition && scenarioData.repetition !== 'none') {
+                 const repetition = scenarioData.repetition;
                  const daysOfWeek = scenarioData.daysOfWeek || [];
                  const startTime = scenarioData.startTime;
                  const endTime = scenarioData.endTime;
+                 const nowDay = now.toLocaleString('en-US', { weekday: 'short' }).toLowerCase(); // 'mon', 'tue', ...
+                 const nowTime = now.getHours() * 60 + now.getMinutes();
+                 
+                 const startMinutes = startTime ? parseInt(startTime.split(':')[0]) * 60 + parseInt(startTime.split(':')[1]) : 0;
+                 const endMinutes = endTime ? parseInt(endTime.split(':')[0]) * 60 + parseInt(endTime.split(':')[1]) : 1439; // 23:59
 
-                if (repetition === 'none') {
-                    // Absolute time window check
-                    isTimeValid = (!startsAt || now >= startsAt) && (!expiresAt || now <= expiresAt);
-                } else {
-                    // Repetitive schedule check
-                    const nowDay = now.toLocaleString('en-US', { weekday: 'short' }).toLowerCase(); // 'mon', 'tue', ...
-                    const nowTime = now.getHours() * 60 + now.getMinutes();
-                    const startMinutes = startTime ? parseInt(startTime.split(':')[0]) * 60 + parseInt(startTime.split(':')[1]) : 0;
-                    const endMinutes = endTime ? parseInt(endTime.split(':')[0]) * 60 + parseInt(endTime.split(':')[1]) : 1439; // 23:59
-
-                    const isDayMatch = repetition === 'daily' || (repetition === 'weekly' && daysOfWeek.includes(nowDay));
-                    
-                    if (isDayMatch && nowTime >= startMinutes && nowTime <= endMinutes) {
-                        isTimeValid = true;
-                    }
-                }
+                 const isDayMatch = repetition === 'daily' || (repetition === 'weekly' && daysOfWeek.includes(nowDay));
+                 
+                 if (isDayMatch && nowTime >= startMinutes && nowTime <= endMinutes) {
+                     isTimeValid = true;
+                 }
+            } else if (scenarioData.startsAt || scenarioData.expiresAt) {
+                 const startsAt = scenarioData.startsAt?.toDate();
+                 const expiresAt = scenarioData.expiresAt?.toDate();
+                 isTimeValid = (!startsAt || now >= startsAt) && (!expiresAt || now <= expiresAt);
             } else {
                  isTimeValid = true; // No time rules, so time is always valid
             }
 
             let isUserRoleValid = false;
-            // Check if any user-based rules are configured
-            if (Array.isArray(scenarioData.targetUserRoles) && scenarioData.targetUserRoles.length > 0) {
+             // Check if any user-based rules are configured
+            if (scenarioData.targetUserRoles && Object.keys(scenarioData.targetUserRoles).length > 0) {
                  if (userId) {
                     const userDoc = await getDoc(doc(db, 'users', userId));
                     if (userDoc.exists()) {
-                        const userRole = userDoc.data().role as Role;
-                        isUserRoleValid = scenarioData.targetUserRoles.includes(userRole);
+                        const userData = userDoc.data();
+                        const userRole = userData.role as Role;
+                        const userRating = userData.rating as number | undefined;
+
+                        // Check if the role is configured
+                        if (scenarioData.targetUserRoles[userRole]) {
+                            const configuredRatings: number[] = scenarioData.targetUserRoles[userRole];
+                            // If ratings array is empty, it means just the role needs to match
+                            if (configuredRatings.length === 0) {
+                                isUserRoleValid = true;
+                            } else if (userRating !== undefined) {
+                                // If ratings are specified, check if the user's rating is included
+                                isUserRoleValid = configuredRatings.includes(userRating);
+                            }
+                        }
                     }
                  }
             } else {

@@ -20,6 +20,7 @@
 | **email** | `string` | 用户注册邮箱 (唯一)。 |
 | **avatar** | `string` | 用户头像图片的URL。 |
 | **role** | `string` | 用户角色 (`admin`, `supplier`, `creator`, `user`)。 |
+| **rating** | `number` | (可选) 平台为用户评定的星级 (1-10)。 |
 
 ### 1.2. `products` 集合
 
@@ -144,7 +145,7 @@
 | **endTime** | `string` | (可选) 当启用重复策略时，定义时间窗口的结束时间（`HH:mm`）。 |
 | **startsAt** | `Timestamp` | (可选) 当`repetition`为`none`时，配置的绝对生效时间。 |
 | **expiresAt**| `Timestamp` | (可选) 当`repetition`为`none`时，配置的绝对失效时间。 |
-| **targetUserRoles**| `Array<string>`| (可选) 目标用户角色数组。若存在，则此配置仅对数组内的角色生效。 |
+| **targetUserRoles**| `Object`| (可选) 目标用户角色及星级。键为角色名，值为星级数组。例如 `{ "creator": [8, 9, 10] }`。若为空对象或不存在，则对所有用户生效。 |
 | **ruleLogic** | `string` | (可选) "时间"与"用户"两个维度规则的组合逻辑 (`and`, `or`)，默认为 `and`。 |
 
 
@@ -186,6 +187,6 @@
 *   **`executePrompt` (核心网关)**:
     *   **输入**: `modelId` (可选), `promptKey` (可选), `scenario` (可选), `userId` (可选), `messages`, `temperature`。
     *   **功能**: **(已升级)** 统一的API网关。按以下优先级顺序确定执行目标：
-        1.  **场景配置**: 根据 `scenario` 和 `userId` 查找 `ai_scenarios` 集合中符合当前时间、重复策略和用户角色的、优先级最高的配置。
+        1.  **场景配置**: 根据 `scenario` 和 `userId` 查找 `ai_scenarios` 集合中符合当前时间、重复策略和用户角色/星级的、优先级最高的配置。
         2.  **手动指定**: 如果没有场景覆盖，则使用调用时传入的 `promptKey` 或 `modelId`。
     *   **调用位置**: 被所有需要调用大模型的上层业务流程调用。

@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -20,11 +21,13 @@ import {
   DropdownMenuPortal,
 } from '@/components/ui/dropdown-menu';
 import { useAuthStore, type User, type Role } from '@/store/auth';
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useState, useTransition, useMemo } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
+
 
 // RoleBadge remains the same
 const RoleBadge = ({ role }: { role: Role }) => {
@@ -39,21 +42,24 @@ const RoleBadge = ({ role }: { role: Role }) => {
 };
 
 // StarRating component now takes an optional onClick handler for interactivity
-const StarRating = ({ rating = 0, onSetRating }: { rating?: number; onSetRating?: (rating: number) => void; }) => (
-    <div className="flex items-center">
-        {Array.from({ length: 5 }).map((_, i) => (
-            <Star 
-                key={i} 
-                className={cn(
-                    "w-4 h-4",
-                    i < rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300',
-                    onSetRating && 'cursor-pointer'
-                )}
-                onClick={onSetRating ? () => onSetRating(i + 1) : undefined}
-            />
-        ))}
-    </div>
-);
+const StarRating = ({ rating = 0, onSetRating }: { rating?: number; onSetRating?: (rating: number) => void; }) => {
+    const totalStars = 10;
+    return (
+        <div className="flex items-center">
+            {Array.from({ length: totalStars }).map((_, i) => (
+                <Star 
+                    key={i} 
+                    className={cn(
+                        "w-4 h-4",
+                        i < rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300',
+                        onSetRating && 'cursor-pointer'
+                    )}
+                    onClick={onSetRating ? () => onSetRating(i + 1) : undefined}
+                />
+            ))}
+        </div>
+    );
+};
 
 
 // UserActionsCell updated to include rating management
@@ -118,7 +124,7 @@ function UserActionsCell({ user, onUserUpdate }: { user: User; onUserUpdate: (up
                     </DropdownMenuSubTrigger>
                     <DropdownMenuPortal>
                         <DropdownMenuSubContent>
-                           {Array.from({ length: 5 }).map((_, i) => (
+                           {Array.from({ length: 10 }).map((_, i) => (
                                 <DropdownMenuItem key={i} onClick={() => handleSetRating(i + 1)}>
                                     <StarRating rating={i + 1}/>
                                 </DropdownMenuItem>
@@ -191,7 +197,7 @@ export default function PermissionsPage() {
                         <TableHead>用户</TableHead>
                         <TableHead>邮箱</TableHead>
                         <TableHead>角色</TableHead>
-                        <TableHead>星级</TableHead>
+                        <TableHead>星级 (1-10)</TableHead>
                         <TableHead className="text-right">操作</TableHead>
                     </TableRow>
                 </TableHeader>

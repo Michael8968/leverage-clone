@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Puzzle, Edit, Workflow, Loader2, Frown, Users, Clock, Settings2, Calendar as CalendarIcon, Repeat, Info } from 'lucide-react';
+import { Puzzle, Edit, Workflow, Loader2, Frown, Users, Clock, Settings2, Calendar as CalendarIcon, Repeat, Info, Star } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore, type Role } from '@/store/auth';
 import { useRouter } from 'next/navigation';
@@ -36,6 +36,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 type Repetition = 'none' | 'daily' | 'weekly';
 type DayOfWeek = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 type RuleLogic = 'and' | 'or';
+type TargetUserRoles = { [key in Role]?: number[] };
+
 
 type ScenarioDefinition = {
     id: string;
@@ -53,7 +55,7 @@ type ScenarioConfig = {
     // Absolute time is still supported
     startsAt?: Timestamp;
     expiresAt?: Timestamp;
-    targetUserRoles?: Role[];
+    targetUserRoles?: TargetUserRoles;
     ruleLogic?: RuleLogic;
 };
 
@@ -122,7 +124,7 @@ function ScenarioEditDialog({
     const [startsAt, setStartsAt] = useState<Date | undefined>();
     const [expiresAt, setExpiresAt] = useState<Date | undefined>();
 
-    const [targetUserRoles, setTargetUserRoles] = useState<Role[]>([]);
+    const [targetUserRoles, setTargetUserRoles] = useState<TargetUserRoles>({});
     const [ruleLogic, setRuleLogic] = useState<RuleLogic>('and');
 
 
@@ -131,7 +133,7 @@ function ScenarioEditDialog({
             const isRepEnabled = scenario.repetition && scenario.repetition !== 'none';
             setIsRepetitionEnabled(isRepEnabled);
             setSelectedPromptKey(scenario.configuredPromptKey || 'default');
-            setTargetUserRoles(scenario.targetUserRoles || []);
+            setTargetUserRoles(scenario.targetUserRoles || {});
             setRuleLogic(scenario.ruleLogic || 'and');
             
             // Repetition Config
@@ -156,7 +158,7 @@ function ScenarioEditDialog({
             setEndTime(undefined);
             setStartsAt(undefined);
             setExpiresAt(undefined);
-            setTargetUserRoles([]);
+            setTargetUserRoles({});
             setRuleLogic('and');
         }
     }, [scenario]);
@@ -170,7 +172,7 @@ function ScenarioEditDialog({
                 name: scenario.name,
                 description: scenario.description,
                 configuredPromptKey: selectedPromptKey === 'default' ? '' : selectedPromptKey,
-                targetUserRoles: targetUserRoles,
+                targetUserRoles,
                 ruleLogic: ruleLogic,
                 repetition: isRepetitionEnabled ? repetition : 'none',
                 startsAt: isRepetitionEnabled ? undefined : (startsAt ? Timestamp.fromDate(startsAt) : undefined),
@@ -201,9 +203,28 @@ function ScenarioEditDialog({
     };
 
     const handleRoleToggle = (role: Role) => {
-        setTargetUserRoles(prev => 
-            prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]
-        );
+        setTargetUserRoles(prev => {
+            const newState = {...prev};
+            if (newState[role]) {
+                delete newState[role];
+            } else {
+                newState[role] = []; // Initialize with empty array for ratings
+            }
+            return newState;
+        });
+    };
+    
+    const handleRatingToggle = (role: Role, rating: number) => {
+        setTargetUserRoles(prev => {
+            const newState = {...prev};
+            const currentRatings = newState[role] || [];
+            if (currentRatings.includes(rating)) {
+                newState[role] = currentRatings.filter(r => r !== rating);
+            } else {
+                newState[role] = [...currentRatings, rating];
+            }
+            return newState;
+        });
     };
 
     const handleDayToggle = (day: DayOfWeek) => {
@@ -326,13 +347,32 @@ function ScenarioEditDialog({
 
                         <AccordionItem value="user-config">
                             <AccordionTrigger><div className="flex items-center gap-2"><Users className="w-4 h-4"/> 用户维度配置</div></AccordionTrigger>
-                            <AccordionContent className="pt-4">
-                                <Label>限定目标用户角色 (不选则对所有用户生效)</Label>
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+                            <AccordionContent className="pt-4 space-y-4">
+                                <p className="text-sm text-muted-foreground">限定目标用户。若不勾选任何角色，则默认对所有用户生效。</p>
+                                <div className="space-y-3">
                                     {ALL_ROLES.map(role => (
-                                        <div key={role} className="flex items-center space-x-2">
-                                            <Checkbox id={`role-${role}`} checked={targetUserRoles.includes(role)} onCheckedChange={() => handleRoleToggle(role)} />
-                                            <Label htmlFor={`role-${role}`} className="text-sm font-normal">{ROLE_NAMES[role]}</Label>
+                                        <div key={role} className="p-3 border rounded-md">
+                                            <div className="flex items-center space-x-2">
+                                                <Checkbox id={`role-${role}`} checked={!!targetUserRoles[role]} onCheckedChange={() => handleRoleToggle(role)} />
+                                                <Label htmlFor={`role-${role}`} className="text-sm font-medium">{ROLE_NAMES[role]}</Label>
+                                            </div>
+                                            {targetUserRoles[role] && (
+                                                <div className="pt-3 mt-3 border-t">
+                                                    <Label className="text-xs text-muted-foreground flex items-center gap-1 mb-2"><Star className="w-3 h-3"/> 限定星级 (不选则对该角色所有星级生效)</Label>
+                                                     <div className="flex flex-wrap gap-x-3 gap-y-1">
+                                                        {Array.from({length: 10}, (_, i) => i + 1).map(rating => (
+                                                            <div key={rating} className="flex items-center space-x-1">
+                                                                <Checkbox 
+                                                                    id={`rating-${role}-${rating}`} 
+                                                                    checked={targetUserRoles[role]?.includes(rating)} 
+                                                                    onCheckedChange={() => handleRatingToggle(role, rating)}
+                                                                />
+                                                                <Label htmlFor={`rating-${role}-${rating}`} className="text-xs font-normal">{rating}星</Label>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
@@ -418,18 +458,26 @@ export default function AIScenarioConfigPage() {
     
     const renderConfigBadge = (scenario: FullScenario) => {
         const parts = [];
+        
+        let timePart = '';
         if (scenario.repetition && scenario.repetition !== 'none') {
-            parts.push('有重复策略');
+            timePart = '有重复策略';
         } else if (scenario.startsAt || scenario.expiresAt) {
-            parts.push('有时间限制');
+            timePart = '有时间限制';
         }
+        if (timePart) parts.push(timePart);
 
-        if (scenario.targetUserRoles && scenario.targetUserRoles.length > 0) {
-            parts.push(`${scenario.targetUserRoles.length}个角色`);
+        let userPart = '';
+        const roles = scenario.targetUserRoles ? Object.keys(scenario.targetUserRoles) : [];
+        if (roles.length > 0) {
+            userPart = `${roles.length}个角色`;
+            const totalRatings = Object.values(scenario.targetUserRoles!).flat().length;
+            if (totalRatings > 0) userPart += `/${totalRatings}个星级`;
         }
-       
+        if (userPart) parts.push(userPart);
+
         if (parts.length > 0) {
-            return <Badge variant="outline" className="text-xs ml-2"><Settings2 className="w-3 h-3 mr-1"/>{parts.join(scenario.ruleLogic === 'or' ? ' 或 ' : ' 且 ')}</Badge>;
+            return <Badge variant="outline" className="text-xs ml-2"><Settings2 className="w-3 h-3 mr-1"/>{parts.join(` ${scenario.ruleLogic === 'or' ? '或' : '且'} `)}</Badge>;
         }
         return null;
     }
@@ -534,5 +582,6 @@ export default function AIScenarioConfigPage() {
 }
 
     
+
 
 
