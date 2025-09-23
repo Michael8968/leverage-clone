@@ -267,7 +267,7 @@ export function ShoppingAssistant() {
                                     </FormControl>
                                 </FormItem>
                             )}/>
-                            <Button type="submit" disabled={isAiSearching || products.length === 0} size="icon">
+                            <Button type="submit" disabled={isAiSearching} size="icon">
                                 {isAiSearching ? <Loader2 className="animate-spin" /> : <Send />}
                             </Button>
                         </div>
@@ -408,5 +408,7 @@ const DemandPoolConnector = () => {
         </Card>
     );
 }
+
+    
 
     
