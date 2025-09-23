@@ -12,11 +12,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Paperclip, Send, X, Bot, User, BrainCircuit, Sparkles, Building, Loader2, FilePlus2, ExternalLink } from 'lucide-react';
+import { Paperclip, Send, X, Bot, User, BrainCircuit, Sparkles, Building, Loader2, FilePlus2, ExternalLink, Workflow } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useRouter } from 'next/navigation';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 
 // Database and AI Flow Imports
 import { db } from '@/lib/firebase';
@@ -25,6 +27,14 @@ import type { ProductService, Supplier } from '@/lib/types';
 import { getProductRecommendations, GetProductRecommendationsOutput } from '@/ai/flows/shopping-assistant';
 import { UserProfile } from '@/ai/flows/user-profiling';
 import { useAuthStore } from '@/store/auth';
+import { getPrompts } from '@/ai/flows/admin-management-flows';
+import { executePrompt } from '@/ai/flows/prompt-execution-flow';
+
+
+type SimplePrompt = {
+    name: string;
+    promptKey: string;
+};
 
 // Type definitions for chat messages
 type Message = {
@@ -34,12 +44,14 @@ type Message = {
     imageUrl?: string;
     profile?: UserProfile;
     recommendations?: ProductService[];
+    isRawText?: boolean;
 };
 
 // Form schema for user input
 const formSchema = z.object({
   description: z.string().min(1, { message: '请输入您的需求描述。' }),
   image: z.instanceof(File).optional(),
+  promptKey: z.string().optional(),
 });
 
 // Helper to convert File to Data URI
@@ -60,6 +72,7 @@ export function ShoppingAssistant() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [products, setProducts] = useState<ProductService[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [prompts, setPrompts] = useState<SimplePrompt[]>([]);
   const [isAiSearching, startAiSearch] = useTransition();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -72,19 +85,26 @@ export function ShoppingAssistant() {
   });
   const imageRef = form.register("image");
 
-  // Pre-load products and suppliers on component mount
+  // Pre-load products, suppliers, and prompts on component mount
   useEffect(() => {
     const fetchData = async () => {
         try {
-            const productsSnapshot = await getDocs(collection(db, 'products'));
+            const [productsSnapshot, suppliersSnapshot, promptsData] = await Promise.all([
+                getDocs(collection(db, 'products')),
+                getDocs(collection(db, 'suppliers')),
+                getPrompts(),
+            ]);
+
             const productsList = productsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ProductService));
             setProducts(productsList);
 
-            const suppliersSnapshot = await getDocs(collection(db, 'suppliers'));
             const suppliersList = suppliersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Supplier));
             setSuppliers(suppliersList);
+            
+            setPrompts(promptsData.prompts);
+
         } catch (error) {
-            toast({ title: "数据加载失败", description: "无法加载产品目录，请稍后重试。", variant: "destructive" });
+            toast({ title: "数据加载失败", description: "无法加载产品目录或提示词，请稍后重试。", variant: "destructive" });
         }
     };
     fetchData();
@@ -98,33 +118,52 @@ export function ShoppingAssistant() {
   // Handle form submission to trigger the AI flow
   const onSubmit = (values: z.infer<typeof formSchema>) => {
     startAiSearch(async () => {
-      let photoDataUri: string | undefined = undefined;
-      if (values.image) {
-        photoDataUri = await fileToDataUri(values.image);
-      }
-
       const userMessage: Message = { id: Date.now(), type: 'user', text: values.description, imageUrl: imagePreview ?? undefined };
       const loadingMessage: Message = { id: Date.now() + 1, type: 'loading' };
       setMessages(prev => [...prev, userMessage, loadingMessage]);
-      form.reset({ description: "" });
+      form.reset({ description: "", promptKey: values.promptKey }); // Keep promptKey
       setImagePreview(null);
       
       try {
-        const result: GetProductRecommendationsOutput = await getProductRecommendations({
-            description: values.description,
-            photoDataUri,
-            products,
-            suppliers,
-        });
+        let aiMessage: Message;
 
-        const recommendedProducts = products.filter(p => result.recommendations.includes(p.id));
+        if (values.promptKey) {
+            // Manual prompt execution path
+            const result = await executePrompt({
+                promptKey: values.promptKey,
+                messages: [{ role: 'user', content: values.description }]
+            });
+            aiMessage = {
+                id: Date.now() + 2,
+                type: 'ai',
+                text: result.text,
+                isRawText: true,
+            };
 
-        const aiMessage: Message = { 
-            id: Date.now() + 2, 
-            type: 'ai', 
-            profile: result.userProfile,
-            recommendations: recommendedProducts,
-        };
+        } else {
+            // Default recommendation path
+            let photoDataUri: string | undefined = undefined;
+            if (values.image) {
+                photoDataUri = await fileToDataUri(values.image);
+            }
+            const result: GetProductRecommendationsOutput = await getProductRecommendations({
+                description: values.description,
+                photoDataUri,
+                products,
+                suppliers,
+            });
+
+            const recommendedProducts = products.filter(p => result.recommendations.includes(p.id));
+
+            aiMessage = { 
+                id: Date.now() + 2, 
+                type: 'ai', 
+                profile: result.userProfile,
+                recommendations: recommendedProducts,
+                isRawText: false,
+            };
+        }
+        
         setMessages(prev => prev.map(msg => (msg.type === 'loading' ? aiMessage : msg)));
 
       } catch (error) {
@@ -177,6 +216,26 @@ export function ShoppingAssistant() {
                                 </Button>
                             </div>
                         )}
+                        <FormField control={form.control} name="promptKey" render={({ field }) => (
+                            <FormItem>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger className="h-9 text-xs">
+                                            <div className="flex items-center gap-2">
+                                                <Workflow className="w-4 h-4 text-muted-foreground"/>
+                                                <SelectValue placeholder="使用默认推荐逻辑" />
+                                            </div>
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="">-- 使用默认推荐逻辑 --</SelectItem>
+                                        {prompts.map(p => (
+                                            <SelectItem key={p.promptKey} value={p.promptKey}>{p.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </FormItem>
+                        )}/>
                         <div className="flex gap-2 items-end">
                             <FormField control={form.control} name="description" render={({ field }) => (
                                 <FormItem className="flex-1">
@@ -236,14 +295,20 @@ const UserMessage = ({ text, imageUrl }: Message) => (
   </div>
 );
 
-const AIMessage = ({ profile, recommendations }: Message) => (
+const AIMessage = ({ profile, recommendations, text, isRawText }: Message) => (
     <div className="flex items-start gap-3">
         <Bot className="w-8 h-8 text-accent flex-shrink-0" />
         <div className="bg-card rounded-lg p-3 border space-y-4 w-full">
-            <p className='font-semibold'>这是我根据您的需求分析的结果：</p>
-            {profile && <UserProfileDisplay profile={profile} />}
-            {recommendations && recommendations.length > 0 && <RecommendationsDisplay recommendations={recommendations} />}
-            {(!recommendations || recommendations.length === 0) && <p className="text-sm text-muted-foreground">抱歉，暂时没有找到完全匹配的商品。</p>}
+            {isRawText ? (
+                <p className="text-sm whitespace-pre-wrap">{text}</p>
+            ) : (
+                <>
+                    <p className='font-semibold'>这是我根据您的需求分析的结果：</p>
+                    {profile && <UserProfileDisplay profile={profile} />}
+                    {recommendations && recommendations.length > 0 && <RecommendationsDisplay recommendations={recommendations} />}
+                    {(!recommendations || recommendations.length === 0) && <p className="text-sm text-muted-foreground">抱歉，暂时没有找到完全匹配的商品。</p>}
+                </>
+            )}
         </div>
     </div>
 );

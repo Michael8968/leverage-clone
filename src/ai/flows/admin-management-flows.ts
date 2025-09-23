@@ -5,11 +5,14 @@
  * - getPlatformAssets - Returns static assets needed by the admin UI, like supported LLM providers.
  * - LlmProvider - The type for a supported LLM provider.
  * - testLlmConnection - Tests the availability of a configured LLM connection.
+ * - getPrompts - Returns a list of available prompts for selection in the UI.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { executePrompt } from './prompt-execution-flow';
+import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 const LlmProviderSchema = z.object({
     id: z.string(),
@@ -98,3 +101,40 @@ const testLlmConnectionFlow = ai.defineFlow(
         }
     }
 );
+
+
+const PromptInfoSchema = z.object({
+    name: z.string(),
+    promptKey: z.string(),
+});
+const GetPromptsOutputSchema = z.object({
+    prompts: z.array(PromptInfoSchema),
+});
+export type GetPromptsOutput = z.infer<typeof GetPromptsOutputSchema>;
+
+export async function getPrompts(): Promise<GetPromptsOutput> {
+    return getPromptsFlow();
+}
+
+const getPromptsFlow = ai.defineFlow({
+    name: 'getPromptsFlow',
+    inputSchema: z.void(),
+    outputSchema: GetPromptsOutputSchema
+}, async () => {
+    const promptsCollection = collection(db, 'prompts');
+    const q = query(
+        promptsCollection, 
+        where("status", "==", "生效中"), 
+        where("scope", "==", "通用"),
+        orderBy("name")
+    );
+    const snapshot = await getDocs(q);
+    const prompts = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            name: data.name,
+            promptKey: data.promptKey,
+        };
+    });
+    return { prompts };
+});
