@@ -94,18 +94,21 @@
 | **timestamp** | `Timestamp`| 消息发送时间。 |
 | **isAIMessage**| `boolean` | (可选) 是否为AI助理发送的消息。 |
 
-### 1.6. `llms` 集合 (新增)
+### 1.6. `llm_connections` 集合 (新增)
 
-存储平台可用的大语言模型配置。
+存储平台可用的大语言模型连接配置。
 
 | 字段名 | 数据类型 | 描述 |
 | :--- | :--- | :--- |
 | **id** | `string` | 文档ID。 |
-| **name** | `string` | 模型名称 (例如: `gemini-2.5-flash`)。 |
-| **provider** | `string` | 供应商 (例如: `Google`, `OpenAI`)。 |
-| **priority** | `number` | 优先级，数字越小越高。 |
-| **status** | `string` | 状态 (`生效中`, `已停用`)。 |
-| **apiKeyRef**| `string` | (可选) 关联的API Key，对应 `resources` 集合的文档ID。 |
+| **provider** | `string` | 厂商名称 (例如: `Google`, `OpenAI`)。 |
+| **modelName**| `string` | 厂商官方指定的模型ID (例如: `gemini-1.5-pro-latest`)。 |
+| **apiKey** | `string` | 该模型的API密钥。 |
+| **priority** | `number` | 优先级，数字越小越高 (1-100)。 |
+| **status** | `string` | 状态 (`活跃`, `已禁用`)。 |
+| **scope** | `string` | 使用范围 (`通用`, `专属`)。 |
+| **category** | `string` | 模型类别 (`文本`, `图像`)。 |
+| **createdAt**| `Timestamp`| 创建时间。 |
 
 ### 1.7. 其他集合
 
@@ -148,3 +151,8 @@
     *   **输入**: 需求标题、需求描述、当前聊天记录。
     *   **功能**: 作为AI助理，分析对话上下文，生成一个专业的问题来进一步澄清需求细节。
     *   **调用位置**: `实时聊天` 组件 (`ChatDialog.tsx`)。
+
+*   **`executePrompt` (新增)**:
+    *   **输入**: `modelId` (LLM连接的文档ID), `messages` (标准化的对话历史), `temperature` (可选参数)。
+    *   **功能**: 统一的API网关。根据`modelId`查找配置，将请求适配到目标厂商（Google, OpenAI, ...）的API格式，并使用原生`fetch`发送请求，最后返回标准化的文本结果。
+    *   **调用位置**: 被 `testLlmConnection` 等上层业务流程调用。

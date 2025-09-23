@@ -11,3 +11,4 @@ import '@/ai/flows/generate-tripo3d-model.ts';
 import '@/ai/flows/get-tripo3d-model-status.ts';
 import '@/ai/flows/generate-nanobanana-image.ts';
 import '@/ai/flows/admin-management-flows.ts';
+import '@/ai/flows/prompt-execution-flow.ts';

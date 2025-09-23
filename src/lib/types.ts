@@ -86,7 +86,7 @@ export interface LlmConnection {
     id: string;
     modelName: string;
     provider: string;
-    apiKey?: string;
+    apiKey: string;
     priority: number;
     status: '活跃' | '已禁用';
     scope?: '通用' | '专属';

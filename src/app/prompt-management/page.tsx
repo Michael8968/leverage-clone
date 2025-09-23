@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 import { Edit, Trash2, Copy, Loader2, PlusCircle, Frown, Bot, Workflow, TestTube2, KeyRound, Settings2, Wrench } from 'lucide-react';
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useTransition } from 'react';
 import { collection, getDocs, query, where, orderBy, doc, updateDoc, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -25,7 +25,7 @@ import * as z from 'zod';
 import { useAuthStore } from '@/store/auth';
 import { useRouter } from 'next/navigation';
 
-import { getPlatformAssets, type LlmProvider } from '@/ai/flows/admin-management-flows';
+import { getPlatformAssets, testLlmConnection, type LlmProvider } from '@/ai/flows/admin-management-flows';
 
 
 // =================================================================
@@ -211,6 +211,7 @@ function LLMConfigDialog({ llm, open, onOpenChange, onSave }: {
     onSave: () => void;
 }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isTesting, setIsTesting] = useTransition();
     const { toast } = useToast();
     const isEditing = !!llm?.id;
     const [providers, setProviders] = useState<LlmProvider[]>([]);
@@ -235,7 +236,10 @@ function LLMConfigDialog({ llm, open, onOpenChange, onSave }: {
         if (open && llm) {
             form.reset(llm);
         } else if (!open) {
-            form.reset();
+            form.reset({
+                provider: '', modelName: '', apiKey: '', priority: 10,
+                status: '活跃', scope: '通用', category: '文本',
+            });
         }
     }, [open, llm, form]);
     
@@ -247,14 +251,18 @@ function LLMConfigDialog({ llm, open, onOpenChange, onSave }: {
     }, [selectedProviderName, providers]);
 
     useEffect(() => {
-        form.setValue("modelName", "");
-    }, [selectedProviderName, form]);
+        // Reset modelName when provider changes
+        if (form.getValues("modelName") && !availableModels.includes(form.getValues("modelName"))) {
+            form.setValue("modelName", "");
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedProviderName, availableModels, form]);
 
     const handleSubmit = async (values: z.infer<typeof llmConnectionSchema>) => {
         setIsSubmitting(true);
         try {
-            if (isEditing) {
-                const docRef = doc(db, 'llm_connections', llm!.id!);
+            if (isEditing && llm?.id) {
+                const docRef = doc(db, 'llm_connections', llm.id);
                 await updateDoc(docRef, values);
                 toast({ title: "成功", description: "模型连接已更新。" });
             } else {
@@ -271,10 +279,47 @@ function LLMConfigDialog({ llm, open, onOpenChange, onSave }: {
         }
     };
 
-    const handleTestAvailability = () => {
-        toast({
-            title: "模拟测试",
-            description: "正在模拟API调用... 连接成功！",
+    const handleTestAvailability = async () => {
+        await form.trigger(); // Trigger validation
+        const formState = form.formState;
+        if (!formState.isValid) {
+            toast({
+                title: "信息不完整",
+                description: "请先完成所有必填项再进行测试。",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        const values = form.getValues();
+        setIsTesting(async () => {
+            try {
+                // We need to save the connection to get an ID for testing
+                let modelId = isEditing ? llm!.id! : '';
+                if (!isEditing) {
+                   const tempDocRef = await addDoc(collection(db, 'llm_connections'), { ...values, status: '已禁用', createdAt: serverTimestamp() });
+                   modelId = tempDocRef.id;
+                } else {
+                   await updateDoc(doc(db, 'llm_connections', modelId), values);
+                }
+
+                const result = await testLlmConnection({ modelId });
+                toast({
+                    title: result.success ? "测试成功" : "测试失败",
+                    description: result.message,
+                    variant: result.success ? "default" : "destructive",
+                });
+                
+                if (!isEditing && !result.success) {
+                    await deleteDoc(doc(db, 'llm_connections', modelId));
+                }
+            } catch (error: any) {
+                toast({
+                    title: "测试出错",
+                    description: error.message || "执行测试时发生未知错误。",
+                    variant: "destructive",
+                });
+            }
         });
     };
 
@@ -311,7 +356,7 @@ function LLMConfigDialog({ llm, open, onOpenChange, onSave }: {
                                     <FormItem>
                                         <FormLabel>模型名称</FormLabel>
                                         <Select onValueChange={field.onChange} value={field.value} disabled={!selectedProviderName}>
-                                            <FormControl><SelectTrigger><SelectValue placeholder="选择模型" /></SelectTrigger></FormControl>
+                                            <FormControl><SelectTrigger><SelectValue placeholder={availableModels.length > 0 ? "选择模型" : "请先选厂商"} /></SelectTrigger></FormControl>
                                             <SelectContent>
                                                 {availableModels.map(model => <SelectItem key={model} value={model}>{model}</SelectItem>)}
                                             </SelectContent>
@@ -333,7 +378,10 @@ function LLMConfigDialog({ llm, open, onOpenChange, onSave }: {
                         </div>
 
                         <DialogFooter className="pt-4 !mt-8">
-                            <Button type="button" variant="outline" onClick={handleTestAvailability}><TestTube2 className="mr-2"/>可用性测试</Button>
+                            <Button type="button" variant="outline" onClick={handleTestAvailability} disabled={isTesting}>
+                                {isTesting ? <Loader2 className="animate-spin mr-2"/> : <TestTube2 className="mr-2"/>}
+                                可用性测试
+                            </Button>
                             <div className="flex-grow"></div>
                             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>取消</Button>
                             <Button type="submit" disabled={isSubmitting}>
