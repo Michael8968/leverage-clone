@@ -19,8 +19,10 @@
 | **name** | `string` | 用户姓名或昵称。 |
 | **email** | `string` | 用户注册邮箱 (唯一)。 |
 | **avatar** | `string` | 用户头像图片的URL。 |
-| **role** | `string` | 用户角色 (`admin`, `supplier`, `creator`, `user`)。 |
+| **role** | `string` | 用户角色 (`admin`, `supplier`, `creator`, `user`, `suspended`)。 |
 | **rating** | `number` | (可选) 平台为用户评定的星级 (1-10)。 |
+| **status** | `string` | (可选) 用户状态 (`active`, `suspended`)。默认为 `active`。 |
+
 
 ### 1.2. `products` 集合
 

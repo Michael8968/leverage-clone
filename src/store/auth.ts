@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { auth } from '@/lib/firebase';
 import { persist } from 'zustand/middleware';
 
-export type Role = 'admin' | 'supplier' | 'user' | 'creator';
+export type Role = 'admin' | 'supplier' | 'user' | 'creator' | 'suspended';
 
 // This is a pure data interface, safe for serialization.
 export interface User {
@@ -12,7 +12,8 @@ export interface User {
   email: string;
   role: Role;
   avatar: string;
-  rating?: number; // Added optional rating field
+  rating?: number;
+  status?: 'active' | 'suspended'; // Added status field
 }
 
 interface AuthState {

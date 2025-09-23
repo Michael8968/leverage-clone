@@ -4,7 +4,7 @@
 
 import { AppLayout } from '@/components/app-layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ShieldCheck, MoreHorizontal, Star, UserX, Trash2, UserCog } from 'lucide-react';
+import { ShieldCheck, MoreHorizontal, Star, UserX, Trash2, UserCog, UserCheck, CircleSlash } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -27,6 +27,16 @@ import { collection, getDocs, query, orderBy, doc, updateDoc } from 'firebase/fi
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 
 // RoleBadge remains the same
@@ -36,6 +46,7 @@ const RoleBadge = ({ role }: { role: Role }) => {
         supplier: { label: '供应商', color: 'bg-blue-500 hover:bg-blue-600' },
         creator: { label: '创意者', color: 'bg-green-500 hover:bg-green-600' },
         user: { label: '普通用户', color: 'bg-gray-500 hover:bg-gray-600' },
+        suspended: { label: '已禁用', color: 'bg-yellow-500 hover:bg-yellow-600'},
     };
     const { label, color } = roleConfig[role] || { label: role, color: 'bg-gray-400' };
     return <Badge className={cn(color, 'text-white')}>{label}</Badge>;
@@ -63,7 +74,15 @@ const StarRating = ({ rating = 0, onSetRating }: { rating?: number; onSetRating?
 
 
 // UserActionsCell updated to include rating management
-function UserActionsCell({ user, onUserUpdate }: { user: User; onUserUpdate: (updatedUser: User) => void; }) {
+function UserActionsCell({ 
+    user, 
+    onUserUpdate,
+    onConfirmDelete 
+}: { 
+    user: User; 
+    onUserUpdate: (updatedUser: User) => void;
+    onConfirmDelete: (user: User) => void;
+}) {
     const { user: currentUser } = useAuthStore();
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
@@ -94,6 +113,12 @@ function UserActionsCell({ user, onUserUpdate }: { user: User; onUserUpdate: (up
     
     const handleSetRating = (newRating: number) => {
         updateUserData({ rating: newRating });
+    };
+    
+    const handleToggleSuspend = () => {
+        const currentStatus = user.status || 'active';
+        const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
+        updateUserData({ status: newStatus });
     };
 
     return (
@@ -137,12 +162,13 @@ function UserActionsCell({ user, onUserUpdate }: { user: User; onUserUpdate: (up
                     </DropdownMenuPortal>
                 </DropdownMenuSub>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem disabled>
-                    <UserX className="mr-2"/> 设为暂停 (功能开发中)
+                <DropdownMenuItem onClick={handleToggleSuspend} disabled={isSelf || isPending}>
+                    {user.status === 'suspended' ? <UserCheck className="mr-2"/> : <UserX className="mr-2"/>}
+                    {user.status === 'suspended' ? '恢复用户' : '设为暂停'}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive" disabled={isSelf || isPending}>
-                    <Trash2 className="mr-2"/> 删除用户 (功能开发中)
+                <DropdownMenuItem className="text-destructive" disabled={isSelf || isPending} onClick={() => onConfirmDelete(user)}>
+                    <Trash2 className="mr-2"/> 删除用户
                 </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
@@ -152,7 +178,11 @@ function UserActionsCell({ user, onUserUpdate }: { user: User; onUserUpdate: (up
 export default function PermissionsPage() {
     const [users, setUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [userToDelete, setUserToDelete] = useState<User | null>(null);
     const { toast } = useToast();
+
+    const activeUsers = useMemo(() => users.filter(u => u.role !== 'suspended'), [users]);
+
 
     useEffect(() => {
         const fetchUsers = async () => {
@@ -177,6 +207,26 @@ export default function PermissionsPage() {
         setUsers(currentUsers => 
             currentUsers.map(u => u.uid === updatedUser.uid ? updatedUser : u)
         );
+    };
+
+    const handleConfirmDelete = (user: User) => {
+        setUserToDelete(user);
+    };
+
+    const executeDelete = async () => {
+        if (!userToDelete) return;
+
+        try {
+            const userRef = doc(db, 'users', userToDelete.uid);
+            await updateDoc(userRef, { role: 'suspended', status: 'suspended' });
+            handleUserUpdate({ ...userToDelete, role: 'suspended', status: 'suspended' });
+            toast({ title: "用户已禁用", description: `用户 ${userToDelete.name} 已被软删除并禁用。` });
+        } catch (error) {
+             console.error("Failed to 'soft delete' user:", error);
+             toast({ title: "操作失败", description: "禁用用户时发生错误。", variant: "destructive" });
+        } finally {
+            setUserToDelete(null);
+        }
     };
 
   return (
@@ -216,22 +266,29 @@ export default function PermissionsPage() {
                                 <TableCell className="text-right"><Skeleton className="h-8 w-8 rounded-md ml-auto" /></TableCell>
                             </TableRow>
                         ))
-                    ) : users.map(user => (
-                        <TableRow key={user.uid}>
+                    ) : activeUsers.map(user => (
+                        <TableRow key={user.uid} className={cn(user.status === 'suspended' && 'opacity-50')}>
                             <TableCell>
                                 <div className="flex items-center gap-3">
                                     <Avatar className="w-8 h-8">
                                         <AvatarImage src={user.avatar} alt={user.name} />
                                         <AvatarFallback>{user.name ? user.name.charAt(0) : user.email.charAt(0)}</AvatarFallback>
                                     </Avatar>
-                                    <span className="font-medium">{user.name || '未命名'}</span>
+                                    <div className='flex flex-col'>
+                                      <span className="font-medium">{user.name || '未命名'}</span>
+                                      {user.status === 'suspended' && <Badge variant="destructive" className="w-fit text-xs gap-1"><CircleSlash className="w-3 h-3"/>已暂停</Badge>}
+                                    </div>
                                 </div>
                             </TableCell>
                             <TableCell className="text-muted-foreground">{user.email}</TableCell>
                             <TableCell><RoleBadge role={user.role} /></TableCell>
                             <TableCell><StarRating rating={user.rating}/></TableCell>
                             <TableCell className="text-right">
-                                <UserActionsCell user={user} onUserUpdate={handleUserUpdate} />
+                                <UserActionsCell 
+                                  user={user} 
+                                  onUserUpdate={handleUserUpdate}
+                                  onConfirmDelete={handleConfirmDelete}
+                                 />
                             </TableCell>
                         </TableRow>
                     ))}
@@ -240,6 +297,20 @@ export default function PermissionsPage() {
           </CardContent>
         </Card>
       </div>
+      <AlertDialog open={!!userToDelete} onOpenChange={(isOpen) => !isOpen && setUserToDelete(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>确认“删除”用户</AlertDialogTitle>
+                <AlertDialogDescription>
+                    为保证数据安全，此操作会将用户 “{userToDelete?.name}” 的角色设为“已禁用”，使其无法登录。用户数据仍会保留。您确定吗？
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogAction onClick={executeDelete} className="bg-destructive hover:bg-destructive/90">确认禁用</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
     </AppLayout>
   );
 }
