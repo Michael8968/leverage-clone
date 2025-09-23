@@ -31,7 +31,7 @@ const getTripo3dModelStatusFlow = ai.defineFlow(
   async ({ taskId, apiKey }) => {
     // Corrected the polling endpoint based on the create task endpoint structure
     const response = await fetch(`https://api.tripo3d.ai/v2/openapi/task/${taskId}`, {
-        method: 'GET',
+        method: 'GET', // Explicitly set method to GET for clarity
         headers: { 
             'Authorization': `Bearer ${apiKey}` 
         },

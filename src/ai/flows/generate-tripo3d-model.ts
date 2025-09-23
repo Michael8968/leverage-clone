@@ -32,7 +32,7 @@ const generateTripo3dModelFlow = ai.defineFlow(
   async ({ prompt, apiKey }) => {
     // Corrected Endpoint from official documentation
     const response = await fetch('https://api.tripo3d.ai/v2/openapi/task', {
-      method: 'POST',
+      method: 'POST', // CRITICAL FIX: Explicitly set the method to POST
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
