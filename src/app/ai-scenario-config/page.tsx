@@ -182,14 +182,9 @@ function ScenarioEditDialog({
                 endTime: isRepetitionEnabled && endTime ? format(endTime, 'HH:mm') : undefined,
             };
             
-            // **FIX**: Filter out undefined values before saving to Firestore
-            const cleanedDataToSave = Object.entries(dataToSave).reduce((acc, [key, value]) => {
-                if (value !== undefined) {
-                    acc[key as keyof FullScenario] = value;
-                }
-                return acc;
-            }, {} as Partial<FullScenario>);
-
+            const cleanedDataToSave = Object.fromEntries(
+                Object.entries(dataToSave).filter(([, value]) => value !== undefined)
+            );
 
             await setDoc(scenarioRef, cleanedDataToSave, { merge: true });
             
@@ -547,7 +542,7 @@ export default function AIScenarioConfigPage() {
                             fullScenarios.map((scenario) => (
                                 <TableRow key={scenario.id}>
                                     <TableCell>
-                                    <p className="font-medium flex items-center">{scenario.name} {renderConfigBadge(scenario)}</p>
+                                    <div className="font-medium flex items-center">{scenario.name} {renderConfigBadge(scenario)}</div>
                                     <p className="text-xs text-muted-foreground">{scenario.description}</p>
                                     </TableCell>
                                     <TableCell>
@@ -591,6 +586,7 @@ export default function AIScenarioConfigPage() {
 }
 
     
+
 
 
 
