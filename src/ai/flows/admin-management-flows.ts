@@ -126,8 +126,8 @@ const getPromptsFlow = ai.defineFlow({
     // which Firestore supports with automatic indexing. The second filter
     // (for "scope") is now applied on the client-side after fetching.
     const q = query(
-        promptsCollection, 
-        where("status", "==", "生效中"), 
+        promptsCollection,
+        where("status", "==", "生效中"),
         orderBy("name")
     );
     const snapshot = await getDocs(q);
@@ -140,6 +140,6 @@ const getPromptsFlow = ai.defineFlow({
             name: data.name,
             promptKey: data.promptKey,
         }));
-        
+
     return { prompts };
 });
