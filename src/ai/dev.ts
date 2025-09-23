@@ -7,3 +7,5 @@ import '@/ai/flows/demand-matching.ts';
 import '@/ai/flows/supplier-data-analysis.ts';
 import '@/ai/flows/generate-3d-model.ts';
 import '@/ai/flows/clarify-demand-details.ts';
+import '@/ai/flows/generate-tripo3d-model.ts';
+import '@/ai/flows/get-tripo3d-model-status.ts';

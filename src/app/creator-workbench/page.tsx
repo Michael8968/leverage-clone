@@ -18,6 +18,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { generate3dModel, type Generate3dModelOutput } from '@/ai/flows/generate-3d-model';
+import { generateTripo3dModel } from '@/ai/flows/generate-tripo3d-model';
+import { getTripo3dModelStatus } from '@/ai/flows/get-tripo3d-model-status';
+
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import Image from 'next/image';
@@ -224,7 +227,7 @@ function SubmissionForm({
 
 // =================================================================
 // BUILT-IN AI TAB
-// =================================================================
+// =================================00================================
 function BuiltInGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => void }) {
     const [prompt, setPrompt] = useState('');
     const [isGenerating, startGeneration] = useTransition();
@@ -323,15 +326,7 @@ function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
     const pollTaskStatus = useCallback(async (currentTaskId: string, currentApiKey: string) => {
         const interval = setInterval(async () => {
             try {
-                const response = await fetch(`https://api.tripo3d.ai/v2/tripod/${currentTaskId}`, {
-                    method: 'GET',
-                    headers: { 'Authorization': `Bearer ${currentApiKey}` },
-                });
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || 'Failed to fetch task status');
-                }
-                const data = await response.json();
+                const data = await getTripo3dModelStatus({ taskId: currentTaskId, apiKey: currentApiKey });
                 setTaskStatus(data);
 
                 if (data.status === 'success' || data.status === 'failed') {
@@ -341,7 +336,7 @@ function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
                     }
                 }
             } catch (err: any) {
-                setError(err.message);
+                setError(err.message || 'Failed to fetch task status');
                 clearInterval(interval);
             }
         }, 5000); // Poll every 5 seconds
@@ -365,24 +360,12 @@ function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
         setTaskId('generating');
 
         try {
-            const response = await fetch('https://api.tripo3d.ai/v2/tripod', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKeyToUse}`,
-                },
-                body: JSON.stringify({ type: 'text_to_model', prompt }),
-            });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to create generation task');
-            }
-            const data = await response.json();
+            const data = await generateTripo3dModel({ prompt, apiKey: apiKeyToUse });
             setTaskId(data.task_id);
             setTaskStatus(data);
             pollTaskStatus(data.task_id, apiKeyToUse);
         } catch (err: any) {
-            setError(err.message);
+            setError(err.message || 'Failed to create generation task.');
             setTaskId(null);
         }
     };
