@@ -2,10 +2,10 @@
 import { create } from 'zustand';
 import { auth } from '@/lib/firebase';
 import { persist } from 'zustand/middleware';
-import type { User as FirebaseUser } from 'firebase/auth';
 
 export type Role = 'admin' | 'supplier' | 'user' | 'creator';
 
+// This is a pure data interface, safe for serialization.
 export interface User {
   uid: string;
   name: string;

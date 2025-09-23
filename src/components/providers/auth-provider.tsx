@@ -1,11 +1,10 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useAuthStore } from '@/store/auth';
+import { useAuthStore, type User } from '@/store/auth';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import type { User } from '@/store/auth';
 
 /**
  * AuthProvider 的唯一职责:
@@ -24,11 +23,19 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         const userDocSnap = await getDoc(userDocRef);
 
         if (userDocSnap.exists()) {
-          const userData = userDocSnap.data() as User;
-          setUser(userData, userData.role);
+          const userDataFromDb = userDocSnap.data();
+          // Create a pure, serializable user object
+          const user: User = {
+            uid: firebaseUser.uid,
+            name: userDataFromDb.name || firebaseUser.displayName || 'Unnamed User',
+            email: firebaseUser.email!,
+            avatar: userDataFromDb.avatar || firebaseUser.photoURL || `https://i.pravatar.cc/150?u=${firebaseUser.uid}`,
+            role: userDataFromDb.role || 'user',
+          };
+          setUser(user, user.role);
         } else {
-          // 用户存在于 Auth，但不存在于 Firestore，这是一个异常状态，强制登出。
-          console.warn(`Firestore 中未找到 UID: ${firebaseUser.uid} 的用户文档。正在强制登出。`);
+          // User exists in Auth, but not in Firestore, this is an anomaly state, force logout.
+          console.warn(`Firestore document for UID: ${firebaseUser.uid} not found. Forcing logout.`);
           await auth.signOut();
           setUser(null, null);
         }
@@ -38,10 +45,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       setIsLoading(false);
     });
 
-    // 组件卸载时，取消监听以防止内存泄漏。
+    // Cleanup subscription on unmount
     return () => unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // 空依赖数组确保此 effect 仅在挂载时运行一次。
+  }, []); // Empty dependency array ensures this effect runs only once on mount.
 
   return <>{children}</>;
 }
