@@ -9,10 +9,12 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { LlmConnection } from '@/lib/types';
 import { getPlatformAssets } from './admin-management-flows';
+import { auth } from '@/lib/firebase';
+import type { Role } from '@/store/auth';
 
 // Standardized Message Format
 const PromptMessageSchema = z.object({
@@ -29,6 +31,8 @@ const PromptExecutionInputSchema = z.object({
   messages: z.array(PromptMessageSchema).describe("The conversation history. The content from the prompt document will be used as the 'system' message if a promptKey is provided."),
   temperature: z.number().optional().default(0.7),
   scenario: z.string().optional().describe("A predefined AI scenario key (e.g., 'chat-assistant'). If provided, the system will look up a configured prompt for this scenario and use it with the highest priority."),
+  // Added for user-based rule evaluation
+  userId: z.string().optional().describe("The UID of the user making the request, for rule evaluation."),
 });
 export type PromptExecutionInput = z.infer<typeof PromptExecutionInputSchema>;
 
@@ -51,9 +55,10 @@ const executePromptFlow = ai.defineFlow(
     inputSchema: PromptExecutionInputSchema,
     outputSchema: PromptExecutionOutputSchema,
   },
-  async ({ modelId, promptKey, messages, temperature, scenario }) => {
+  async ({ modelId, promptKey, messages, temperature, scenario, userId }) => {
     let finalModelId = modelId;
     let finalPromptKey = promptKey;
+    let systemPromptContent: string | undefined;
 
     // 1. Scenario-based configuration lookup (highest priority)
     if (scenario) {
@@ -61,15 +66,35 @@ const executePromptFlow = ai.defineFlow(
         const scenarioSnap = await getDoc(scenarioRef);
         if (scenarioSnap.exists()) {
             const scenarioData = scenarioSnap.data();
-            if (scenarioData.configuredPromptKey) {
-                finalPromptKey = scenarioData.configuredPromptKey;
-                finalModelId = undefined; // Scenario's prompt key takes precedence over any passed modelId
+            const now = new Date();
+            const startsAt = scenarioData.startsAt?.toDate();
+            const expiresAt = scenarioData.expiresAt?.toDate();
+
+            // Time-based rule check
+            const isTimeValid = (!startsAt || now >= startsAt) && (!expiresAt || now <= expiresAt);
+
+            if (isTimeValid) {
+                let isUserRoleValid = true;
+                // User-based rule check
+                if (userId && Array.isArray(scenarioData.targetUserRoles) && scenarioData.targetUserRoles.length > 0) {
+                    const userDoc = await getDoc(doc(db, 'users', userId));
+                    if (userDoc.exists()) {
+                        const userRole = userDoc.data().role as Role;
+                        isUserRoleValid = scenarioData.targetUserRoles.includes(userRole);
+                    } else {
+                        isUserRoleValid = false; // User not found, rule fails
+                    }
+                }
+
+                if (isUserRoleValid && scenarioData.configuredPromptKey) {
+                    finalPromptKey = scenarioData.configuredPromptKey;
+                    finalModelId = undefined; // Scenario's prompt key takes precedence
+                }
             }
         }
     }
     
     let connection: LlmConnection;
-    let systemPromptContent: string | undefined;
 
     if (finalPromptKey) {
         // --- Logic for promptKey based execution ---
@@ -87,8 +112,6 @@ const executePromptFlow = ai.defineFlow(
         const effectiveModelId = promptDoc.modelId || finalModelId;
 
         if (!effectiveModelId) {
-             // Fallback to a system-default model if no model is specified anywhere.
-             // This part can be implemented later. For now, we require a model to be specified.
              throw new Error(`No modelId was associated with promptKey "${finalPromptKey}" and no default was provided.`);
         }
         

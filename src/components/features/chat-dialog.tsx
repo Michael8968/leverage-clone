@@ -128,6 +128,7 @@ export function ChatDialog({ open, onOpenChange, demand, currentUser }: {
               demandTitle: demand.title,
               demandDescription: demand.description,
               chatHistory: currentMessages.map(m => ({...m, text: m.text || ''})),
+              userId: currentUser.uid,
           });
 
           const aiMessage: ChatMessage = {

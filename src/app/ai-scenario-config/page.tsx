@@ -9,15 +9,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Puzzle, Edit, Workflow, Loader2, Frown } from 'lucide-react';
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useAuthStore } from '@/store/auth';
+import { Puzzle, Edit, Workflow, Loader2, Frown, Users, Clock, Settings2, Calendar as CalendarIcon } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { useAuthStore, type Role } from '@/store/auth';
 import { useRouter } from 'next/navigation';
-import { collection, doc, getDocs, setDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, setDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { getPrompts, type GetPromptsOutput } from '@/ai/flows/admin-management-flows';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+
 
 // =================================================================
 // TYPE DEFINITIONS & MOCK DATA
@@ -31,15 +39,15 @@ type ScenarioDefinition = {
 
 type ScenarioConfig = {
     configuredPromptKey: string;
-    // other fields if any in the future
+    startsAt?: Timestamp;
+    expiresAt?: Timestamp;
+    targetUserRoles?: Role[];
 };
 
-type FullScenario = ScenarioDefinition & {
-    configuredPromptKey?: string;
+type FullScenario = ScenarioDefinition & ScenarioConfig & {
     configuredPromptName?: string;
 };
 
-// This is the single source of truth for all configurable scenarios in the platform.
 const ALL_SCENARIOS: ScenarioDefinition[] = [
     {
         id: 'chat-assistant',
@@ -58,6 +66,15 @@ const ALL_SCENARIOS: ScenarioDefinition[] = [
     },
 ];
 
+const ALL_ROLES: Role[] = ['admin', 'creator', 'supplier', 'user'];
+const ROLE_NAMES: Record<Role, string> = {
+    admin: '管理员',
+    creator: '创意者',
+    supplier: '供应商',
+    user: '普通用户'
+};
+
+
 // =================================================================
 // EDIT DIALOG COMPONENT
 // =================================================================
@@ -74,12 +91,25 @@ function ScenarioEditDialog({
     onOpenChange: (open: boolean) => void,
     onSaveSuccess: () => void
 }) {
-    const [selectedPromptKey, setSelectedPromptKey] = useState(scenario?.configuredPromptKey || '');
+    const [selectedPromptKey, setSelectedPromptKey] = useState('');
+    const [startsAt, setStartsAt] = useState<Date | undefined>();
+    const [expiresAt, setExpiresAt] = useState<Date | undefined>();
+    const [targetUserRoles, setTargetUserRoles] = useState<Role[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
 
     useEffect(() => {
-        setSelectedPromptKey(scenario?.configuredPromptKey || '');
+        if(scenario) {
+            setSelectedPromptKey(scenario.configuredPromptKey || 'default');
+            setStartsAt(scenario.startsAt ? scenario.startsAt.toDate() : undefined);
+            setExpiresAt(scenario.expiresAt ? scenario.expiresAt.toDate() : undefined);
+            setTargetUserRoles(scenario.targetUserRoles || []);
+        } else {
+            setSelectedPromptKey('default');
+            setStartsAt(undefined);
+            setExpiresAt(undefined);
+            setTargetUserRoles([]);
+        }
     }, [scenario]);
 
     const handleSave = async () => {
@@ -87,11 +117,16 @@ function ScenarioEditDialog({
         setIsSaving(true);
         try {
             const scenarioRef = doc(db, 'ai_scenarios', scenario.id);
-            await setDoc(scenarioRef, { 
-                configuredPromptKey: selectedPromptKey,
+            const dataToSave: any = {
                 name: scenario.name,
                 description: scenario.description,
-            }, { merge: true });
+                configuredPromptKey: selectedPromptKey === 'default' ? '' : selectedPromptKey,
+                startsAt: startsAt ? Timestamp.fromDate(startsAt) : null,
+                expiresAt: expiresAt ? Timestamp.fromDate(expiresAt) : null,
+                targetUserRoles: targetUserRoles,
+            };
+            
+            await setDoc(scenarioRef, dataToSave, { merge: true });
             
             toast({
                 title: '保存成功',
@@ -110,25 +145,26 @@ function ScenarioEditDialog({
             setIsSaving(false);
         }
     };
-    
-    const handleSelectChange = (value: string) => {
-        // If user selects the "default" option, set state to empty string
-        // otherwise use the selected promptKey.
-        setSelectedPromptKey(value === 'default' ? '' : value);
+
+    const handleRoleToggle = (role: Role) => {
+        setTargetUserRoles(prev => 
+            prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]
+        );
     };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
                     <DialogTitle className="font-headline">编辑场景: {scenario?.name}</DialogTitle>
                     <DialogDescription>{scenario?.description}</DialogDescription>
                 </DialogHeader>
-                <div className="py-4">
-                    <label htmlFor="prompt-select" className="text-sm font-medium">配置使用的提示词</label>
-                    <Select value={selectedPromptKey || 'default'} onValueChange={handleSelectChange}>
-                        <SelectTrigger id="prompt-select">
-                           <div className="flex items-center gap-2">
+                <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                    <div>
+                        <Label htmlFor="prompt-select" className="text-sm font-medium">配置使用的提示词</Label>
+                        <Select value={selectedPromptKey} onValueChange={setSelectedPromptKey}>
+                            <SelectTrigger id="prompt-select">
+                            <div className="flex items-center gap-2">
                                 <Workflow className="w-4 h-4 text-muted-foreground"/>
                                 <SelectValue placeholder="选择一个提示词..." />
                             </div>
@@ -140,6 +176,51 @@ function ScenarioEditDialog({
                             ))}
                         </SelectContent>
                     </Select>
+                    </div>
+
+                    <Accordion type="multiple" className="w-full">
+                        <AccordionItem value="time-config">
+                            <AccordionTrigger><div className="flex items-center gap-2"><Clock className="w-4 h-4"/> 时间维度配置 (可选)</div></AccordionTrigger>
+                            <AccordionContent className="grid grid-cols-2 gap-4 pt-2">
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !startsAt && "text-muted-foreground")}>
+                                            {startsAt ? format(startsAt, "PPP") : <span>生效时间</span>}
+                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={startsAt} onSelect={setStartsAt} initialFocus/></PopoverContent>
+                                </Popover>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !expiresAt && "text-muted-foreground")}>
+                                            {expiresAt ? format(expiresAt, "PPP") : <span>失效时间</span>}
+                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={expiresAt} onSelect={setExpiresAt} /></PopoverContent>
+                                </Popover>
+                            </AccordionContent>
+                        </AccordionItem>
+                        <AccordionItem value="user-config">
+                            <AccordionTrigger><div className="flex items-center gap-2"><Users className="w-4 h-4"/> 用户维度配置 (可选)</div></AccordionTrigger>
+                            <AccordionContent className="pt-4">
+                                <Label>限定目标用户角色 (不选则对所有用户生效)</Label>
+                                <div className="grid grid-cols-4 gap-2 mt-2">
+                                    {ALL_ROLES.map(role => (
+                                        <div key={role} className="flex items-center space-x-2">
+                                            <Checkbox
+                                                id={`role-${role}`}
+                                                checked={targetUserRoles.includes(role)}
+                                                onCheckedChange={() => handleRoleToggle(role)}
+                                            />
+                                            <Label htmlFor={`role-${role}`} className="text-sm font-normal">{ROLE_NAMES[role]}</Label>
+                                        </div>
+                                    ))}
+                                </div>
+                            </AccordionContent>
+                        </AccordionItem>
+                    </Accordion>
                 </div>
                 <DialogFooter>
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>取消</Button>
@@ -183,11 +264,11 @@ export default function AIScenarioConfigPage() {
             setPrompts(promptsData.prompts);
 
             const mergedScenarios = ALL_SCENARIOS.map(def => {
-                const config = scenarioConfigs[def.id];
+                const config = scenarioConfigs[def.id] || {};
                 const prompt = promptsData.prompts.find(p => p.promptKey === config?.configuredPromptKey);
                 return {
                     ...def,
-                    configuredPromptKey: config?.configuredPromptKey,
+                    ...config,
                     configuredPromptName: prompt?.name,
                 };
             });
@@ -216,6 +297,20 @@ export default function AIScenarioConfigPage() {
         setSelectedScenario(scenario);
         setIsDialogOpen(true);
     };
+    
+    const renderConfigBadge = (scenario: FullScenario) => {
+        const parts = [];
+        if (scenario.targetUserRoles && scenario.targetUserRoles.length > 0) {
+            parts.push(`${scenario.targetUserRoles.length}个角色`);
+        }
+        if (scenario.startsAt || scenario.expiresAt) {
+            parts.push('有时间限制');
+        }
+        if (parts.length > 0) {
+            return <Badge variant="outline" className="text-xs ml-2"><Settings2 className="w-3 h-3 mr-1"/>{parts.join(', ')}</Badge>;
+        }
+        return null;
+    }
 
     if (isAuthLoading) {
         return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="animate-spin" /></div>;
@@ -241,7 +336,7 @@ export default function AIScenarioConfigPage() {
                     <Puzzle />
                     AI 场景配置
                 </h1>
-                <p className="text-muted-foreground">为平台中不同的AI功能场景，配置默认使用的提示词（Prompt）。</p>
+                <p className="text-muted-foreground">为平台中不同的AI功能场景，配置默认使用的提示词（Prompt），并可选择性地增加时间或用户限制。</p>
                 </header>
 
                 <Card>
@@ -273,7 +368,7 @@ export default function AIScenarioConfigPage() {
                             fullScenarios.map((scenario) => (
                                 <TableRow key={scenario.id}>
                                     <TableCell>
-                                    <p className="font-medium">{scenario.name}</p>
+                                    <p className="font-medium flex items-center">{scenario.name} {renderConfigBadge(scenario)}</p>
                                     <p className="text-xs text-muted-foreground">{scenario.description}</p>
                                     </TableCell>
                                     <TableCell>

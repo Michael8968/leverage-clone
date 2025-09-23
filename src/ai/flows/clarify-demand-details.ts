@@ -24,6 +24,7 @@ const ClarifyDemandDetailsInputSchema = z.object({
   demandTitle: z.string().describe('The title of the original user demand.'),
   demandDescription: z.string().describe('The detailed description of the original user demand.'),
   chatHistory: z.array(ChatMessageSchema).describe('The history of the conversation so far.'),
+  userId: z.string().describe("The UID of the user initiating the request."),
 });
 export type ClarifyDemandDetailsInput = z.infer<typeof ClarifyDemandDetailsInputSchema>;
 
@@ -89,6 +90,7 @@ const clarifyDemandDetailsFlow = ai.defineFlow(
 
     const result = await executePrompt({
         scenario: 'chat-assistant', // This is the key for scenario-based config
+        userId: input.userId, // Pass userId for rule evaluation
         messages: [
             // If no scenario or prompt is configured, this system message acts as a fallback.
             { role: 'system', content: defaultClarifyPrompt }, 
