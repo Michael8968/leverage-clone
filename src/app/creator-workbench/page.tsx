@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -227,7 +228,7 @@ function SubmissionForm({
 
 // =================================================================
 // BUILT-IN AI TAB
-// =================================00================================
+// =================================================================
 function BuiltInGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => void }) {
     const [prompt, setPrompt] = useState('');
     const [isGenerating, startGeneration] = useTransition();
@@ -333,6 +334,8 @@ function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
                     clearInterval(interval);
                     if(data.status === 'success') {
                         setTaskId(null); // Clear task ID for next generation
+                    } else {
+                        setError(data.error || '任务生成失败，请检查提示词或API Key。');
                     }
                 }
             } catch (err: any) {
@@ -361,9 +364,15 @@ function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
 
         try {
             const data = await generateTripo3dModel({ prompt, apiKey: apiKeyToUse });
-            setTaskId(data.task_id);
-            setTaskStatus(data);
-            pollTaskStatus(data.task_id, apiKeyToUse);
+            if (data.task_id) {
+                setTaskId(data.task_id);
+                // Immediately start polling
+                const initialStatus = await getTripo3dModelStatus({ taskId: data.task_id, apiKey: apiKeyToUse });
+                setTaskStatus(initialStatus);
+                pollTaskStatus(data.task_id, apiKeyToUse);
+            } else {
+                throw new Error("API did not return a task_id.");
+            }
         } catch (err: any) {
             setError(err.message || 'Failed to create generation task.');
             setTaskId(null);
@@ -399,11 +408,11 @@ function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
                   rows={2}
                 />
                 <Button onClick={handleGenerate} disabled={isGenerating} className="h-auto">
-                    {isGenerating ? <Loader2 className="animate-spin"/> : <Wand2/>}
+                    {taskId === 'generating' || (isGenerating && taskStatus?.status !== 'success' && taskStatus?.status !== 'failed') ? <Loader2 className="animate-spin"/> : <Wand2/>}
                 </Button>
             </div>
             
-            {isGenerating && taskStatus && (
+            {isGenerating && taskStatus && taskStatus.status !== 'success' && taskStatus.status !== 'failed' && (
                  <div className="text-center p-8 space-y-4">
                     <Loader2 className="mx-auto h-12 w-12 animate-spin text-accent" />
                     <p className="text-muted-foreground">{taskStatus?.progress ?? 0}% - {taskStatus?.status_message || '正在排队等待处理...'}</p>
@@ -413,7 +422,7 @@ function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
             
             {error && <Alert variant="destructive"><AlertTitle>生成出错</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
 
-            {taskStatus?.status === 'success' && (
+            {taskStatus?.status === 'success' && taskStatus.output.images?.[0]?.url && (
                 <SubmissionForm imageUrl={taskStatus.output.images[0].url} onSubmissionSuccess={handleSuccess} toolName="Tripo3D" />
             )}
         </div>

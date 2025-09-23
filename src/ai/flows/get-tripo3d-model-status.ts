@@ -29,7 +29,8 @@ const getTripo3dModelStatusFlow = ai.defineFlow(
     outputSchema: GetTripo3dModelStatusOutputSchema,
   },
   async ({ taskId, apiKey }) => {
-    const response = await fetch(`https://api.tripo3d.ai/v2/tripod/${taskId}`, {
+    // Corrected the polling endpoint based on the create task endpoint structure
+    const response = await fetch(`https://api.tripo3d.ai/v2/openapi/task/${taskId}`, {
         method: 'GET',
         headers: { 
             'Authorization': `Bearer ${apiKey}` 
@@ -37,10 +38,22 @@ const getTripo3dModelStatusFlow = ai.defineFlow(
     });
 
     if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to fetch Tripo3D task status.');
+        const errorText = await response.text();
+         try {
+            const errorData = JSON.parse(errorText);
+            throw new Error(errorData.message || 'Failed to fetch Tripo3D task status.');
+        } catch (e) {
+            throw new Error(`Failed to fetch Tripo3D task status. Server response: ${errorText}`);
+        }
     }
 
-    return await response.json();
+    const responseData = await response.json();
+
+    // The status API returns the task object directly in the 'data' field
+    if (responseData.data) {
+        return responseData.data;
+    }
+
+    throw new Error('Tripo3D status API did not return the expected data structure.');
   }
 );

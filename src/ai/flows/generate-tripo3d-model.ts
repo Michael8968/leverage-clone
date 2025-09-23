@@ -30,7 +30,8 @@ const generateTripo3dModelFlow = ai.defineFlow(
     outputSchema: GenerateTripo3dModelOutputSchema,
   },
   async ({ prompt, apiKey }) => {
-    const response = await fetch('https://api.tripo3d.ai/v2/tripod', {
+    // Corrected Endpoint from official documentation
+    const response = await fetch('https://api.tripo3d.ai/v2/openapi/task', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -40,10 +41,23 @@ const generateTripo3dModelFlow = ai.defineFlow(
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to create Tripo3D generation task.');
+      const errorText = await response.text();
+      try {
+        const errorData = JSON.parse(errorText);
+        throw new Error(errorData.message || 'Failed to create Tripo3D generation task.');
+      } catch (e) {
+        throw new Error(`Failed to create Tripo3D generation task. Server response: ${errorText}`);
+      }
     }
 
-    return await response.json();
+    const responseData = await response.json();
+    
+    // Correctly parse the nested task_id from the 'data' object
+    if (responseData.data && responseData.data.task_id) {
+        return { task_id: responseData.data.task_id };
+    }
+
+    // Throw an error if the expected structure is not found
+    throw new Error('Tripo3D API did not return the expected task_id structure.');
   }
 );
