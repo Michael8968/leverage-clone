@@ -410,7 +410,7 @@ Based on the context, provide a clear and concise answer. If the context does no
         try {
             const dataToSave: any = { 
                 ...values, 
-                modelId: values.modelId || null,
+                modelId: values.modelId === '__system_default__' ? null : values.modelId,
                 priority: values.priority || null,
             };
             
@@ -443,6 +443,8 @@ Based on the context, provide a clear and concise answer. If the context does no
             setIsSubmitting(false);
         }
     };
+
+    const modelIdValue = form.watch('modelId');
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -510,23 +512,21 @@ Based on the context, provide a clear and concise answer. If the context does no
                              <CardDescription className="text-xs">定义此提示词在执行时应从哪些数据源检索信息，并调整其创造性程度（温度）。</CardDescription>
                           </CardHeader>
                           <CardContent className="p-4 pt-2 space-y-4">
-                            {([
-                                { id: 'knowledgeBase', icon: Database, label: '知识库' },
-                                { id: 'suppliers', icon: Building2, label: '供应商及商品库' },
-                                { id: 'publicResources', icon: Library, label: '公共资源库' },
-                            ] as const).map(source => (
+                            {(['knowledgeBase', 'suppliers', 'publicResources'] as const).map(source => (
                                 <div key={source.id} className="grid grid-cols-12 items-center gap-4">
                                     <FormField
                                         control={form.control}
-                                        name={`querySources.${source.id}`}
+                                        name={`querySources.${source}`}
                                         render={({ field }) => (
                                             <FormItem className="col-span-4 flex items-center gap-2 space-y-0">
                                                 <FormControl>
                                                     <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                                                 </FormControl>
                                                 <FormLabel className="flex items-center gap-2 font-normal cursor-pointer">
-                                                    <source.icon className="w-4 h-4 text-muted-foreground"/>
-                                                    {source.label}
+                                                    {source === 'knowledgeBase' && <Database className="w-4 h-4 text-muted-foreground"/>}
+                                                    {source === 'suppliers' && <Building2 className="w-4 h-4 text-muted-foreground"/>}
+                                                    {source === 'publicResources' && <Library className="w-4 h-4 text-muted-foreground"/>}
+                                                    {source === 'knowledgeBase' ? '知识库' : source === 'suppliers' ? '供应商库' : '公共资源库'}
                                                 </FormLabel>
                                             </FormItem>
                                         )}
@@ -534,7 +534,7 @@ Based on the context, provide a clear and concise answer. If the context does no
                                     <div className="col-span-8 flex items-center gap-4">
                                         <FormField
                                             control={form.control}
-                                            name={`sourceTemperatures.${source.id}`}
+                                            name={`sourceTemperatures.${source}`}
                                             render={({ field }) => (
                                                 <FormControl>
                                                     <Slider
@@ -545,7 +545,7 @@ Based on the context, provide a clear and concise answer. If the context does no
                                                 </FormControl>
                                             )}
                                         />
-                                        <span className="text-sm font-mono w-10 text-right">{sourceTemperatures[source.id].toFixed(1)}</span>
+                                        <span className="text-sm font-mono w-10 text-right">{sourceTemperatures[source]?.toFixed(1)}</span>
                                     </div>
                                 </div>
                             ))}
@@ -563,10 +563,13 @@ Based on the context, provide a clear and concise answer. If the context does no
                                 render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>绑定模型</FormLabel>
-                                     <Select onValueChange={field.onChange} value={field.value || ''}>
+                                     <Select 
+                                        onValueChange={field.onChange} 
+                                        value={field.value || '__system_default__'}
+                                     >
                                         <FormControl><SelectTrigger><SelectValue placeholder="使用系统默认模型" /></SelectTrigger></FormControl>
                                         <SelectContent>
-                                            <SelectItem value="">-- 使用系统默认模型 --</SelectItem>
+                                            <SelectItem value="__system_default__">-- 使用系统默认模型 --</SelectItem>
                                             {llms.map(llm => <SelectItem key={llm.id} value={llm.id}>{llm.modelName} ({llm.provider})</SelectItem>)}
                                         </SelectContent>
                                     </Select>
