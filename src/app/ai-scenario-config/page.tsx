@@ -101,17 +101,21 @@ function ScenarioEditDialog({
     const [targetUserRoles, setTargetUserRoles] = useState<Role[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
+    const [isRepetitionEnabled, setIsRepetitionEnabled] = useState(false);
 
     useEffect(() => {
         if(scenario) {
+            const isRepEnabled = scenario.repetition && scenario.repetition !== 'none';
             setSelectedPromptKey(scenario.configuredPromptKey || 'default');
-            setRepetition(scenario.repetition || 'none');
+            setRepetition(isRepEnabled ? scenario.repetition! : 'daily'); // Default to 'daily' if enabled but not set
+            setIsRepetitionEnabled(isRepEnabled);
             setStartsAt(scenario.startsAt ? scenario.startsAt.toDate() : undefined);
             setExpiresAt(scenario.expiresAt ? scenario.expiresAt.toDate() : undefined);
             setTargetUserRoles(scenario.targetUserRoles || []);
         } else {
             setSelectedPromptKey('default');
-            setRepetition('none');
+            setRepetition('daily');
+            setIsRepetitionEnabled(false);
             setStartsAt(undefined);
             setExpiresAt(undefined);
             setTargetUserRoles([]);
@@ -127,7 +131,7 @@ function ScenarioEditDialog({
                 name: scenario.name,
                 description: scenario.description,
                 configuredPromptKey: selectedPromptKey === 'default' ? '' : selectedPromptKey,
-                repetition: repetition,
+                repetition: isRepetitionEnabled ? repetition : 'none',
                 startsAt: startsAt ? Timestamp.fromDate(startsAt) : null,
                 expiresAt: expiresAt ? Timestamp.fromDate(expiresAt) : null,
                 targetUserRoles: targetUserRoles,
@@ -189,9 +193,16 @@ function ScenarioEditDialog({
                         <AccordionItem value="time-config">
                             <AccordionTrigger><div className="flex items-center gap-2"><Clock className="w-4 h-4"/> 时间维度配置 (可选)</div></AccordionTrigger>
                             <AccordionContent className="grid grid-cols-2 gap-4 pt-2">
-                                <div>
-                                    <Label>重复策略</Label>
-                                    <Select value={repetition} onValueChange={(v) => setRepetition(v as Repetition)}>
+                                <div className="col-span-2 grid grid-cols-2 gap-2 items-end">
+                                    <div className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id="enable-repetition"
+                                            checked={isRepetitionEnabled}
+                                            onCheckedChange={(checked) => setIsRepetitionEnabled(Boolean(checked))}
+                                        />
+                                        <Label htmlFor="enable-repetition" className="font-medium">启用重复</Label>
+                                    </div>
+                                    <Select value={repetition} onValueChange={(v) => setRepetition(v as Repetition)} disabled={!isRepetitionEnabled}>
                                         <SelectTrigger>
                                             <div className="flex items-center gap-2">
                                                 <Repeat className="w-4 h-4 text-muted-foreground" />
@@ -199,7 +210,6 @@ function ScenarioEditDialog({
                                             </div>
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="none">不重复</SelectItem>
                                             <SelectItem value="monthly">按月重复</SelectItem>
                                             <SelectItem value="daily">按天重复</SelectItem>
                                             <SelectItem value="hourly">按小时重复</SelectItem>
@@ -207,11 +217,11 @@ function ScenarioEditDialog({
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div />
+                                <div className="col-span-2"><Label>绝对时间范围 (对重复策略同样生效)</Label></div>
                                 <Popover>
                                     <PopoverTrigger asChild>
                                         <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !startsAt && "text-muted-foreground")}>
-                                            {startsAt ? format(startsAt, "PPP") : <span>生效时间</span>}
+                                            {startsAt ? format(startsAt, "PPP HH:mm") : <span>生效时间</span>}
                                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                                         </Button>
                                     </PopoverTrigger>
@@ -220,7 +230,7 @@ function ScenarioEditDialog({
                                 <Popover>
                                     <PopoverTrigger asChild>
                                         <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !expiresAt && "text-muted-foreground")}>
-                                            {expiresAt ? format(expiresAt, "PPP") : <span>失效时间</span>}
+                                            {expiresAt ? format(expiresAt, "PPP HH:mm") : <span>失效时间</span>}
                                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                                         </Button>
                                     </PopoverTrigger>
@@ -437,3 +447,5 @@ export default function AIScenarioConfigPage() {
         </AppLayout>
     );
 }
+
+    
