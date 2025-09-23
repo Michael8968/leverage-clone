@@ -116,7 +116,7 @@ export default function PromptManagementPage() {
                                 ) : prompts.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={6} className="h-24 text-center">
-                                            数据库中暂无提示词。请在 Firestore 中创建 'prompts' 集合并添加数据。
+                                            数据库中暂无提示词。请运行 `node scripts/seed-prompts.js` 脚本填充初始数据。
                                         </TableCell>
                                     </TableRow>
                                 ) : (
