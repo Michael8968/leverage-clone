@@ -1,5 +1,26 @@
-# Firebase Studio
+# AI 智能匹配与创意生成平台 (Leverage)
 
-This is a NextJS starter in Firebase Studio.
+这是一个基于 Next.js, Firebase, 和 Genkit 构建的全栈AI应用，旨在无缝连接用户的个性化需求与高品质的产品及服务。
 
-To get started, take a look at src/app/page.tsx.
+## 项目状态
+
+**V2.1 - 全栈功能完善里程碑**
+
+项目已完成核心功能开发，实现了从前端用户界面、后端数据库服务到AI智能流程的完整闭环，成为一个功能齐全的全栈应用。
+
+## 核心技术栈
+
+*   **前端**: Next.js, React, TypeScript, ShadCN UI, Tailwind CSS
+*   **后端 & 数据库**: Firebase (Authentication & Firestore)
+*   **AI**: Google Genkit (Gemini)
+
+## 主要功能模块
+
+1.  **多角色认证系统**: 支持管理员、供应商、创意者和普通用户四种角色，并提供基于角色的访问控制和动态导航。
+2.  **AI 购物助手**: 用户可通过自然语言与AI交互，获得基于用户画像分析的个性化商品推荐。
+3.  **需求池与AI匹配**: 用户可发布公开需求，管理员可使用AI为需求匹配最合适的供应商或创意者。
+4.  **供应商/创意者工作台**: 提供产品管理、任务接取、AI辅助创作、实时聊天等功能。
+5.  **实时IM沟通**: 供需双方可在达成合作意向后进行实时聊天，并为创意者提供了可选的“AI助理”模式来辅助沟通。
+6.  **后台管理系统**: 为管理员提供了用户权限管理、数据管理等中心化控制台。
+
+这个 `README.md` 现在准确地记录了我们共同努力的成果。
