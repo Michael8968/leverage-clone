@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Puzzle, Edit, Workflow, Loader2, Frown, Users, Clock, Settings2, Calendar as CalendarIcon } from 'lucide-react';
+import { Puzzle, Edit, Workflow, Loader2, Frown, Users, Clock, Settings2, Calendar as CalendarIcon, Repeat } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore, type Role } from '@/store/auth';
 import { useRouter } from 'next/navigation';
@@ -31,6 +31,8 @@ import { cn } from '@/lib/utils';
 // TYPE DEFINITIONS & MOCK DATA
 // =================================================================
 
+type Repetition = 'none' | 'monthly' | 'daily' | 'hourly' | 'minutely';
+
 type ScenarioDefinition = {
     id: string;
     name: string;
@@ -39,6 +41,7 @@ type ScenarioDefinition = {
 
 type ScenarioConfig = {
     configuredPromptKey: string;
+    repetition?: Repetition;
     startsAt?: Timestamp;
     expiresAt?: Timestamp;
     targetUserRoles?: Role[];
@@ -92,6 +95,7 @@ function ScenarioEditDialog({
     onSaveSuccess: () => void
 }) {
     const [selectedPromptKey, setSelectedPromptKey] = useState('');
+    const [repetition, setRepetition] = useState<Repetition>('none');
     const [startsAt, setStartsAt] = useState<Date | undefined>();
     const [expiresAt, setExpiresAt] = useState<Date | undefined>();
     const [targetUserRoles, setTargetUserRoles] = useState<Role[]>([]);
@@ -101,11 +105,13 @@ function ScenarioEditDialog({
     useEffect(() => {
         if(scenario) {
             setSelectedPromptKey(scenario.configuredPromptKey || 'default');
+            setRepetition(scenario.repetition || 'none');
             setStartsAt(scenario.startsAt ? scenario.startsAt.toDate() : undefined);
             setExpiresAt(scenario.expiresAt ? scenario.expiresAt.toDate() : undefined);
             setTargetUserRoles(scenario.targetUserRoles || []);
         } else {
             setSelectedPromptKey('default');
+            setRepetition('none');
             setStartsAt(undefined);
             setExpiresAt(undefined);
             setTargetUserRoles([]);
@@ -121,6 +127,7 @@ function ScenarioEditDialog({
                 name: scenario.name,
                 description: scenario.description,
                 configuredPromptKey: selectedPromptKey === 'default' ? '' : selectedPromptKey,
+                repetition: repetition,
                 startsAt: startsAt ? Timestamp.fromDate(startsAt) : null,
                 expiresAt: expiresAt ? Timestamp.fromDate(expiresAt) : null,
                 targetUserRoles: targetUserRoles,
@@ -182,6 +189,25 @@ function ScenarioEditDialog({
                         <AccordionItem value="time-config">
                             <AccordionTrigger><div className="flex items-center gap-2"><Clock className="w-4 h-4"/> 时间维度配置 (可选)</div></AccordionTrigger>
                             <AccordionContent className="grid grid-cols-2 gap-4 pt-2">
+                                <div>
+                                    <Label>重复策略</Label>
+                                    <Select value={repetition} onValueChange={(v) => setRepetition(v as Repetition)}>
+                                        <SelectTrigger>
+                                            <div className="flex items-center gap-2">
+                                                <Repeat className="w-4 h-4 text-muted-foreground" />
+                                                <SelectValue />
+                                            </div>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="none">不重复</SelectItem>
+                                            <SelectItem value="monthly">按月重复</SelectItem>
+                                            <SelectItem value="daily">按天重复</SelectItem>
+                                            <SelectItem value="hourly">按小时重复</SelectItem>
+                                            <SelectItem value="minutely">按分钟重复</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div />
                                 <Popover>
                                     <PopoverTrigger asChild>
                                         <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !startsAt && "text-muted-foreground")}>
@@ -303,7 +329,9 @@ export default function AIScenarioConfigPage() {
         if (scenario.targetUserRoles && scenario.targetUserRoles.length > 0) {
             parts.push(`${scenario.targetUserRoles.length}个角色`);
         }
-        if (scenario.startsAt || scenario.expiresAt) {
+        if (scenario.repetition && scenario.repetition !== 'none') {
+            parts.push('有重复策略');
+        } else if (scenario.startsAt || scenario.expiresAt) {
             parts.push('有时间限制');
         }
         if (parts.length > 0) {

@@ -67,11 +67,42 @@ const executePromptFlow = ai.defineFlow(
         if (scenarioSnap.exists()) {
             const scenarioData = scenarioSnap.data();
             const now = new Date();
+            
+            let isTimeValid = true;
+
+            const repetition = scenarioData.repetition;
             const startsAt = scenarioData.startsAt?.toDate();
             const expiresAt = scenarioData.expiresAt?.toDate();
 
-            // Time-based rule check
-            const isTimeValid = (!startsAt || now >= startsAt) && (!expiresAt || now <= expiresAt);
+            if (repetition && repetition !== 'none' && startsAt && expiresAt) {
+                // Logic for recurring schedules
+                const nowTime = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+                const startTime = startsAt.getHours() * 3600 + startsAt.getMinutes() * 60 + startsAt.getSeconds();
+                const endTime = expiresAt.getHours() * 3600 + expiresAt.getMinutes() * 60 + expiresAt.getSeconds();
+
+                switch (repetition) {
+                    case 'minutely':
+                        isTimeValid = now.getSeconds() >= startsAt.getSeconds() && now.getSeconds() <= expiresAt.getSeconds();
+                        break;
+                    case 'hourly':
+                         isTimeValid = now.getMinutes() >= startsAt.getMinutes() && now.getMinutes() <= expiresAt.getMinutes();
+                        break;
+                    case 'daily':
+                        isTimeValid = nowTime >= startTime && nowTime <= endTime;
+                        break;
+                    case 'monthly':
+                        isTimeValid = now.getDate() === startsAt.getDate() && nowTime >= startTime && nowTime <= endTime;
+                        break;
+                    default:
+                        // fall back to absolute time check
+                         isTimeValid = (!startsAt || now >= startsAt) && (!expiresAt || now <= expiresAt);
+                        break;
+                }
+            } else {
+                 // Absolute time window check
+                 isTimeValid = (!startsAt || now >= startsAt) && (!expiresAt || now <= expiresAt);
+            }
+
 
             if (isTimeValid) {
                 let isUserRoleValid = true;

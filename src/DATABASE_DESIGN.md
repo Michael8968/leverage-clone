@@ -138,8 +138,9 @@
 | **name** | `string` | 场景的业务名称 (例如: "聊天对话-AI助理")。 |
 | **description**| `string` | 场景的功能描述。 |
 | **configuredPromptKey** | `string` | **(核心)** 绑定的 `prompts` 集合中的 `promptKey`。 |
-| **startsAt** | `Timestamp` | (可选) 此条配置的生效时间。 |
-| **expiresAt**| `Timestamp` | (可选) 此条配置的失效时间。 |
+| **repetition** | `string` | (可选) 重复策略 (`none`, `monthly`, `daily`, `hourly`, `minutely`)。 |
+| **startsAt** | `Timestamp` | (可选) 此条配置的生效时间。对于重复策略，此字段的时间部分（时/分/秒）作为重复的基准。 |
+| **expiresAt**| `Timestamp` | (可选) 此条配置的失效时间。对于重复策略，此字段的时间部分（时/分/秒）作为重复的结束基准。 |
 | **targetUserRoles**| `Array<string>`| (可选) 目标用户角色数组。若存在，则此配置仅对数组内的角色生效。 |
 
 ### 1.9. 其他集合
@@ -180,6 +181,6 @@
 *   **`executePrompt` (核心网关)**:
     *   **输入**: `modelId` (可选), `promptKey` (可选), `scenario` (可选), `userId` (可选), `messages`, `temperature`。
     *   **功能**: **(已升级)** 统一的API网关。按以下优先级顺序确定执行目标：
-        1.  **场景配置**: 根据 `scenario` 和 `userId` 查找 `ai_scenarios` 集合中符合当前时间和用户角色的、优先级最高的配置。
+        1.  **场景配置**: 根据 `scenario` 和 `userId` 查找 `ai_scenarios` 集合中符合当前时间、重复策略和用户角色的、优先级最高的配置。
         2.  **手动指定**: 如果没有场景覆盖，则使用调用时传入的 `promptKey` 或 `modelId`。
     *   **调用位置**: 被所有需要调用大模型的上层业务流程调用。
