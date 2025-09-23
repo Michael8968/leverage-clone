@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -7,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Download, Edit, Library, Link, PlusCircle, Trash2, Upload, Loader2, KeyRound, Calendar as CalendarIcon, Settings2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { collection, getDocs, query, orderBy, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -92,7 +93,17 @@ function ResourceDialog({ resource, open, onOpenChange, onSave }: {
                 expiresAt: resource.expiresAt ? resource.expiresAt.toDate() : undefined,
             });
         } else if (!open) {
-            form.reset();
+            form.reset({
+              name: '',
+              endpoint: '',
+              docsUrl: '',
+              authType: 'None',
+              status: '生效中',
+              apiKey: '',
+              usageLimit: undefined,
+              expiresAt: undefined,
+              scope: '',
+            });
         }
     }, [open, resource, form]);
 
@@ -103,9 +114,11 @@ function ResourceDialog({ resource, open, onOpenChange, onSave }: {
             const dataToSave: any = { ...values };
             if (values.expiresAt) {
                 dataToSave.expiresAt = Timestamp.fromDate(values.expiresAt);
+            } else {
+                delete dataToSave.expiresAt;
             }
 
-            if (isEditing) {
+            if(isEditing) {
                 const docRef = doc(db, 'resources', resource!.id!);
                 await updateDoc(docRef, dataToSave);
                 toast({ title: "成功", description: "资源已更新。" });
@@ -206,13 +219,20 @@ export default function PublicResourcesPage() {
     const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
     const { toast } = useToast();
 
-    const fetchResources = async () => {
+    const fetchResources = useCallback(async () => {
         setIsLoading(true);
         try {
             const resourcesCollection = collection(db, 'resources');
             const q = query(resourcesCollection, orderBy('name'));
             const resourcesSnapshot = await getDocs(q);
-            const resourcesList = resourcesSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Resource));
+            const resourcesList = resourcesSnapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    ...data,
+                    id: doc.id,
+                    expiresAt: data.expiresAt,
+                } as Resource;
+            });
             setResources(resourcesList);
         } catch (error) {
             console.error("Error fetching resources:", error);
@@ -224,12 +244,11 @@ export default function PublicResourcesPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [toast]);
     
     useEffect(() => {
         fetchResources();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [fetchResources]);
 
     const handleAdd = () => {
         setSelectedResource(null);
@@ -363,6 +382,7 @@ export default function PublicResourcesPage() {
                 </Card>
             </div>
             <ResourceDialog 
+                key={selectedResource?.id || 'new'}
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
                 onSave={fetchResources}
@@ -377,7 +397,7 @@ export default function PublicResourcesPage() {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>取消</AlertDialogCancel>
+                        <AlertDialogCancel onClick={() => setSelectedResource(null)}>取消</AlertDialogCancel>
                         <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">确认</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
@@ -385,5 +405,3 @@ export default function PublicResourcesPage() {
         </AppLayout>
     );
 }
-
-    
