@@ -5,11 +5,13 @@ export type Demand = {
   id: string;
   title: string;
   description: string;
-  category: '礼品定制' | '3D设计' | '智能硬件' | '日用商品';
+  category: string;
   budget: number;
   status: '开放中' | '进行中' | '已完成';
   createdAt: Date;
-  tags?: string[];
+  requesterId: string;
+  requesterName: string;
+  requesterAvatar: string;
   creatorId?: string;
 };
 
@@ -61,3 +63,5 @@ export type UserProfile = {
   summary: string;
   tags: string[];
 }
+
+    

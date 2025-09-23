@@ -85,8 +85,8 @@ export default function DemandPoolPage() {
   }, []);
 
   const handleClaimDemand = async (demandId: string) => {
-    if (!user) {
-        toast({ title: '错误', description: '请先登录再进行操作。', variant: 'destructive' });
+    if (!user || !user.uid) {
+        toast({ title: '错误', description: '无法获取用户信息，请重新登录再试。', variant: 'destructive' });
         return;
     }
     const originalDemands = [...demands];
@@ -338,8 +338,8 @@ function CreateDemandDialog({ open, onOpenChange, onDemandCreated }: {
     });
 
     const handleSubmit = async (values: z.infer<typeof demandSchema>) => {
-        if (!user) {
-            toast({ title: "错误", description: "您需要登录才能发布需求。", variant: "destructive" });
+        if (!user || !user.uid) {
+            toast({ title: "错误", description: "无法获取用户信息，请重新登录再试。", variant: "destructive" });
             return;
         }
         setIsSubmitting(true);
@@ -593,3 +593,5 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
         </Dialog>
     )
 }
+
+    
