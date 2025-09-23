@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -6,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Download, Edit, Library, Link, PlusCircle, Trash2, Upload, Loader2, Info, Tag, CalendarClock } from 'lucide-react';
+import { Download, Edit, Library, Link, PlusCircle, Trash2, Upload, Loader2, Info, Tag, CalendarClock, FileCog } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { collection, getDocs, query, orderBy, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -21,7 +22,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { X } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DataProcessor } from '@/components/features/data-processor';
+
 
 // 更新后的 Resource 数据接口，以反映其作为数据源的本质
 export interface Resource {
@@ -33,6 +36,9 @@ export interface Resource {
     updateFrequency: '实时' | '每日' | '每周' | '每月'; // 更新频率
     status: '可用' | '已停用'; // 状态
     createdAt?: Timestamp;
+    // Fields from DataProcessor might also be present
+    matchScore?: number;
+    recommendation?: string;
 }
 
 // 更新 Zod schema 以匹配新的数据模型
@@ -157,7 +163,7 @@ const getStatusBadge = (status: Resource['status']) => {
     }
 }
 
-export default function PublicResourcesPage() {
+function ManualResourceManagement() {
     const [resources, setResources] = useState<Resource[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -225,109 +231,96 @@ export default function PublicResourcesPage() {
     };
 
     return (
-        <AppLayout>
-            <div className="p-4 md:p-8 space-y-8">
-                <header>
-                    <h1 className="text-2xl font-headline font-bold flex items-center gap-2">
-                        <Library />
-                        行业资讯数据中心
-                    </h1>
-                    <p className="text-muted-foreground">管理用于增强AI能力的外部行业数据源。在这里收集、整理、分类并为数据打上标签，为AI在各种场景下的交互体验提供数据依据。</p>
-                </header>
-
-                <Card>
-                    <CardHeader>
-                        <div className="flex justify-between items-center">
-                            <div>
-                                <CardTitle className="font-headline">数据源列表</CardTitle>
-                                <CardDescription>管理所有用于AI分析的外部数据源。</CardDescription>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <Button variant="outline" disabled><Upload className="mr-2"/> 导入</Button>
-                                <Button onClick={handleAdd}>
-                                    <PlusCircle className="mr-2" />
-                                    新增数据源
-                                </Button>
-                            </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>数据源名称</TableHead>
-                                    <TableHead>类别</TableHead>
-                                    <TableHead>标签</TableHead>
-                                    <TableHead>更新频率</TableHead>
-                                    <TableHead>状态</TableHead>
-                                    <TableHead className="text-right">操作</TableHead>
+        <Card>
+            <CardHeader>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <CardTitle className="font-headline">数据源列表</CardTitle>
+                        <CardDescription>管理所有用于AI分析的外部数据源。</CardDescription>
+                    </div>
+                    <Button onClick={handleAdd}>
+                        <PlusCircle className="mr-2" />
+                        新增数据源
+                    </Button>
+                </div>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>数据源名称</TableHead>
+                            <TableHead>类别</TableHead>
+                            <TableHead>标签</TableHead>
+                            <TableHead>更新频率</TableHead>
+                            <TableHead>状态</TableHead>
+                            <TableHead className="text-right">操作</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {isLoading ? (
+                                Array.from({ length: 3 }).map((_, i) => (
+                                <TableRow key={i}>
+                                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                                    <TableCell><Skeleton className="h-6 w-24 rounded-md" /></TableCell>
+                                    <TableCell><Skeleton className="h-6 w-48 rounded-md" /></TableCell>
+                                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                                    <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
+                                    <TableCell className="text-right"><Skeleton className="h-8 w-24 rounded-md ml-auto" /></TableCell>
                                 </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {isLoading ? (
-                                     Array.from({ length: 3 }).map((_, i) => (
-                                        <TableRow key={i}>
-                                            <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                                            <TableCell><Skeleton className="h-6 w-24 rounded-md" /></TableCell>
-                                            <TableCell><Skeleton className="h-6 w-48 rounded-md" /></TableCell>
-                                            <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                                            <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
-                                            <TableCell className="text-right"><Skeleton className="h-8 w-24 rounded-md ml-auto" /></TableCell>
-                                        </TableRow>
-                                    ))
-                                ) : resources.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={6} className="h-24 text-center">
-                                            暂无数据源。请点击“新增数据源”按钮添加。
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    resources.map((item) => (
-                                        <TableRow key={item.id}>
-                                            <TableCell className="font-medium">
-                                                <div className="flex flex-col">
-                                                    <span>{item.name}</span>
-                                                    <Button variant="link" size="sm" asChild className="p-0 h-auto justify-start" disabled={!item.sourceUrl}>
-                                                        <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-muted-foreground">
-                                                            查看来源 <Link className="w-3 h-3"/>
-                                                        </a>
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge variant="outline">{item.category}</Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex flex-wrap gap-1 max-w-xs">
-                                                   {(item.tags || []).map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                                    <CalendarClock className="w-4 h-4"/>
-                                                    <span>{item.updateFrequency}</span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>{getStatusBadge(item.status)}</TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(item)}>
-                                                        <Edit className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(item)}>
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
-            </div>
-            <ResourceDialog 
+                            ))
+                        ) : resources.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={6} className="h-24 text-center">
+                                    暂无数据源。请点击“新增数据源”按钮添加。
+                                </TableCell>
+                            </TableRow>
+                        ) : (
+                            resources.map((item) => (
+                                <TableRow key={item.id}>
+                                    <TableCell className="font-medium">
+                                        <div className="flex flex-col">
+                                            <span>{item.name}</span>
+                                            {item.sourceUrl && (
+                                                <Button variant="link" size="sm" asChild className="p-0 h-auto justify-start" disabled={!item.sourceUrl}>
+                                                    <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                        查看来源 <Link className="w-3 h-3"/>
+                                                    </a>
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge variant="outline">{item.category}</Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="flex flex-wrap gap-1 max-w-xs">
+                                            {(item.tags || []).map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                            <CalendarClock className="w-4 h-4"/>
+                                            <span>{item.updateFrequency}</span>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>{getStatusBadge(item.status)}</TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="flex items-center justify-end gap-2">
+                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(item)}>
+                                                <Edit className="h-4 w-4" />
+                                            </Button>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(item)}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        )}
+                    </TableBody>
+                </Table>
+            </CardContent>
+             <ResourceDialog 
                 key={selectedResource?.id || 'new'}
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
@@ -348,6 +341,36 @@ export default function PublicResourcesPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+        </Card>
+    );
+}
+
+
+export default function PublicResourcesPage() {
+     return (
+        <AppLayout>
+            <div className="p-4 md:p-8 space-y-8">
+                <header>
+                    <h1 className="text-2xl font-headline font-bold flex items-center gap-2">
+                        <Library />
+                        行业资讯数据中心
+                    </h1>
+                    <p className="text-muted-foreground">管理用于增强AI能力的外部行业数据源。在这里收集、整理、分类并为数据打上标签，为AI在各种场景下的交互体验提供数据依据。</p>
+                </header>
+
+                 <Tabs defaultValue="manual">
+                    <TabsList className="grid w-full grid-cols-2 max-w-md">
+                        <TabsTrigger value="manual"><Library className="mr-2"/> 数据源列表</TabsTrigger>
+                        <TabsTrigger value="batch"><FileCog className="mr-2"/> 批量导入与处理</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="manual" className="mt-6">
+                        <ManualResourceManagement />
+                    </TabsContent>
+                    <TabsContent value="batch" className="mt-6">
+                        <DataProcessor className="mt-0" destination="resources" />
+                    </TabsContent>
+                </Tabs>
+            </div>
         </AppLayout>
     );
 }

@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState } from 'react';
@@ -10,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { evaluateSellerData, type EvaluateSellerDataOutput } from '@/ai/flows/supplier-data-analysis';
 import { useAuthStore } from '@/store/auth';
 import { db } from '@/lib/firebase';
-import { collection, writeBatch, doc } from 'firebase/firestore';
+import { collection, writeBatch, doc, serverTimestamp } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
 import { cn } from '@/lib/utils';
@@ -24,7 +25,7 @@ const fileToDataUri = (file: File): Promise<string> => {
     });
 };
 
-export function DataProcessor({ className }: { className?: string }) {
+export function DataProcessor({ className, destination = 'suppliers' }: { className?: string, destination?: 'suppliers' | 'resources' }) {
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -67,17 +68,28 @@ export function DataProcessor({ className }: { className?: string }) {
     setIsSaving(true);
     try {
         const batch = writeBatch(db);
-        const suppliersCollection = collection(db, 'suppliers');
-        aiResult.forEach(supplierData => {
-            const newDocRef = doc(suppliersCollection); // Create a new document with a unique ID
-            batch.set(newDocRef, { ...supplierData, processedBy: user.id, createdAt: new Date().toISOString() });
+        const targetCollection = collection(db, destination);
+        
+        aiResult.forEach(itemData => {
+            const newDocRef = doc(targetCollection); // Create a new document with a unique ID
+            batch.set(newDocRef, { 
+                ...itemData, 
+                processedBy: user.uid, 
+                processedAt: serverTimestamp(),
+                // Default fields for 'resources' collection if applicable
+                sourceUrl: itemData.sourceUrl || '',
+                tags: itemData.tags || [],
+                updateFrequency: itemData.updateFrequency || '每日',
+                status: '可用',
+             });
         });
+
         await batch.commit();
-        toast({ title: '保存成功', description: 'AI分析结果已成功保存到数据库。' });
+        toast({ title: '保存成功', description: `AI分析结果已成功保存到 ${destination} 集合。` });
         setAiResult(null);
         setFile(null);
     } catch (error) {
-        console.error("Failed to save supplier data:", error);
+        console.error(`Failed to save data to ${destination}:`, error);
         toast({ title: '保存失败', description: '无法将结果保存到数据库。', variant: 'destructive' });
     } finally {
         setIsSaving(false);
@@ -88,12 +100,12 @@ export function DataProcessor({ className }: { className?: string }) {
     <Card className={cn(className)}>
       <CardHeader>
         <CardTitle className="font-headline">批量数据处理</CardTitle>
-        <CardDescription>上传供应商数据(CSV)，AI将为您评估其与平台的匹配度，并将结果存入数据库。</CardDescription>
+        <CardDescription>上传结构化数据文件(如CSV)，AI将为您评估和整理，并将结果存入数据库。</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-start gap-4">
             <div className="flex-1 space-y-2">
-                 <Input type="file" accept=".csv" onChange={handleFileChange} />
+                 <Input type="file" accept=".csv,.json,.txt" onChange={handleFileChange} />
                  {file && <p className="text-xs text-muted-foreground flex items-center gap-1"><FileText className="w-3 h-3"/> {file.name}</p>}
             </div>
           <Button onClick={processData} disabled={isLoading || !file} className="w-32">
@@ -106,29 +118,29 @@ export function DataProcessor({ className }: { className?: string }) {
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead>公司名称</TableHead>
+                        <TableHead>名称</TableHead>
                         <TableHead>类别</TableHead>
                         <TableHead>匹配度</TableHead>
                         <TableHead>AI建议</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {aiResult.map((supplier, index) => (
+                    {aiResult.map((item, index) => (
                         <TableRow key={index}>
-                            <TableCell className="font-medium">{supplier.name}</TableCell>
-                            <TableCell>{supplier.category}</TableCell>
+                            <TableCell className="font-medium">{item.name}</TableCell>
+                            <TableCell>{item.category}</TableCell>
                             <TableCell>
-                                <Badge variant={supplier.matchScore > 75 ? 'default' : 'secondary'}>
-                                    {supplier.matchScore}%
+                                <Badge variant={item.matchScore > 75 ? 'default' : 'secondary'}>
+                                    {item.matchScore}%
                                 </Badge>
                             </TableCell>
-                            <TableCell className="text-xs">{supplier.recommendation}</TableCell>
+                            <TableCell className="text-xs">{item.recommendation}</TableCell>
                         </TableRow>
                     ))}
                 </TableBody>
             </Table>
             <div className="flex justify-end">
-                <Button onClick={saveData} disabled={isSaving} className="w-32">
+                <Button onClick={saveData} disabled={isSaving} className="w-40">
                      {isSaving ? <Loader2 className="animate-spin" /> : <><CheckCircle className="mr-2" /> 保存到数据库</>}
                 </Button>
             </div>
