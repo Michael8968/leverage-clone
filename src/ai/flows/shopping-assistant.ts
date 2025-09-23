@@ -11,7 +11,8 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { generateUserProfile, UserProfileSchema, type GenerateUserProfileInput, type UserProfile } from './user-profiling';
+import { generateUserProfile, type GenerateUserProfileInput } from './user-profiling';
+import type { UserProfile } from '@/lib/types';
 
 
 const ProductSchema = z.object({
@@ -28,6 +29,19 @@ const SupplierSchema = z.object({
   name: z.string().describe('The name of the supplier.'),
   category: z.string().describe('The business category of the supplier.'),
   matchScore: z.number().optional().describe('An AI-generated score indicating supplier quality or match.'),
+});
+
+const UserProfileSchema = z.object({
+  summary: z
+    .string()
+    .describe(
+      'A concise, one-sentence summary of the user profile based on their input.'
+    ),
+  tags: z
+    .array(z.string())
+    .describe(
+      'A list of 3-5 relevant keyword tags that describe the user profile, interests, or style.'
+    ),
 });
 
 

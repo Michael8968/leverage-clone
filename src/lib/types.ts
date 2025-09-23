@@ -63,7 +63,7 @@ export type Supplier = {
 export type UserProfile = {
   summary: string;
   tags: string[];
-}
+};
 
 // Chat-related types
 export type ChatMessage = {

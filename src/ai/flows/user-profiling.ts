@@ -5,11 +5,11 @@
  * - generateUserProfile - A function that takes user input and returns a structured user profile.
  * - GenerateUserProfileInput - The input type for the generateUserProfile function.
  * - UserProfile - The return type for the generateUserProfile function.
- * - UserProfileSchema - The Zod schema for the UserProfile type.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import type { UserProfile } from '@/lib/types';
 
 const GenerateUserProfileInputSchema = z.object({
   description: z.string().describe('The text description provided by the user.'),
@@ -17,14 +17,14 @@ const GenerateUserProfileInputSchema = z.object({
     .string()
     .optional()
     .describe(
-      "An optional photo provided by the user, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+      "An optional photo provided by the user, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'"
     ),
 });
 export type GenerateUserProfileInput = z.infer<
   typeof GenerateUserProfileInputSchema
 >;
 
-export const UserProfileSchema = z.object({
+const UserProfileSchema = z.object({
   summary: z
     .string()
     .describe(
@@ -36,7 +36,6 @@ export const UserProfileSchema = z.object({
       'A list of 3-5 relevant keyword tags that describe the user profile, interests, or style.'
     ),
 });
-export type UserProfile = z.infer<typeof UserProfileSchema>;
 
 export async function generateUserProfile(
   input: GenerateUserProfileInput
