@@ -1,6 +1,6 @@
 # **数据库与核心AI流程设计文档**
 
-**版本**: 1.2
+**版本**: 1.3
 **日期**: 2024年8月9日
 
 ---
@@ -73,7 +73,7 @@
 | **...** | `...` | 其他在 `CompanyInfoForm` 中定义的联系方式字段。 |
 | **supplementaryFields** | `Array<Object>` | (可选) 补充信息字段。 |
 
-### 1.5. `chats` 集合 (新增)
+### 1.5. `chats` 集合
 
 存储供需双方的实时聊天记录。
 
@@ -94,7 +94,7 @@
 | **timestamp** | `Timestamp`| 消息发送时间。 |
 | **isAIMessage**| `boolean` | (可选) 是否为AI助理发送的消息。 |
 
-### 1.6. `llm_connections` 集合 (新增)
+### 1.6. `llm_connections` 集合
 
 存储平台可用的大语言模型连接配置。
 
@@ -110,23 +110,23 @@
 | **category** | `string` | 模型类别 (`文本`, `图像`)。 |
 | **createdAt**| `Timestamp`| 创建时间。 |
 
-### 1.7. `prompts` 集合 (更新)
+### 1.7. `prompts` 集合 (核心更新)
 
-存储用于AI流程的提示词模板。
+存储用于AI流程的提示词模板，实现对提示词的调用和知识产权保护。
 
 | 字段名 | 数据类型 | 描述 |
 | :--- | :--- | :--- |
 | **id** | `string` | 文档ID。 |
 | **name** | `string` | 提示词的业务名称。 |
-| **promptKey** | `string` | **(新增)** 唯一的、人类可读的业务调用KEY。 |
+| **promptKey** | `string` | **(核心)** 唯一的、人类可读的业务调用KEY。这是外部调用和内部路由的唯一句柄。 |
 | **description**| `string` | 提示词功能描述。 |
-| **content** | `string` | 完整的提示词内容，支持模板变量。 |
+| **content** | `string` | 完整的提示词内容，支持模板变量。此内容对非所有者和非管理员隐藏。 |
 | **scope** | `string` | 使用范围 (`通用`, `专属`)。 |
 | **status** | `string` | 状态 (`生效中`, `已停用`)。 |
 | **ownerId** | `string` | 创建者UID。 |
 | **ownerType** | `string` | 创建者类型 (`platform`, `creator`)。 |
-| **modelId** | `string` | (可选) 绑定的`llm_connections`文档ID。 |
-| **priority** | `number` | (可选) 调用优先级。 |
+| **modelId** | `string` | **(核心)** (可选) 绑定的`llm_connections`文档ID。如果为空，则使用系统默认模型。 |
+| **priority** | `number` | **(核心)** (可选) 特定于此提示词的调用优先级。 |
 
 ### 1.8. 其他集合
 
@@ -142,34 +142,28 @@
 *   **`generateUserProfile`**:
     *   **输入**: 用户需求描述 (文本)、可选的参考图片。
     *   **功能**: 分析输入，生成用户画像总结和关键词标签。
-    *   **调用位置**: `AI购物助手` (`ShoppingAssistant.tsx`)。
 
 *   **`getProductRecommendations`**:
     *   **输入**: 用户画像、所有产品/服务数据、所有供应商数据。
     *   **功能**: 根据用户画像，从产品和服务中进行匹配，返回推荐列表。
-    *   **调用位置**: `AI购物助手` (`ShoppingAssistant.tsx`)。
 
 *   **`recommendCreatives`**:
     *   **输入**: 一个或多个需求、所有“创意方”（产品+供应商）数据。
     *   **功能**: 为指定需求匹配最合适的创意方，并给出理由。
-    *   **调用位置**: `需求池` 页面 (`demand-pool/page.tsx`)。
 
 *   **`generate3dModel`**:
     *   **输入**: 文本提示 (Prompt)。
     *   **功能**: 调用AI模型（如Imagen），根据文本生成3D模型的预览图。
-    *   **调用位置**: `创意者工作台` (`creator-workbench/page.tsx`)。
 
 *   **`evaluateSellerData`**:
     *   **输入**: CSV文件数据 (Data URI格式)。
     *   **功能**: 解析CSV内容，评估其中每一行代表的供应商与平台的匹配度，并返回结构化数据。
-    *   **调用位置**: `批量数据处理` 组件 (`DataProcessor.tsx`)。
       
-*   **`clarifyDemandDetails` (新增)**:
+*   **`clarifyDemandDetails`**:
     *   **输入**: 需求标题、需求描述、当前聊天记录。
     *   **功能**: 作为AI助理，分析对话上下文，生成一个专业的问题来进一步澄清需求细节。
-    *   **调用位置**: `实时聊天` 组件 (`ChatDialog.tsx`)。
 
-*   **`executePrompt` (新增)**:
+*   **`executePrompt` (核心网关)**:
     *   **输入**: `modelId` (LLM连接的文档ID) 或 `promptKey` (提示词的业务KEY), `messages` (标准化的对话历史), `temperature` (可选参数)。
     *   **功能**: 统一的API网关。根据`modelId`或`promptKey`查找配置，将请求适配到目标厂商（Google, OpenAI, ...）的API格式，并使用原生`fetch`发送请求，最后返回标准化的文本结果。
     *   **调用位置**: 被所有需要调用大模型的上层业务流程调用。
