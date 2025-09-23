@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -24,7 +25,7 @@ import {
 } from '@/components/ui/dialog';
 import type { Demand, ProductService, Supplier } from '@/lib/types';
 import { useAuthStore } from '@/store/auth';
-import { PlusCircle, Sparkles, BrainCircuit, Loader2, MessageSquare, Check, Search, Filter } from 'lucide-react';
+import { PlusCircle, Sparkles, BrainCircuit, Loader2, MessageSquare, Check, Search, Filter, Workflow } from 'lucide-react';
 import { recommendCreatives, type Creative } from '@/ai/flows/demand-matching';
 import type { RecommendCreativesOutput } from '@/ai/flows/demand-matching';
 import { useToast } from '@/hooks/use-toast';
@@ -41,6 +42,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
+import { getPrompts, GetPromptsOutput } from '@/ai/flows/admin-management-flows';
+import { executePrompt } from '@/ai/flows/prompt-execution-flow';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
 export default function DemandPoolPage() {
@@ -459,7 +463,8 @@ function CreateDemandDialog({ open, onOpenChange, onDemandCreated }: {
 
 type BatchResult = {
     demand: Demand;
-    recommendations: RecommendCreativesOutput | null;
+    recommendations?: RecommendCreativesOutput['recommendations'];
+    rawText?: string;
     error?: string;
 }
 
@@ -471,35 +476,40 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
 }) {
     const [isLoading, setIsLoading] = useState(false);
     const [aiResults, setAiResults] = useState<BatchResult[] | null>(null);
-    const { toast } = useToast();
     const [creatives, setCreatives] = useState<Creative[]>([]);
     const [creativesLoading, setCreativesLoading] = useState(true);
+    const [prompts, setPrompts] = useState<GetPromptsOutput['prompts']>([]);
+    const [selectedPromptKey, setSelectedPromptKey] = useState<string>('');
+    const { toast } = useToast();
 
     useEffect(() => {
-      const fetchCreatives = async () => {
+      const fetchDialogData = async () => {
         setCreativesLoading(true);
         try {
-          // Creatives are a combination of products and suppliers
-          const productsCollection = collection(db, 'products');
-          const productSnapshot = await getDocs(productsCollection);
-          const productsList: Creative[] = productSnapshot.docs.map(doc => {
+          const [productsSnapshot, suppliersSnapshot, promptsData] = await Promise.all([
+            getDocs(collection(db, 'products')),
+            getDocs(collection(db, 'suppliers')),
+            getPrompts(),
+          ]);
+
+          const productsList: Creative[] = productsSnapshot.docs.map(doc => {
               const data = doc.data() as ProductService;
               return { id: doc.id, name: data.name, description: data.description, category: data.category };
           });
 
-          const suppliersCollection = collection(db, 'suppliers');
-          const supplierSnapshot = await getDocs(suppliersCollection);
-          const suppliersList: Creative[] = supplierSnapshot.docs.map(doc => {
+          const suppliersList: Creative[] = suppliersSnapshot.docs.map(doc => {
               const data = doc.data() as Supplier;
-              return { id: doc.id, name: data.name, description: data.recommendation, category: data.category };
+              return { id: doc.id, name: data.name, description: data.recommendation || '', category: data.category };
           });
           
           setCreatives([...productsList, ...suppliersList]);
+          setPrompts(promptsData.prompts);
+
         } catch (error) {
-          console.error("Error fetching creatives:", error);
+          console.error("Error fetching dialog data:", error);
           toast({
-            title: '加载创意方失败',
-            description: '无法加载用于匹配的数据。',
+            title: '加载数据失败',
+            description: '无法加载用于匹配的数据或提示词列表。',
             variant: 'destructive',
           });
         } finally {
@@ -508,8 +518,9 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
       };
 
       if (open) {
-        fetchCreatives();
+        fetchDialogData();
         setAiResults(null);
+        setSelectedPromptKey('');
       }
     }, [open, toast]);
 
@@ -524,11 +535,20 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
             const results = await Promise.all(
               demandsToProcess.map(async (d): Promise<BatchResult> => {
                     try {
-                        const result = await recommendCreatives({ demand: d, creatives });
-                        return { demand: d, recommendations: result };
-                    } catch (error) {
+                        if (selectedPromptKey) {
+                            const context = `Demand: ${JSON.stringify(d)}\n\nCreatives: ${JSON.stringify(creatives)}`;
+                            const result = await executePrompt({
+                                promptKey: selectedPromptKey,
+                                messages: [{ role: 'user', content: context }],
+                            });
+                            return { demand: d, rawText: result.text };
+                        } else {
+                            const result = await recommendCreatives({ demand: d, creatives });
+                            return { demand: d, recommendations: result.recommendations };
+                        }
+                    } catch (error: any) {
                         console.error(`AI recommendation failed for demand ${d.id}`, error);
-                        return { demand: d, recommendations: null, error: 'AI推荐服务调用失败。' };
+                        return { demand: d, recommendations: undefined, error: error.message || 'AI推荐服务调用失败。' };
                     }
                 })
             );
@@ -545,7 +565,7 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[625px]">
+            <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle className="font-headline text-xl flex items-center gap-2"><Sparkles className="text-accent"/> AI 创意匹配</DialogTitle>
                     <DialogDescription>
@@ -555,10 +575,26 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
                 <div className="py-4 max-h-[60vh] overflow-y-auto pr-2">
                     {!aiResults && !isLoading && (
                         <div className="text-center space-y-4">
-                            <p className="text-muted-foreground">准备好后，点击下方按钮启动AI分析和推荐。</p>
+                             <div className="w-full max-w-sm mx-auto">
+                                <FormLabel>选择提示词 (可选)</FormLabel>
+                                <Select onValueChange={setSelectedPromptKey} value={selectedPromptKey}>
+                                    <SelectTrigger>
+                                        <div className="flex items-center gap-2">
+                                            <Workflow className="w-4 h-4 text-muted-foreground"/>
+                                            <SelectValue placeholder="使用默认推荐逻辑" />
+                                        </div>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="">-- 使用默认推荐逻辑 --</SelectItem>
+                                        {prompts.map(p => (
+                                            <SelectItem key={p.promptKey} value={p.promptKey}>{p.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                             <Button variant="accent" onClick={handleAiRecommend} disabled={!targetDemands?.length || creativesLoading}>
                                 {creativesLoading ? <Loader2 className="animate-spin mr-2"/> : <BrainCircuit className="mr-2"/>}
-                                {creativesLoading ? '加载创意方...' : '启动AI推荐'}
+                                {creativesLoading ? '加载依赖数据...' : '启动AI推荐'}
                             </Button>
                         </div>
                     )}
@@ -581,7 +617,14 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
                                         <AccordionTrigger>{result.demand.title}</AccordionTrigger>
                                         <AccordionContent>
                                             {result.error && <p className="text-destructive text-sm">{result.error}</p>}
-                                            {result.recommendations && result.recommendations.recommendations.map(rec => {
+                                            
+                                            {result.rawText && (
+                                                <Card className="bg-muted/50 p-4">
+                                                    <p className="text-sm whitespace-pre-wrap">{result.rawText}</p>
+                                                </Card>
+                                            )}
+                                            
+                                            {result.recommendations && result.recommendations.map(rec => {
                                                 const creative = creatives.find(c => c.id === rec.creativeId);
                                                 return (
                                                 <Card key={rec.creativeId} className="mb-2">
@@ -596,7 +639,7 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
                                                     </CardContent>
                                                 </Card>
                                             )})}
-                                            {result.recommendations && result.recommendations.recommendations.length === 0 && (
+                                            {result.recommendations && result.recommendations.length === 0 && (
                                                 <p className="text-sm text-muted-foreground">未找到合适的匹配项。</p>
                                             )}
                                         </AccordionContent>
