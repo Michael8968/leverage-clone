@@ -86,7 +86,7 @@
 
 ### 2.3. 前端交互 (管理员仪表盘)
 
-前端组件`AdminDashboard` (`src/components/app/admin-dashboard.tsx`)负责提供用户界面。
+前端组件`AdminDashboardPage` (`src/app/admin-dashboard/page.tsx`)负责提供用户界面。
 
 1.  **动态表单**: “添加/编辑LLM连接”的表单(`LlmConnectionForm`)中的“厂商”和“模型名称”是级联的下拉框，其数据源来自后端`getPlatformAssets`返回的`SUPPORTED_PROVIDERS`列表。
 2.  **测试调用**: 点击“测试连接”按钮会触发`testLlmConnection`后端流程。
@@ -150,7 +150,7 @@ switch (provider.toLowerCase()) {
 #### b. 前端表单 `LlmConnectionForm` (关键部分)
 
 ```tsx
-// file: src/components/app/admin-dashboard.tsx
+// file: src/app/admin-dashboard/page.tsx
 
 const selectedProviderName = form.watch("provider");
 const availableModels = useMemo(() => {
