@@ -278,16 +278,22 @@ function SubmissionsTab({ refreshKey }: { refreshKey: number }) {
             try {
                 const q = query(
                     collection(db, 'products'),
-                    where("creatorId", "==", user.uid),
-                    orderBy("createdAt", "desc")
+                    where("creatorId", "==", user.uid)
                 );
                 const snapshot = await getDocs(q);
-                const subsList = snapshot.docs.map(doc => {
+                let subsList = snapshot.docs.map(doc => {
                     const data = doc.data();
-                    // Handle Firestore Timestamp
-                    const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : new Date();
+                    const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : null;
                     return { id: doc.id, ...data, createdAt } as ProductService;
                 });
+                
+                // Sort by createdAt date in descending order on the client-side
+                subsList.sort((a, b) => {
+                    const dateA = a.createdAt ? a.createdAt.getTime() : 0;
+                    const dateB = b.createdAt ? b.createdAt.getTime() : 0;
+                    return dateB - dateA;
+                });
+
                 setSubmissions(subsList);
             } catch (error) {
                 console.error("Error fetching submissions:", error);
@@ -414,3 +420,5 @@ export default function CreatorWorkbenchPage() {
     if (role !== 'creator') { return <AppLayout><RestrictedAccess /></AppLayout>; }
     return <AppLayout><CreatorWorkbench /></AppLayout>;
 }
+
+    
