@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -110,6 +111,12 @@ function ScenarioEditDialog({
         }
     };
     
+    const handleSelectChange = (value: string) => {
+        // If user selects the "default" option, set state to empty string
+        // otherwise use the selected promptKey.
+        setSelectedPromptKey(value === 'default' ? '' : value);
+    };
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
@@ -119,7 +126,7 @@ function ScenarioEditDialog({
                 </DialogHeader>
                 <div className="py-4">
                     <label htmlFor="prompt-select" className="text-sm font-medium">配置使用的提示词</label>
-                    <Select value={selectedPromptKey} onValueChange={setSelectedPromptKey}>
+                    <Select value={selectedPromptKey || 'default'} onValueChange={handleSelectChange}>
                         <SelectTrigger id="prompt-select">
                            <div className="flex items-center gap-2">
                                 <Workflow className="w-4 h-4 text-muted-foreground"/>
@@ -127,7 +134,7 @@ function ScenarioEditDialog({
                             </div>
                         </SelectTrigger>
                         <SelectContent>
-                             <SelectItem value="">-- (不配置, 使用系统默认行为) --</SelectItem>
+                             <SelectItem value="default">-- (不配置, 使用系统默认行为) --</SelectItem>
                             {prompts.map(p => (
                                 <SelectItem key={p.promptKey} value={p.promptKey}>{p.name}</SelectItem>
                             ))}
