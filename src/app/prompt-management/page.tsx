@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
 
-import { Edit, Trash2, Loader2, PlusCircle, Frown, Bot, Workflow, Settings2, Star, User, Key, Info } from 'lucide-react';
+import { Edit, Trash2, Loader2, PlusCircle, Frown, Bot, Workflow, Settings2, Star, User, Key, Info, Download, Copy } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { collection, getDocs, query, where, orderBy, doc, updateDoc, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -56,7 +56,7 @@ const promptSchema = z.object({
   content: z.string().min(10, "提示词内容至少需要10个字符。"),
   scope: z.enum(['通用', '专属']),
   status: z.enum(['生效中', '已停用']),
-  modelId: z.string().optional().default(''), // Allow empty string for default
+  modelId: z.string().optional(),
   priority: z.preprocess(
     (val) => val ? parseInt(String(val), 10) : undefined,
     z.number().int().min(1).optional()
@@ -100,7 +100,6 @@ export default function PromptManagementPage() {
 
             // Fetch active LLMs for the dropdown
             const llmsCollection = collection(db, 'llm_connections');
-            // FIX: Query first, then filter in client to avoid error on empty collection
             const llmsQuery = query(llmsCollection, orderBy("priority"));
             const llmsSnapshot = await getDocs(llmsQuery);
             const allLlms = llmsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as LlmConnection));
@@ -323,6 +322,31 @@ function PromptEditDialog({ prompt, llms, open, onOpenChange, onSave }: {
             .replace(/[^\w-]+/g, '') // Remove all non-word chars except hyphens
             .replace(/--+/g, '-'); // Replace multiple hyphens with a single one
     }
+    
+    const handleImportMetaPrompt = () => {
+        const metaPrompt = `You are a world-class AI assistant. Your goal is to be helpful and accurate.
+You will receive a context and a question. Your task is to use the provided context to answer the question.
+
+Context:
+{{{json context}}}
+
+Question:
+{{{question}}}
+
+Based on the context, provide a clear and concise answer. If the context does not contain the answer, state that you cannot find the information.
+`;
+        form.setValue('content', metaPrompt, { shouldValidate: true, shouldDirty: true });
+        toast({ title: "导入成功", description: "元提示词已填充到内容框中。" });
+    };
+
+    const handleCopyBaseUrl = () => {
+        if (prompt?.promptKey) {
+            const baseUrl = `https://api.leverage.pro/v1/execute/${prompt.promptKey}`;
+            navigator.clipboard.writeText(baseUrl);
+            toast({ title: "已复制", description: "调用地址已复制到剪贴板。" });
+        }
+    };
+
 
     const handleSubmit = async (values: z.infer<typeof promptSchema>) => {
         if (!user || !role) return;
@@ -393,7 +417,13 @@ function PromptEditDialog({ prompt, llms, open, onOpenChange, onSave }: {
                         </div>
                         
                         <FormField control={form.control} name="content" render={({ field }) => (<FormItem>
-                            <FormLabel>提示词内容</FormLabel>
+                            <div className="flex justify-between items-center">
+                                <FormLabel>提示词内容</FormLabel>
+                                <Button variant="link" type="button" onClick={handleImportMetaPrompt} className="text-xs h-auto p-0 gap-1">
+                                    <Download className="w-3 h-3"/>
+                                    导入元提示词
+                                </Button>
+                            </div>
                             <FormControl>
                                <Textarea
                                     placeholder="在此输入您的结构化提示词..."
@@ -409,6 +439,20 @@ function PromptEditDialog({ prompt, llms, open, onOpenChange, onSave }: {
                             <FormMessage />
                         </FormItem>)}/>
                         
+                         {isEditing && prompt?.promptKey && (
+                            <FormItem>
+                                <FormLabel>调用地址 (Base URL)</FormLabel>
+                                <div className="flex gap-2">
+                                <FormControl>
+                                    <Input readOnly value={`https://api.leverage.pro/v1/execute/${prompt.promptKey}`} className="font-mono text-xs bg-muted" />
+                                </FormControl>
+                                <Button type="button" variant="outline" size="icon" onClick={handleCopyBaseUrl}>
+                                    <Copy className="w-4 h-4"/>
+                                </Button>
+                                </div>
+                            </FormItem>
+                        )}
+                        
                         <Card className="bg-muted/50">
                           <CardHeader className="p-4">
                             <CardTitle className="text-base flex items-center gap-2"><Settings2/> 执行配置</CardTitle>
@@ -423,6 +467,7 @@ function PromptEditDialog({ prompt, llms, open, onOpenChange, onSave }: {
                                      <Select onValueChange={field.onChange} value={field.value || ''}>
                                         <FormControl><SelectTrigger><SelectValue placeholder="使用系统默认模型" /></SelectTrigger></FormControl>
                                         <SelectContent>
+                                            <SelectItem value="">-- 使用系统默认 --</SelectItem>
                                             {llms.map(llm => <SelectItem key={llm.id} value={llm.id}>{llm.modelName} ({llm.provider})</SelectItem>)}
                                         </SelectContent>
                                     </Select>
@@ -447,3 +492,4 @@ function PromptEditDialog({ prompt, llms, open, onOpenChange, onSave }: {
         </Dialog>
     );
 }
+
