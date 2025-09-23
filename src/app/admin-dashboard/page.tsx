@@ -12,7 +12,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 
 
 import { Edit, Trash2, Loader2, PlusCircle, Frown, Bot, TestTube2, KeyRound, Settings2, Star, Globe, Link, ChevronsUpDown, Check } from 'lucide-react';
@@ -51,8 +51,8 @@ const llmConnectionSchema = z.object({
       z.number().int().min(1, "优先级必须大于0").max(100, "优先级不能大于100")
   ),
   status: z.enum(['活跃', '已禁用']),
-  scope: z.enum(['通用', '专属']),
-  category: z.enum(['文本', '图像', '推理', '多模态']),
+  scope: z.string().min(1, "范围不能为空。"),
+  category: z.string().min(1, "类别不能为空。"),
 });
 
 
@@ -60,13 +60,26 @@ const llmConnectionSchema = z.object({
 // HELPER & UTILITY COMPONENTS
 // =================================================================
 
-function Combobox({ options, value, onChange, placeholder }: {
+function Combobox({ options, value, onChange, placeholder, onInputChange }: {
     options: { value: string; label: string }[];
     value: string;
     onChange: (value: string) => void;
     placeholder: string;
+    onInputChange?: (value: string) => void;
 }) {
     const [open, setOpen] = useState(false);
+
+    const handleSelect = (currentValue: string) => {
+        const newValue = currentValue.toLowerCase() === value?.toLowerCase() ? "" : currentValue;
+        onChange(newValue);
+        if (onInputChange) onInputChange(newValue);
+        setOpen(false);
+    };
+
+    const handleInputChange = (search: string) => {
+        onChange(search);
+        if (onInputChange) onInputChange(search);
+    };
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
@@ -78,35 +91,34 @@ function Combobox({ options, value, onChange, placeholder }: {
                     className="w-full justify-between"
                 >
                     {value
-                        ? options.find((option) => option.value.toLowerCase() === value.toLowerCase())?.label
+                        ? options.find((option) => option.value.toLowerCase() === value.toLowerCase())?.label || value
                         : placeholder}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                <Command>
-                    <CommandInput placeholder="搜索或输入..." onValueChange={onChange} />
-                    <CommandEmpty>未找到匹配项。</CommandEmpty>
-                    <CommandGroup>
-                        {options.map((option) => (
-                            <CommandItem
-                                key={option.value}
-                                value={option.value}
-                                onSelect={(currentValue) => {
-                                    onChange(currentValue.toLowerCase() === value.toLowerCase() ? "" : currentValue);
-                                    setOpen(false);
-                                }}
-                            >
-                                <Check
-                                    className={cn(
-                                        "mr-2 h-4 w-4",
-                                        value.toLowerCase() === option.value.toLowerCase() ? "opacity-100" : "opacity-0"
-                                    )}
-                                />
-                                {option.label}
-                            </CommandItem>
-                        ))}
-                    </CommandGroup>
+                <Command shouldFilter={false}>
+                    <CommandInput placeholder="搜索或输入..." value={value} onValueChange={handleInputChange} />
+                     <CommandList>
+                        <CommandEmpty>未找到匹配项。</CommandEmpty>
+                        <CommandGroup>
+                            {options.map((option) => (
+                                <CommandItem
+                                    key={option.value}
+                                    value={option.value}
+                                    onSelect={handleSelect}
+                                >
+                                    <Check
+                                        className={cn(
+                                            "mr-2 h-4 w-4",
+                                            value?.toLowerCase() === option.value.toLowerCase() ? "opacity-100" : "opacity-0"
+                                        )}
+                                    />
+                                    {option.label}
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                    </CommandList>
                 </Command>
             </PopoverContent>
         </Popover>
@@ -248,6 +260,10 @@ function LlmConnectionForm({ llm, onSave, onCancel }: {
             }
         });
     };
+    
+    const scopeOptions = [{value: '通用', label: '通用'}, {value: '专属', label: '专属'}];
+    const categoryOptions = [{value: '文本', label: '文本'}, {value: '图像', label: '图像'}, {value: '推理', label: '推理'}, {value: '多模态', label: '多模态'}];
+
 
     return (
         <Card>
@@ -289,8 +305,30 @@ function LlmConnectionForm({ llm, onSave, onCancel }: {
                              <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>状态</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="活跃">活跃</SelectItem><SelectItem value="已禁用">已禁用</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
-                             <FormField control={form.control} name="scope" render={({ field }) => (<FormItem><FormLabel>范围</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="通用">通用</SelectItem><SelectItem value="专属">专属</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
-                             <FormField control={form.control} name="category" render={({ field }) => (<FormItem><FormLabel>类别</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="文本">文本</SelectItem><SelectItem value="图像">图像</SelectItem><SelectItem value="推理">推理</SelectItem><SelectItem value="多模态">多模态</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
+                             <FormField control={form.control} name="scope" render={({ field }) => (
+                                 <FormItem className="flex flex-col">
+                                     <FormLabel>范围</FormLabel>
+                                     <Combobox
+                                         value={field.value}
+                                         onChange={field.onChange}
+                                         options={scopeOptions}
+                                         placeholder="选择或输入范围"
+                                     />
+                                     <FormMessage />
+                                 </FormItem>
+                             )}/>
+                             <FormField control={form.control} name="category" render={({ field }) => (
+                                <FormItem className="flex flex-col">
+                                    <FormLabel>类别</FormLabel>
+                                     <Combobox
+                                         value={field.value}
+                                         onChange={field.onChange}
+                                         options={categoryOptions}
+                                         placeholder="选择或输入类别"
+                                     />
+                                    <FormMessage />
+                                </FormItem>
+                             )}/>
                         </div>
                         <div className="flex justify-between items-center pt-4">
                             <Button type="button" variant="outline" onClick={handleTestAvailability} disabled={isTesting}>
@@ -491,5 +529,6 @@ export default function AdminDashboardPage() {
         </AppLayout>
     );
 }
+
 
 
