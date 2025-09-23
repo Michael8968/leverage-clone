@@ -383,5 +383,7 @@ export default function PublicResourcesPage() {
                 </AlertDialogContent>
             </AlertDialog>
         </AppLayout>
-    
+    );
+}
+
     
