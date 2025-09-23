@@ -1,7 +1,7 @@
 # **数据库与核心AI流程设计文档**
 
-**版本**: 1.1
-**日期**: 2024年8月8日
+**版本**: 1.2
+**日期**: 2024年8月9日
 
 ---
 
@@ -110,9 +110,26 @@
 | **category** | `string` | 模型类别 (`文本`, `图像`)。 |
 | **createdAt**| `Timestamp`| 创建时间。 |
 
-### 1.7. 其他集合
+### 1.7. `prompts` 集合 (更新)
 
-*   **`prompts`**: 存储用于AI流程的提示词模板。
+存储用于AI流程的提示词模板。
+
+| 字段名 | 数据类型 | 描述 |
+| :--- | :--- | :--- |
+| **id** | `string` | 文档ID。 |
+| **name** | `string` | 提示词的业务名称。 |
+| **promptKey** | `string` | **(新增)** 唯一的、人类可读的业务调用KEY。 |
+| **description**| `string` | 提示词功能描述。 |
+| **content** | `string` | 完整的提示词内容，支持模板变量。 |
+| **scope** | `string` | 使用范围 (`通用`, `专属`)。 |
+| **status** | `string` | 状态 (`生效中`, `已停用`)。 |
+| **ownerId** | `string` | 创建者UID。 |
+| **ownerType** | `string` | 创建者类型 (`platform`, `creator`)。 |
+| **modelId** | `string` | (可选) 绑定的`llm_connections`文档ID。 |
+| **priority** | `number` | (可选) 调用优先级。 |
+
+### 1.8. 其他集合
+
 *   **`resources`**: 存储公共资源，如外部API链接。
 *   **`designers`**: 存储设计师信息 (用于 `/designers` 页面)。
 
@@ -153,6 +170,6 @@
     *   **调用位置**: `实时聊天` 组件 (`ChatDialog.tsx`)。
 
 *   **`executePrompt` (新增)**:
-    *   **输入**: `modelId` (LLM连接的文档ID), `messages` (标准化的对话历史), `temperature` (可选参数)。
-    *   **功能**: 统一的API网关。根据`modelId`查找配置，将请求适配到目标厂商（Google, OpenAI, ...）的API格式，并使用原生`fetch`发送请求，最后返回标准化的文本结果。
-    *   **调用位置**: 被 `testLlmConnection` 等上层业务流程调用。
+    *   **输入**: `modelId` (LLM连接的文档ID) 或 `promptKey` (提示词的业务KEY), `messages` (标准化的对话历史), `temperature` (可选参数)。
+    *   **功能**: 统一的API网关。根据`modelId`或`promptKey`查找配置，将请求适配到目标厂商（Google, OpenAI, ...）的API格式，并使用原生`fetch`发送请求，最后返回标准化的文本结果。
+    *   **调用位置**: 被所有需要调用大模型的上层业务流程调用。

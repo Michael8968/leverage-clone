@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -13,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
 
-import { Edit, Trash2, Loader2, PlusCircle, Frown, Bot, Workflow, Settings2, Star, User } from 'lucide-react';
+import { Edit, Trash2, Loader2, PlusCircle, Frown, Bot, Workflow, Settings2, Star, User, Key, Info } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { collection, getDocs, query, where, orderBy, doc, updateDoc, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -33,6 +34,7 @@ import { LlmConnection } from '@/lib/types';
 type Prompt = {
     id: string;
     name: string;
+    promptKey: string;
     description: string;
     content: string;
     scope: '通用' | '专属';
@@ -54,11 +56,12 @@ const promptSchema = z.object({
   content: z.string().min(10, "提示词内容至少需要10个字符。"),
   scope: z.enum(['通用', '专属']),
   status: z.enum(['生效中', '已停用']),
-  modelId: z.string().optional(),
+  modelId: z.string().optional().or(z.literal('')),
   priority: z.preprocess(
     (val) => val ? parseInt(String(val), 10) : undefined,
     z.number().int().min(1).optional()
   ),
+  promptKey: z.string().optional(),
 });
 
 
@@ -177,6 +180,7 @@ export default function PromptManagementPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>提示词名称</TableHead>
+                                    <TableHead>提示词KEY</TableHead>
                                     {role === 'admin' && <TableHead>创建者</TableHead>}
                                     <TableHead>范围</TableHead>
                                     <TableHead>状态</TableHead>
@@ -186,13 +190,14 @@ export default function PromptManagementPage() {
                             </TableHeader>
                             <TableBody>
                                 {isLoading ? Array.from({ length: 3 }).map((_, i) => (
-                                    <TableRow key={i}><TableCell colSpan={role === 'admin' ? 6 : 5}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
+                                    <TableRow key={i}><TableCell colSpan={role === 'admin' ? 7 : 6}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
                                 )) : prompts.length === 0 ? (
-                                    <TableRow><TableCell colSpan={role === 'admin' ? 6 : 5} className="text-center h-24">暂无提示词，请点击右上角新增。</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={role === 'admin' ? 7 : 6} className="text-center h-24">暂无提示词，请点击右上角新增。</TableCell></TableRow>
                                 ) : (
                                     prompts.map((prompt) => (
                                         <TableRow key={prompt.id}>
                                             <TableCell className="font-medium">{prompt.name}</TableCell>
+                                            <TableCell className="font-mono text-xs text-muted-foreground">{prompt.promptKey}</TableCell>
                                             {role === 'admin' && (
                                                 <TableCell>
                                                     {prompt.ownerType === 'platform' 
@@ -279,35 +284,51 @@ function PromptEditDialog({ prompt, llms, open, onOpenChange, onSave }: {
     const { user, role } = useAuthStore();
     const isEditing = !!prompt?.id;
 
+    // Determine if the current user has permission to edit the content
+    const canEditContent = !isEditing || role === 'admin' || prompt.ownerId === user?.uid;
+
+
     const form = useForm<z.infer<typeof promptSchema>>({
         resolver: zodResolver(promptSchema),
         defaultValues: {
             name: '', description: '', content: '', scope: '通用', status: '生效中',
-            modelId: '', priority: 10,
+            modelId: '', priority: 10, promptKey: ''
         },
     });
 
     useEffect(() => {
         if (prompt) {
-            form.reset(prompt);
+             form.reset({
+                ...prompt,
+                modelId: prompt.modelId || '',
+             });
         } else {
             form.reset({
                 name: '', description: '', content: '', scope: '通用', status: '生效中',
-                modelId: '', priority: 10,
+                modelId: '', priority: 10, promptKey: ''
             });
         }
     }, [prompt, form]);
     
+    // Helper function to generate a kebab-case key from the name
+    const generateKeyFromName = (name: string) => {
+        return name
+            .trim()
+            .toLowerCase()
+            .replace(/[\s_]+/g, '-') // Replace spaces and underscores with a hyphen
+            .replace(/[^\w-]+/g, '') // Remove all non-word chars except hyphens
+            .replace(/--+/g, '-'); // Replace multiple hyphens with a single one
+    }
 
     const handleSubmit = async (values: z.infer<typeof promptSchema>) => {
         if (!user || !role) return;
 
         setIsSubmitting(true);
         try {
-            const dataToSave = { 
+            const dataToSave: Partial<Prompt> = { 
                 ...values, 
-                modelId: values.modelId || '',
-                priority: values.priority || null,
+                modelId: values.modelId || undefined,
+                priority: values.priority || undefined,
             };
 
             if (isEditing) {
@@ -315,8 +336,14 @@ function PromptEditDialog({ prompt, llms, open, onOpenChange, onSave }: {
                 await updateDoc(docRef, dataToSave);
                 toast({ title: "成功", description: "提示词已更新。" });
             } else {
+                // Generate a unique key for new prompts
+                const newKey = generateKeyFromName(values.name);
+                // In a real-world scenario, you'd check for key uniqueness here.
+                const finalKey = `${newKey}-${Date.now().toString().slice(-4)}`;
+                
                 await addDoc(collection(db, 'prompts'), { 
                     ...dataToSave, 
+                    promptKey: finalKey,
                     ownerId: user.uid,
                     ownerType: role === 'admin' ? 'platform' : 'creator',
                     createdAt: serverTimestamp() 
@@ -341,13 +368,37 @@ function PromptEditDialog({ prompt, llms, open, onOpenChange, onSave }: {
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto pr-4">
-                        <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>名称</FormLabel><FormControl><Input placeholder="例如：用户画像生成" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                        <div className="grid grid-cols-2 gap-4">
+                             <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>名称</FormLabel><FormControl><Input placeholder="例如：用户画像生成" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                             {isEditing && (
+                                <FormField control={form.control} name="promptKey" render={({ field }) => (<FormItem>
+                                <FormLabel><div className="flex items-center gap-1">提示词KEY <Info className="w-3 h-3 text-muted-foreground"/></div></FormLabel>
+                                <FormControl><Input disabled {...field} /></FormControl>
+                                </FormItem>)} />
+                             )}
+                        </div>
                         <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>功能描述</FormLabel><FormControl><Input placeholder="描述此提示词的用途" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                         <div className="grid grid-cols-2 gap-4">
                            <FormField control={form.control} name="scope" render={({ field }) => (<FormItem><FormLabel>范围</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="通用">通用</SelectItem><SelectItem value="专属">专属</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
                            <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>状态</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="生效中">生效中</SelectItem><SelectItem value="已停用">已停用</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
                         </div>
-                        <FormField control={form.control} name="content" render={({ field }) => (<FormItem><FormLabel>提示词内容</FormLabel><FormControl><Textarea placeholder="在此输入您的结构化提示词..." {...field} rows={10} /></FormControl><FormMessage /></FormItem>)}/>
+                        
+                        <FormField control={form.control} name="content" render={({ field }) => (<FormItem>
+                            <FormLabel>提示词内容</FormLabel>
+                            <FormControl>
+                               <Textarea
+                                    placeholder="在此输入您的结构化提示词..."
+                                    readOnly={!canEditContent}
+                                    className={!canEditContent ? 'bg-muted cursor-not-allowed' : ''}
+                                    {...field}
+                                    rows={10}
+                                />
+                            </FormControl>
+                             {!canEditContent && (
+                                <p className="text-xs text-muted-foreground flex items-center gap-1"><Info className="w-3 h-3" /> 您没有权限编辑此提示词的内容。</p>
+                            )}
+                            <FormMessage />
+                        </FormItem>)}/>
                         
                         <Card className="bg-muted/50">
                           <CardHeader className="p-4">
@@ -363,6 +414,7 @@ function PromptEditDialog({ prompt, llms, open, onOpenChange, onSave }: {
                                      <Select onValueChange={field.onChange} value={field.value || ''}>
                                         <FormControl><SelectTrigger><SelectValue placeholder="使用系统默认模型" /></SelectTrigger></FormControl>
                                         <SelectContent>
+                                            <SelectItem value="">-- 使用系统默认 --</SelectItem>
                                             {llms.map(llm => <SelectItem key={llm.id} value={llm.id}>{llm.modelName} ({llm.provider})</SelectItem>)}
                                         </SelectContent>
                                     </Select>
@@ -370,7 +422,7 @@ function PromptEditDialog({ prompt, llms, open, onOpenChange, onSave }: {
                                 </FormItem>
                                 )}
                             />
-                             <FormField control={form.control} name="priority" render={({ field }) => (<FormItem><FormLabel>调用优先级</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                             <FormField control={form.control} name="priority" render={({ field }) => (<FormItem><FormLabel>调用优先级</FormLabel><FormControl><Input type="number" placeholder="1-100, 越小越高" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                           </CardContent>
                         </Card>
 
