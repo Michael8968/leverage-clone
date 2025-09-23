@@ -1,15 +1,16 @@
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuthStore } from '@/store/auth';
-import { Frown, Bot, Loader2, ArrowRight, Wand2, Send, PackagePlus } from 'lucide-react';
+import { Frown, Bot, Loader2, ArrowRight, Wand2, Send, PackagePlus, Info } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { collection, getDocs, query, where, doc, updateDoc, addDoc, serverTimestamp, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Demand, ProductService } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -26,6 +27,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
 
 // =================================================================
 // TASKS TAB
@@ -136,8 +139,9 @@ function TasksTab() {
   );
 }
 
+
 // =================================================================
-// 3D AI CREATION TAB
+// SUBMISSION FORM (SHARED)
 // =================================================================
 const submissionSchema = z.object({
     name: z.string().min(3, { message: "名称至少需要3个字符。" }),
@@ -149,12 +153,16 @@ const submissionSchema = z.object({
     category: z.string().min(2, {message: "请填写一个类别。"})
 });
 
-
-function CreationForm({ onSubmissionSuccess }: { onSubmissionSuccess: () => void }) {
-    const [prompt, setPrompt] = useState('');
-    const [isGenerating, startGeneration] = useTransition();
+function SubmissionForm({ 
+    imageUrl, 
+    onSubmissionSuccess, 
+    toolName 
+}: { 
+    imageUrl: string; 
+    onSubmissionSuccess: () => void;
+    toolName: string;
+}) {
     const [isSubmitting, startSubmission] = useTransition();
-    const [aiResult, setAiResult] = useState<Generate3dModelOutput | null>(null);
     const { toast } = useToast();
     const { user } = useAuthStore();
 
@@ -163,26 +171,8 @@ function CreationForm({ onSubmissionSuccess }: { onSubmissionSuccess: () => void
         defaultValues: { name: "", description: "", price: 100, category: "3D模型" },
     });
 
-    const handleGenerate = () => {
-        if (!prompt) {
-            toast({ title: '提示', description: '请输入您的创意描述。' });
-            return;
-        }
-        startGeneration(async () => {
-            try {
-                const result = await generate3dModel(prompt);
-                setAiResult(result);
-                // Reset submission form when new image is generated
-                form.reset();
-            } catch (error) {
-                console.error("AI generation failed:", error);
-                toast({ title: '生成失败', description: 'AI模型创作时发生错误，请稍后重试。', variant: 'destructive' });
-            }
-        });
-    };
-
     const handleSubmission = (values: z.infer<typeof submissionSchema>) => {
-        if (!aiResult || !user) {
+        if (!imageUrl || !user) {
             toast({ title: '错误', description: '没有可提交的作品或用户信息丢失。', variant: 'destructive' });
             return;
         }
@@ -190,15 +180,13 @@ function CreationForm({ onSubmissionSuccess }: { onSubmissionSuccess: () => void
             try {
                 await addDoc(collection(db, "products"), {
                     ...values,
-                    imageUrl: aiResult.imageDataUri,
+                    imageUrl: imageUrl,
                     creatorId: user.uid,
                     status: '审核中',
                     createdAt: serverTimestamp(),
                 });
                 toast({ title: '提交成功！', description: '您的作品已提交审核，请在“我的提交”中查看状态。' });
-                setAiResult(null);
-                setPrompt('');
-                onSubmissionSuccess(); // Notify parent to refresh submission list
+                onSubmissionSuccess();
             } catch (error) {
                 console.error("Submission failed:", error);
                 toast({ title: '提交失败', description: '保存作品时发生错误，请重试。', variant: 'destructive' });
@@ -206,61 +194,240 @@ function CreationForm({ onSubmissionSuccess }: { onSubmissionSuccess: () => void
         });
     };
 
-
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="font-headline">3D AI 创作</CardTitle>
-                <CardDescription>输入您的创意描述，AI将为您生成3D模型预览图，完成后可直接提交入库审核。</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-                <div className="flex gap-2">
-                    <Textarea 
-                      placeholder="例如：一个悬浮在空中的赛博朋克风格城市，有霓虹灯和飞行汽车..." 
-                      value={prompt}
-                      onChange={(e) => setPrompt(e.target.value)}
-                      rows={2}
-                    />
-                    <Button onClick={handleGenerate} disabled={isGenerating} className="h-auto">
-                        {isGenerating ? <Loader2 className="animate-spin"/> : <Wand2/>}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start mt-6">
+            <div className="space-y-4">
+                <h3 className="font-semibold flex items-center gap-2"><Bot/> {toolName} 生成结果</h3>
+                <Image src={imageUrl} alt="AI generated model" width={512} height={512} className="rounded-lg border aspect-square object-cover" />
+            </div>
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleSubmission)} className="space-y-4 border p-4 rounded-lg h-full flex flex-col">
+                    <h3 className="font-semibold flex items-center gap-2"><PackagePlus /> 提交作品入库</h3>
+                    <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>作品名称</FormLabel><FormControl><Input placeholder="例如：赛博朋克浮空城" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>作品描述</FormLabel><FormControl><Textarea placeholder="详细描述您的作品..." {...field} rows={3} /></FormControl><FormMessage /></FormItem>)}/>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField control={form.control} name="price" render={({ field }) => (<FormItem><FormLabel>建议价格(元)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={form.control} name="category" render={({ field }) => (<FormItem><FormLabel>作品类别</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    </div>
+                    <div className="flex-grow"></div>
+                    <Button type="submit" className="w-full" disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="animate-spin mr-2" /> : <Send className="mr-2"/>}
+                        提交审核
                     </Button>
-                </div>
-                
-                {isGenerating && (
-                    <div className="text-center p-8 space-y-4">
-                        <Loader2 className="mx-auto h-12 w-12 animate-spin text-accent" />
-                        <p className="text-muted-foreground">AI 正在全力创作中，请稍候...</p>
-                    </div>
-                )}
-                
-                {aiResult && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                        <div className="space-y-4">
-                            <h3 className="font-semibold flex items-center gap-2"><Bot/> AI 生成结果</h3>
-                            <Image src={aiResult.imageDataUri} alt="AI generated model" width={512} height={512} className="rounded-lg border aspect-square object-cover" />
-                        </div>
-                        <Form {...form}>
-                            <form onSubmit={form.handleSubmit(handleSubmission)} className="space-y-4 border p-4 rounded-lg h-full flex flex-col">
-                                <h3 className="font-semibold flex items-center gap-2"><PackagePlus /> 提交作品入库</h3>
-                                <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>作品名称</FormLabel><FormControl><Input placeholder="例如：赛博朋克浮空城" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>作品描述</FormLabel><FormControl><Textarea placeholder="详细描述您的作品..." {...field} rows={3} /></FormControl><FormMessage /></FormItem>)}/>
-                                <div className="grid grid-cols-2 gap-4">
-                                  <FormField control={form.control} name="price" render={({ field }) => (<FormItem><FormLabel>建议价格(元)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                  <FormField control={form.control} name="category" render={({ field }) => (<FormItem><FormLabel>作品类别</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                </div>
-                                <div className="flex-grow"></div>
-                                <Button type="submit" className="w-full" disabled={isSubmitting}>
-                                    {isSubmitting ? <Loader2 className="animate-spin mr-2" /> : <Send className="mr-2"/>}
-                                    提交审核
-                                </Button>
-                            </form>
-                        </Form>
-                    </div>
-                )}
-            </CardContent>
-        </Card>
+                </form>
+            </Form>
+        </div>
     );
 }
+
+// =================================================================
+// BUILT-IN AI TAB
+// =================================================================
+function BuiltInGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => void }) {
+    const [prompt, setPrompt] = useState('');
+    const [isGenerating, startGeneration] = useTransition();
+    const [aiResult, setAiResult] = useState<Generate3dModelOutput | null>(null);
+    const { toast } = useToast();
+
+    const handleGenerate = () => {
+        if (!prompt) {
+            toast({ title: '提示', description: '请输入您的创意描述。' });
+            return;
+        }
+        setAiResult(null);
+        startGeneration(async () => {
+            try {
+                const result = await generate3dModel(prompt);
+                setAiResult(result);
+            } catch (error) {
+                console.error("AI generation failed:", error);
+                toast({ title: '生成失败', description: 'AI模型创作时发生错误，请稍后重试。', variant: 'destructive' });
+            }
+        });
+    };
+    
+    const handleSuccess = () => {
+        setAiResult(null);
+        setPrompt('');
+        onSubmissionSuccess();
+    }
+
+    return (
+        <div className="space-y-6">
+            <div className="flex gap-2">
+                <Textarea 
+                  placeholder="例如：一个悬浮在空中的赛博朋克风格城市，有霓虹灯和飞行汽车..." 
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  rows={2}
+                />
+                <Button onClick={handleGenerate} disabled={isGenerating} className="h-auto">
+                    {isGenerating ? <Loader2 className="animate-spin"/> : <Wand2/>}
+                </Button>
+            </div>
+            
+            {isGenerating && (
+                <div className="text-center p-8 space-y-4">
+                    <Loader2 className="mx-auto h-12 w-12 animate-spin text-accent" />
+                    <p className="text-muted-foreground">AI 正在全力创作中，请稍候...</p>
+                </div>
+            )}
+            
+            {aiResult && <SubmissionForm imageUrl={aiResult.imageDataUri} onSubmissionSuccess={handleSuccess} toolName="内置AI" />}
+        </div>
+    );
+}
+
+
+// =================================================================
+// TRIPO3D AI TAB
+// =================================================================
+function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => void }) {
+    const [apiKey, setApiKey] = useState('');
+    const [prompt, setPrompt] = useState('');
+    const [taskId, setTaskId] = useState<string | null>(null);
+    const [taskStatus, setTaskStatus] = useState<any>(null);
+    const [error, setError] = useState<string | null>(null);
+    const { toast } = useToast();
+
+    useEffect(() => {
+        const storedKey = localStorage.getItem('tripo3d_api_key');
+        if (storedKey) setApiKey(storedKey);
+    }, []);
+
+    const handleApiKeyChange = (key: string) => {
+        setApiKey(key);
+        localStorage.setItem('tripo3d_api_key', key);
+    };
+
+    const pollTaskStatus = useCallback(async (currentTaskId: string, currentApiKey: string) => {
+        const interval = setInterval(async () => {
+            try {
+                const response = await fetch(`https://api.tripo3d.ai/v2/tripod/${currentTaskId}`, {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${currentApiKey}` },
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to fetch task status');
+                }
+                const data = await response.json();
+                setTaskStatus(data);
+
+                if (data.status === 'success' || data.status === 'failed') {
+                    clearInterval(interval);
+                    if(data.status === 'success') {
+                        setTaskId(null); // Clear task ID for next generation
+                    }
+                }
+            } catch (err: any) {
+                setError(err.message);
+                clearInterval(interval);
+            }
+        }, 5000); // Poll every 5 seconds
+        return interval;
+    }, []);
+
+    const handleGenerate = async () => {
+        if (!prompt) {
+            toast({ title: '提示', description: '请输入您的创意描述。' });
+            return;
+        }
+        if (!apiKey) {
+            toast({ title: '需要API Key', description: '请输入您的 Tripo3D API Key。', variant: 'destructive' });
+            return;
+        }
+
+        setError(null);
+        setTaskStatus(null);
+        setTaskId('generating');
+
+        try {
+            const response = await fetch('https://api.tripo3d.ai/v2/tripod', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`,
+                },
+                body: JSON.stringify({ type: 'text_to_model', prompt }),
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to create generation task');
+            }
+            const data = await response.json();
+            setTaskId(data.task_id);
+            setTaskStatus(data);
+            pollTaskStatus(data.task_id, apiKey);
+        } catch (err: any) {
+            setError(err.message);
+            setTaskId(null);
+        }
+    };
+    
+    const handleSuccess = () => {
+        setTaskStatus(null);
+        setPrompt('');
+        onSubmissionSuccess();
+    }
+
+    const isGenerating = taskId !== null;
+
+    return (
+        <div className="space-y-6">
+            <Alert>
+                <Info className="h-4 w-4" />
+                <AlertTitle>需要 Tripo3D API Key</AlertTitle>
+                <AlertDescription>
+                    此功能需要一个有效的 Tripo3D API Key。您可以从 <a href="https://platform.tripo3d.ai/" target="_blank" rel="noopener noreferrer" className="underline font-semibold">Tripo3D Platform</a> 获取。API Key 将被安全地保存在您的浏览器本地存储中。
+                </AlertDescription>
+            </Alert>
+            <div className="space-y-2">
+                <FormLabel htmlFor="tripo-key">Tripo3D API Key</FormLabel>
+                <Input id="tripo-key" type="password" placeholder="sk-..." value={apiKey} onChange={(e) => handleApiKeyChange(e.target.value)} />
+            </div>
+             <div className="flex gap-2">
+                <Textarea 
+                  placeholder="例如：a sports car, masterpiece, high quality" 
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  rows={2}
+                />
+                <Button onClick={handleGenerate} disabled={isGenerating} className="h-auto">
+                    {isGenerating ? <Loader2 className="animate-spin"/> : <Wand2/>}
+                </Button>
+            </div>
+            
+            {isGenerating && taskStatus && (
+                 <div className="text-center p-8 space-y-4">
+                    <Loader2 className="mx-auto h-12 w-12 animate-spin text-accent" />
+                    <p className="text-muted-foreground">{taskStatus?.progress ?? 0}% - {taskStatus?.status_message || '正在排队等待处理...'}</p>
+                    <Progress value={taskStatus?.progress ?? 0} className="w-full max-w-sm mx-auto" />
+                </div>
+            )}
+            
+            {error && <Alert variant="destructive"><AlertTitle>生成出错</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
+
+            {taskStatus?.status === 'success' && (
+                <SubmissionForm imageUrl={taskStatus.output.images[0].url} onSubmissionSuccess={handleSuccess} toolName="Tripo3D" />
+            )}
+        </div>
+    );
+}
+
+// =================================================================
+// Luma AI TAB (Placeholder)
+// =================================================================
+function LumaAIPlaceholder() {
+    return (
+        <div className="text-center p-8 space-y-4 border-2 border-dashed rounded-lg">
+            <Loader2 className="mx-auto h-12 w-12 text-muted-foreground" />
+            <h3 className="font-headline text-lg">Luma AI 集成</h3>
+            <p className="text-muted-foreground">此功能正在开发中，敬请期待。</p>
+        </div>
+    );
+}
+
 
 // =================================================================
 // SUBMISSIONS TAB
@@ -283,16 +450,13 @@ function SubmissionsTab({ refreshKey }: { refreshKey: number }) {
                 const snapshot = await getDocs(q);
                 let subsList = snapshot.docs.map(doc => {
                     const data = doc.data();
-                    const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : null;
+                    // Firestore Timestamps need to be converted to JS Date objects
+                    const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : new Date();
                     return { id: doc.id, ...data, createdAt } as ProductService;
                 });
                 
                 // Sort by createdAt date in descending order on the client-side
-                subsList.sort((a, b) => {
-                    const dateA = a.createdAt ? a.createdAt.getTime() : 0;
-                    const dateB = b.createdAt ? b.createdAt.getTime() : 0;
-                    return dateB - dateA;
-                });
+                subsList.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
 
                 setSubmissions(subsList);
             } catch (error) {
@@ -369,6 +533,39 @@ function SubmissionsTab({ refreshKey }: { refreshKey: number }) {
 }
 
 // =================================================================
+// 3D AI CREATION TAB (New structure with sub-tabs)
+// =================================================================
+function CreationsTab({ onSubmissionSuccess }: { onSubmissionSuccess: () => void }) {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="font-headline">3D AI 创作</CardTitle>
+                <CardDescription>选择您偏好的创作工具，输入创意描述，AI将为您生成3D模型预览图，完成后可直接提交入库审核。</CardDescription>
+            </CardHeader>
+            <CardContent>
+                 <Tabs defaultValue="built-in" className="w-full">
+                    <TabsList className="grid w-full grid-cols-3">
+                        <TabsTrigger value="built-in">内置AI模型</TabsTrigger>
+                        <TabsTrigger value="tripo3d">Tripo3D</TabsTrigger>
+                        <TabsTrigger value="luma">Luma AI</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="built-in" className="pt-6">
+                        <BuiltInGenerator onSubmissionSuccess={onSubmissionSuccess} />
+                    </TabsContent>
+                    <TabsContent value="tripo3d" className="pt-6">
+                        <Tripo3DGenerator onSubmissionSuccess={onSubmissionSuccess} />
+                    </TabsContent>
+                    <TabsContent value="luma" className="pt-6">
+                        <LumaAIPlaceholder />
+                    </TabsContent>
+                </Tabs>
+            </CardContent>
+        </Card>
+    );
+}
+
+
+// =================================================================
 // Parent Component and Page Entrypoint
 // =================================================================
 function CreatorWorkbench() {
@@ -395,7 +592,7 @@ function CreatorWorkbench() {
           <TabsTrigger value="submissions">我的提交</TabsTrigger>
         </TabsList>
         <TabsContent value="tasks" className="mt-6"><TasksTab /></TabsContent>
-        <TabsContent value="3d-creation" className="mt-6"><CreationForm onSubmissionSuccess={handleSubmissionSuccess}/></TabsContent>
+        <TabsContent value="3d-creation" className="mt-6"><CreationsTab onSubmissionSuccess={handleSubmissionSuccess}/></TabsContent>
         <TabsContent value="submissions" className="mt-6"><SubmissionsTab refreshKey={submissionsRefreshKey} /></TabsContent>
       </Tabs>
     </div>
@@ -420,5 +617,3 @@ export default function CreatorWorkbenchPage() {
     if (role !== 'creator') { return <AppLayout><RestrictedAccess /></AppLayout>; }
     return <AppLayout><CreatorWorkbench /></AppLayout>;
 }
-
-    
