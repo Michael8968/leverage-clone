@@ -513,7 +513,7 @@ Based on the context, provide a clear and concise answer. If the context does no
                           </CardHeader>
                           <CardContent className="p-4 pt-2 space-y-4">
                             {(['knowledgeBase', 'suppliers', 'publicResources'] as const).map(source => (
-                                <div key={source.id} className="grid grid-cols-12 items-center gap-4">
+                                <div key={source} className="grid grid-cols-12 items-center gap-4">
                                     <FormField
                                         control={form.control}
                                         name={`querySources.${source}`}
