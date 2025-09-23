@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect, useTransition } from 'react';
@@ -21,10 +22,9 @@ import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import type { ProductService, Supplier } from '@/lib/types';
-import { getProductRecommendations } from '@/ai/flows/shopping-assistant';
-import { generateUserProfile, type UserProfile } from '@/ai/flows/user-profiling';
+import { getProductRecommendations, GetProductRecommendationsOutput } from '@/ai/flows/shopping-assistant';
+import { UserProfile } from '@/ai/flows/user-profiling';
 import { useAuthStore } from '@/store/auth';
-import { executePrompt } from '@/ai/flows/prompt-execution-flow';
 
 // Type definitions for chat messages
 type Message = {
@@ -34,7 +34,6 @@ type Message = {
     imageUrl?: string;
     profile?: UserProfile;
     recommendations?: ProductService[];
-    rawAiResponse?: string; // New field for simple text response
 };
 
 // Form schema for user input
@@ -111,18 +110,20 @@ export function ShoppingAssistant() {
       setImagePreview(null);
       
       try {
-        // [POC] Call the new unified executePrompt flow with a hardcoded promptKey
-        const result = await executePrompt({
-            promptKey: 'shopping-assistant-v1', // Hardcoded for this PoC
-            messages: [{ role: 'user', content: values.description }],
+        const result: GetProductRecommendationsOutput = await getProductRecommendations({
+            description: values.description,
+            photoDataUri,
+            products,
+            suppliers,
         });
 
-        // For this PoC, we just display the raw text response.
-        // In the next step, we will parse this response to show structured data.
+        const recommendedProducts = products.filter(p => result.recommendations.includes(p.id));
+
         const aiMessage: Message = { 
             id: Date.now() + 2, 
             type: 'ai', 
-            rawAiResponse: result.text,
+            profile: result.userProfile,
+            recommendations: recommendedProducts,
         };
         setMessages(prev => prev.map(msg => (msg.type === 'loading' ? aiMessage : msg)));
 
@@ -235,21 +236,14 @@ const UserMessage = ({ text, imageUrl }: Message) => (
   </div>
 );
 
-const AIMessage = ({ profile, recommendations, rawAiResponse }: Message) => (
+const AIMessage = ({ profile, recommendations }: Message) => (
     <div className="flex items-start gap-3">
         <Bot className="w-8 h-8 text-accent flex-shrink-0" />
         <div className="bg-card rounded-lg p-3 border space-y-4 w-full">
-            {/* [PoC] Render raw text response if available */}
-            {rawAiResponse ? (
-                <p className='text-sm whitespace-pre-wrap'>{rawAiResponse}</p>
-            ) : (
-                <>
-                    <p className='font-semibold'>这是我根据您的需求分析的结果：</p>
-                    {profile && <UserProfileDisplay profile={profile} />}
-                    {recommendations && recommendations.length > 0 && <RecommendationsDisplay recommendations={recommendations} />}
-                    {(!recommendations || recommendations.length === 0) && <p className="text-sm text-muted-foreground">抱歉，暂时没有找到完全匹配的商品。</p>}
-                </>
-            )}
+            <p className='font-semibold'>这是我根据您的需求分析的结果：</p>
+            {profile && <UserProfileDisplay profile={profile} />}
+            {recommendations && recommendations.length > 0 && <RecommendationsDisplay recommendations={recommendations} />}
+            {(!recommendations || recommendations.length === 0) && <p className="text-sm text-muted-foreground">抱歉，暂时没有找到完全匹配的商品。</p>}
         </div>
     </div>
 );
