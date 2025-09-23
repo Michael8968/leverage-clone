@@ -37,7 +37,7 @@ export type ProductService = {
   sku?: string;
   supplementaryFields?: SupplementaryField[];
   creatorId?: string;
-  createdAt?: Date;
+  createdAt?: Date; // Firestore Timestamps will be converted to Date objects
   status?: '审核中' | '已入库' | '需要修改';
   imageUrl?: string;
 };

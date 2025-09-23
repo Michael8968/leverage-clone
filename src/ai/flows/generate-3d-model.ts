@@ -39,6 +39,7 @@ const generate3dModelFlow = ai.defineFlow(
       prompt: `Generate a photorealistic image of a 3D model based on the following description. The model should be on a clean, light gray background. The lighting should be soft and even, highlighting the model's form and texture. Prompt: ${prompt}`,
       config: {
         aspectRatio: '1:1',
+        size: '1024x1024',
       }
     });
     
@@ -49,4 +50,3 @@ const generate3dModelFlow = ai.defineFlow(
     return { imageDataUri: media.url };
   }
 );
-
