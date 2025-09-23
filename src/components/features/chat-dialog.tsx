@@ -1,0 +1,205 @@
+
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Bot, Loader2, Send, Sparkles } from 'lucide-react';
+import { db } from '@/lib/firebase';
+import { doc, onSnapshot, updateDoc, arrayUnion, setDoc } from 'firebase/firestore';
+import type { Demand } from '@/lib/types';
+import type { User } from '@/store/auth';
+import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+import { clarifyDemandDetails } from '@/ai/flows/clarify-demand-details';
+
+type ChatMessage = {
+  id: string;
+  text: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar: string;
+  timestamp: Date;
+  isAIMessage?: boolean;
+};
+
+type ChatDocument = {
+  messages: ChatMessage[];
+};
+
+export function ChatDialog({ open, onOpenChange, demand, currentUser }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  demand: Demand;
+  currentUser: User;
+}) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [isAiAssistantEnabled, setIsAiAssistantEnabled] = useState(false);
+  const [isAiThinking, setIsAiThinking] = useState(false);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (!open) return;
+
+    const chatDocRef = doc(db, 'chats', demand.id);
+    const unsubscribe = onSnapshot(chatDocRef, (doc) => {
+      if (doc.exists()) {
+        const data = doc.data() as ChatDocument;
+        const formattedMessages = data.messages.map(m => ({
+          ...m,
+          timestamp: (m.timestamp as any).toDate(),
+        }));
+        setMessages(formattedMessages);
+      } else {
+        // Create chat document if it doesn't exist
+        setDoc(chatDocRef, { messages: [] });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [open, demand.id]);
+
+  useEffect(() => {
+    scrollAreaRef.current?.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages]);
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim()) return;
+
+    const message: ChatMessage = {
+      id: `msg_${Date.now()}`,
+      text: newMessage,
+      senderId: currentUser.uid,
+      senderName: currentUser.name,
+      senderAvatar: currentUser.avatar,
+      timestamp: new Date(),
+    };
+
+    setIsSending(true);
+    const chatDocRef = doc(db, 'chats', demand.id);
+    
+    try {
+      await updateDoc(chatDocRef, {
+        messages: arrayUnion(message),
+      });
+      setNewMessage('');
+      
+      // If AI assistant is enabled, trigger it after user sends a message
+      if (isAiAssistantEnabled) {
+          triggerAiAssistant([...messages, message]);
+      }
+
+    } catch (error) {
+      toast({ title: "发送失败", description: "无法发送消息，请重试。", variant: "destructive" });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const triggerAiAssistant = async (currentMessages: ChatMessage[]) => {
+      setIsAiThinking(true);
+      try {
+          const aiResponse = await clarifyDemandDetails({
+              demandTitle: demand.title,
+              demandDescription: demand.description,
+              chatHistory: currentMessages,
+          });
+
+          const aiMessage: ChatMessage = {
+              id: `ai_msg_${Date.now()}`,
+              text: aiResponse.clarification,
+              senderId: 'ai-assistant',
+              senderName: 'AI 助理',
+              senderAvatar: '', 
+              timestamp: new Date(),
+              isAIMessage: true,
+          };
+          
+          const chatDocRef = doc(db, 'chats', demand.id);
+          await updateDoc(chatDocRef, {
+              messages: arrayUnion(aiMessage),
+          });
+
+      } catch (error) {
+          console.error("AI assistant failed:", error);
+          toast({ title: "AI 助理出错了", description: "无法获取 AI 的回复。", variant: "destructive"});
+      } finally {
+          setIsAiThinking(false);
+      }
+  }
+
+  const otherParticipantName = currentUser.uid === demand.requesterId ? demand.creatorId : demand.requesterName;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px] grid-rows-[auto,1fr,auto] max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="font-headline">沟通需求: {demand.title}</DialogTitle>
+          <DialogDescription>与 {otherParticipantName} 进行实时沟通。</DialogDescription>
+        </DialogHeader>
+        
+        <ScrollArea className="flex-grow p-4 border rounded-md my-4" ref={scrollAreaRef}>
+          <div className="space-y-4">
+            {messages.map((msg) => (
+              <div key={msg.id} className={cn("flex items-end gap-2", msg.senderId === currentUser.uid ? "justify-end" : "justify-start")}>
+                {msg.senderId !== currentUser.uid && (
+                  <Avatar className="h-8 w-8">
+                     {msg.isAIMessage ? <Bot className="h-8 w-8 text-accent" /> : <AvatarImage src={msg.senderAvatar} />}
+                    <AvatarFallback>{msg.senderName.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                )}
+                <div className={cn("rounded-lg px-3 py-2 max-w-sm", msg.senderId === currentUser.uid ? "bg-primary text-primary-foreground" : "bg-muted")}>
+                  <p className="text-sm">{msg.text}</p>
+                </div>
+                {msg.senderId === currentUser.uid && (
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={msg.senderAvatar} />
+                    <AvatarFallback>{msg.senderName.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                )}
+              </div>
+            ))}
+             {isAiThinking && (
+                <div className="flex items-end gap-2 justify-start">
+                    <Bot className="h-8 w-8 text-accent animate-pulse" />
+                    <div className="bg-muted rounded-lg px-3 py-2 flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin"/>
+                        <p className="text-sm text-muted-foreground">正在思考...</p>
+                    </div>
+                </div>
+             )}
+          </div>
+        </ScrollArea>
+        
+        <DialogFooter className="flex-col gap-4">
+           {currentUser.role !== 'user' && (
+             <div className="flex items-center space-x-2 self-start">
+                <Switch id="ai-assistant-mode" checked={isAiAssistantEnabled} onCheckedChange={setIsAiAssistantEnabled} />
+                <Label htmlFor="ai-assistant-mode" className="flex items-center gap-1"><Sparkles className="w-4 h-4 text-accent" />AI 助理模式</Label>
+            </div>
+           )}
+          <div className="flex items-center gap-2">
+            <Input
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="输入消息..."
+              onKeyPress={(e) => e.key === 'Enter' && !isSending && handleSendMessage()}
+              disabled={isSending}
+            />
+            <Button onClick={handleSendMessage} disabled={isSending}>
+              {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

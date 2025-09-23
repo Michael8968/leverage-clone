@@ -1,4 +1,5 @@
 
+
 import type { SupplementaryField } from "@/components/features/supplementary-fields-manager";
 
 export type Demand = {
@@ -64,4 +65,19 @@ export type UserProfile = {
   tags: string[];
 }
 
-    
+// Chat-related types
+export type ChatMessage = {
+  id: string;
+  text: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar: string;
+  timestamp: Date;
+  isAIMessage?: boolean;
+};
+
+export type Chat = {
+  id: string; // Corresponds to demandId
+  messages: ChatMessage[];
+  participants: string[]; // Array of user UIDs
+};

@@ -22,7 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import type { Demand, Supplier } from '@/lib/types';
+import type { Demand, ProductService, Supplier } from '@/lib/types';
 import { useAuthStore } from '@/store/auth';
 import { PlusCircle, Sparkles, BrainCircuit, Loader2, MessageSquare, Check, Search, Filter } from 'lucide-react';
 import { recommendCreatives, type Creative } from '@/ai/flows/demand-matching';
@@ -34,6 +34,7 @@ import { db } from '@/lib/firebase';
 import { collection, doc, getDocs, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
+import { ChatDialog } from '@/components/features/chat-dialog';
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -48,6 +49,7 @@ export default function DemandPoolPage() {
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const [isRecDialogOpen, setIsRecDialogOpen] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isChatDialogOpen, setIsChatDialogOpen] = useState(false);
   const [selectedDemand, setSelectedDemand] = useState<Demand | null>(null);
   const { role, user } = useAuthStore();
   const { toast } = useToast();
@@ -136,6 +138,11 @@ export default function DemandPoolPage() {
   const handleRecommendClick = (demand: Demand) => {
     setSelectedDemand(demand);
     setIsRecDialogOpen(true);
+  };
+
+  const handleChatClick = (demand: Demand) => {
+    setSelectedDemand(demand);
+    setIsChatDialogOpen(true);
   };
   
   const handleBatchRecommendClick = () => {
@@ -260,8 +267,8 @@ export default function DemandPoolPage() {
                             <Button variant="default" size="sm" onClick={() => handleClaimDemand(demand.id)}>
                                 抢单
                             </Button>
-                        ) : (role === 'supplier' || role === 'creator') && demand.status === '进行中' ? (
-                            <Button variant="outline" size="sm" disabled={demand.creatorId !== user?.uid}>
+                        ) : (role === 'supplier' || role === 'creator' || role === 'user') && demand.status === '进行中' ? (
+                            <Button variant="outline" size="sm" onClick={() => handleChatClick(demand)} disabled={role === 'user' ? demand.requesterId !== user?.uid : demand.creatorId !== user?.uid}>
                                 <MessageSquare className="mr-2 h-4 w-4" />
                                 开始沟通
                             </Button>
@@ -301,6 +308,17 @@ export default function DemandPoolPage() {
         onOpenChange={setIsCreateDialogOpen}
         onDemandCreated={fetchDemands}      
       />
+       {selectedDemand && user && (
+            <ChatDialog
+                open={isChatDialogOpen}
+                onOpenChange={(isOpen) => {
+                    if (!isOpen) setSelectedDemand(null);
+                    setIsChatDialogOpen(isOpen);
+                }}
+                demand={selectedDemand}
+                currentUser={user}
+            />
+        )}
     </AppLayout>
   );
 }
@@ -465,7 +483,7 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
           const productsCollection = collection(db, 'products');
           const productSnapshot = await getDocs(productsCollection);
           const productsList: Creative[] = productSnapshot.docs.map(doc => {
-              const data = doc.data();
+              const data = doc.data() as ProductService;
               return { id: doc.id, name: data.name, description: data.description, category: data.category };
           });
 
@@ -593,5 +611,3 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
         </Dialog>
     )
 }
-
-    
