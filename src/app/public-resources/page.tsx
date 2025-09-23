@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Download, Edit, Library, Link, PlusCircle, Trash2, Upload, Loader2, Info, Tag, CalendarClock, FileCog } from 'lucide-react';
+import { Download, Edit, Library, Link, PlusCircle, Trash2, Upload, Loader2, Info, Tag, CalendarClock, FileCog, FileJson, Server } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { collection, getDocs, query, orderBy, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -345,6 +345,101 @@ function ManualResourceManagement() {
     );
 }
 
+function ApiDataFetcher() {
+    const [availableResources, setAvailableResources] = useState<Resource[]>([]);
+    const [selectedResourceId, setSelectedResourceId] = useState<string>('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [isFetching, setIsFetching] = useState(false);
+    const [responseData, setResponseData] = useState<any>(null);
+    const { toast } = useToast();
+
+    useEffect(() => {
+        const fetchAvailableResources = async () => {
+            setIsLoading(true);
+            try {
+                const resourcesCollection = collection(db, 'resources');
+                const q = query(resourcesCollection, where("status", "==", "可用"));
+                const snapshot = await getDocs(q);
+                const resourcesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Resource));
+                setAvailableResources(resourcesList);
+            } catch (error) {
+                toast({ title: '加载失败', description: '无法加载可用的数据源列表。', variant: 'destructive' });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchAvailableResources();
+    }, [toast]);
+
+    const handleFetchData = async () => {
+        if (!selectedResourceId) {
+            toast({ title: '提示', description: '请先选择一个数据源。' });
+            return;
+        }
+
+        const resource = availableResources.find(r => r.id === selectedResourceId);
+        if (!resource) {
+            toast({ title: '错误', description: '找不到所选的数据源。', variant: 'destructive' });
+            return;
+        }
+
+        setIsFetching(true);
+        setResponseData(null);
+        try {
+            const response = await fetch(resource.sourceUrl);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            setResponseData(data);
+            toast({ title: '成功', description: `已从 "${resource.name}" 获取数据。` });
+        } catch (error: any) {
+            console.error("API fetch error:", error);
+            setResponseData({ error: `获取数据失败: ${error.message}` });
+            toast({ title: '获取失败', description: '无法从该接口获取数据，请检查URL和网络连接。', variant: 'destructive' });
+        } finally {
+            setIsFetching(false);
+        }
+    };
+
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="font-headline">接口数据调试</CardTitle>
+                <CardDescription>选择一个已配置的数据源，实时调用其API接口以获取并预览数据。</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="flex items-center gap-4">
+                    <Select onValueChange={setSelectedResourceId} value={selectedResourceId} disabled={isLoading}>
+                        <SelectTrigger className="flex-1">
+                            <SelectValue placeholder={isLoading ? '加载数据源中...' : '选择一个数据源...'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {availableResources.map(res => (
+                                <SelectItem key={res.id} value={res.id}>{res.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <Button onClick={handleFetchData} disabled={!selectedResourceId || isFetching} className="w-36">
+                        {isFetching ? <Loader2 className="animate-spin" /> : <Server className="mr-2" />}
+                        获取数据
+                    </Button>
+                </div>
+
+                {responseData && (
+                    <div className="space-y-2 pt-4">
+                        <h4 className="font-medium flex items-center gap-2"><FileJson className="w-5 h-5"/> 响应数据</h4>
+                        <pre className="bg-muted p-4 rounded-md text-xs overflow-x-auto max-h-96">
+                            {JSON.stringify(responseData, null, 2)}
+                        </pre>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
 
 export default function PublicResourcesPage() {
      return (
@@ -358,16 +453,20 @@ export default function PublicResourcesPage() {
                     <p className="text-muted-foreground">管理用于增强AI能力的外部行业数据源。在这里收集、整理、分类并为数据打上标签，为AI在各种场景下的交互体验提供数据依据。</p>
                 </header>
 
-                 <Tabs defaultValue="manual">
-                    <TabsList className="grid w-full grid-cols-2 max-w-md">
+                 <Tabs defaultValue="manual" className="w-full">
+                    <TabsList className="grid w-full grid-cols-3 max-w-xl">
                         <TabsTrigger value="manual"><Library className="mr-2"/> 数据源列表</TabsTrigger>
-                        <TabsTrigger value="batch"><FileCog className="mr-2"/> 批量导入与处理</TabsTrigger>
+                        <TabsTrigger value="batch"><FileCog className="mr-2"/> 批量导入处理</TabsTrigger>
+                        <TabsTrigger value="api"><Server className="mr-2"/> 接口数据调试</TabsTrigger>
                     </TabsList>
                     <TabsContent value="manual" className="mt-6">
                         <ManualResourceManagement />
                     </TabsContent>
                     <TabsContent value="batch" className="mt-6">
                         <DataProcessor className="mt-0" destination="resources" />
+                    </TabsContent>
+                    <TabsContent value="api" className="mt-6">
+                        <ApiDataFetcher />
                     </TabsContent>
                 </Tabs>
             </div>
