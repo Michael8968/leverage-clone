@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -10,8 +11,11 @@ import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
 
-import { Edit, Trash2, Loader2, PlusCircle, Frown, Bot, TestTube2, KeyRound, Settings2, Star, Globe, Link } from 'lucide-react';
+
+import { Edit, Trash2, Loader2, PlusCircle, Frown, Bot, TestTube2, KeyRound, Settings2, Star, Globe, Link, ChevronsUpDown, Check } from 'lucide-react';
 import { useEffect, useState, useMemo, useCallback, useTransition } from 'react';
 import { collection, getDocs, query, orderBy, doc, updateDoc, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -39,8 +43,8 @@ import { cn } from '@/lib/utils';
 // =================================================================
 
 const llmConnectionSchema = z.object({
-  provider: z.string({ required_error: "请选择一个厂商。" }),
-  modelName: z.string({ required_error: "请选择一个模型。" }),
+  provider: z.string().min(1, "请选择或输入一个厂商。"),
+  modelName: z.string().min(1, "请选择或输入一个模型。"),
   apiKey: z.string().min(1, "API Key 不能为空。"),
   priority: z.preprocess(
       (val) => val ? parseInt(String(val), 10) : 0,
@@ -48,13 +52,66 @@ const llmConnectionSchema = z.object({
   ),
   status: z.enum(['活跃', '已禁用']),
   scope: z.enum(['通用', '专属']),
-  category: z.enum(['文本', '图像']),
+  category: z.enum(['文本', '图像', '推理', '多模态']),
 });
 
 
 // =================================================================
 // HELPER & UTILITY COMPONENTS
 // =================================================================
+
+function Combobox({ options, value, onChange, placeholder }: {
+    options: { value: string; label: string }[];
+    value: string;
+    onChange: (value: string) => void;
+    placeholder: string;
+}) {
+    const [open, setOpen] = useState(false);
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className="w-full justify-between"
+                >
+                    {value
+                        ? options.find((option) => option.value.toLowerCase() === value.toLowerCase())?.label
+                        : placeholder}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                <Command>
+                    <CommandInput placeholder="搜索或输入..." onValueChange={onChange} />
+                    <CommandEmpty>未找到匹配项。</CommandEmpty>
+                    <CommandGroup>
+                        {options.map((option) => (
+                            <CommandItem
+                                key={option.value}
+                                value={option.value}
+                                onSelect={(currentValue) => {
+                                    onChange(currentValue.toLowerCase() === value.toLowerCase() ? "" : currentValue);
+                                    setOpen(false);
+                                }}
+                            >
+                                <Check
+                                    className={cn(
+                                        "mr-2 h-4 w-4",
+                                        value.toLowerCase() === option.value.toLowerCase() ? "opacity-100" : "opacity-0"
+                                    )}
+                                />
+                                {option.label}
+                            </CommandItem>
+                        ))}
+                    </CommandGroup>
+                </Command>
+            </PopoverContent>
+        </Popover>
+    );
+}
 
 const getStatusBadge = (status: LlmConnection['status']) => {
     switch (status) {
@@ -115,17 +172,17 @@ function LlmConnectionForm({ llm, onSave, onCancel }: {
     const selectedProviderName = form.watch("provider");
 
     const availableModels = useMemo(() => {
-        const selectedProvider = providers.find(p => p.providerName === selectedProviderName);
+        const selectedProvider = providers.find(p => p.providerName.toLowerCase() === selectedProviderName.toLowerCase());
         return selectedProvider ? selectedProvider.models : [];
     }, [selectedProviderName, providers]);
 
     useEffect(() => {
-        // Reset modelName when provider changes
-        if (form.getValues("modelName") && !availableModels.includes(form.getValues("modelName"))) {
+        // Reset modelName when provider changes and the current model isn't in the new list
+        if (form.getValues("modelName") && availableModels.length > 0 && !availableModels.map(m => m.toLowerCase()).includes(form.getValues("modelName").toLowerCase())) {
             form.setValue("modelName", "");
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedProviderName, availableModels, form]);
+    }, [selectedProviderName, form]);
 
     const handleSubmit = async (values: z.infer<typeof llmConnectionSchema>) => {
         setIsSubmitting(true);
@@ -159,15 +216,20 @@ function LlmConnectionForm({ llm, onSave, onCancel }: {
         startTesting(async () => {
             try {
                 let modelId = isEditing ? llm!.id! : '';
-                const tempDocRef = !isEditing ? await addDoc(collection(db, 'llm_connections'), { ...values, status: '已禁用', createdAt: serverTimestamp() }) : null;
-                if(tempDocRef) modelId = tempDocRef.id;
+                let isTempDoc = false;
+                
+                if (!isEditing) {
+                    const tempDocRef = await addDoc(collection(db, 'llm_connections'), { ...values, status: '已禁用', createdAt: serverTimestamp() });
+                    modelId = tempDocRef.id;
+                    isTempDoc = true;
+                } else {
+                    await updateDoc(doc(db, 'llm_connections', modelId), values);
+                }
 
                 if (!modelId) {
                     throw new Error("无法获取模型ID进行测试。请先保存。");
                 }
                 
-                await updateDoc(doc(db, 'llm_connections', modelId), values);
-
                 const result = await testLlmConnection({ modelId });
                 toast({
                     title: result.success ? "测试成功" : "测试失败",
@@ -175,8 +237,11 @@ function LlmConnectionForm({ llm, onSave, onCancel }: {
                     variant: result.success ? "default" : "destructive",
                 });
                 
-                if (tempDocRef && !result.success) {
+                if (isTempDoc) { // If it was a temporary doc for a new connection
                     await deleteDoc(doc(db, 'llm_connections', modelId));
+                    if (result.success) {
+                       toast({ title: "测试通过", description: "该配置可用，请点击保存以添加。", variant: "default" });
+                    }
                 }
             } catch (error: any) {
                 toast({ title: "测试出错", description: error.message || "执行测试时发生未知错误。", variant: "destructive" });
@@ -193,8 +258,30 @@ function LlmConnectionForm({ llm, onSave, onCancel }: {
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
-                            <FormField control={form.control} name="provider" render={({ field }) => (<FormItem><FormLabel>厂商</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="选择厂商" /></SelectTrigger></FormControl><SelectContent>{providers.map(p => <SelectItem key={p.id} value={p.providerName}>{p.providerName}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
-                            <FormField control={form.control} name="modelName" render={({ field }) => (<FormItem><FormLabel>模型名称</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedProviderName}><FormControl><SelectTrigger><SelectValue placeholder={availableModels.length > 0 ? "选择模型" : "请先选厂商"} /></SelectTrigger></FormControl><SelectContent>{availableModels.map(model => <SelectItem key={model} value={model}>{model}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                            <FormField control={form.control} name="provider" render={({ field }) => (
+                                <FormItem className="flex flex-col">
+                                    <FormLabel>厂商</FormLabel>
+                                    <Combobox
+                                        value={field.value}
+                                        onChange={field.onChange}
+                                        options={providers.map(p => ({ value: p.providerName, label: p.providerName }))}
+                                        placeholder="选择或输入厂商"
+                                    />
+                                    <FormMessage />
+                                </FormItem>
+                            )}/>
+                           <FormField control={form.control} name="modelName" render={({ field }) => (
+                                <FormItem className="flex flex-col">
+                                    <FormLabel>模型名称</FormLabel>
+                                    <Combobox
+                                        value={field.value}
+                                        onChange={field.onChange}
+                                        options={availableModels.map(m => ({ value: m, label: m }))}
+                                        placeholder="选择或输入模型"
+                                    />
+                                    <FormMessage />
+                                </FormItem>
+                            )}/>
                         </div>
                         <FormField control={form.control} name="apiKey" render={({ field }) => (<FormItem><FormLabel>API Key</FormLabel><FormControl><Input type="password" placeholder="输入您的 API Key" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                         <div className="grid grid-cols-2 gap-4">
@@ -203,7 +290,7 @@ function LlmConnectionForm({ llm, onSave, onCancel }: {
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                              <FormField control={form.control} name="scope" render={({ field }) => (<FormItem><FormLabel>范围</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="通用">通用</SelectItem><SelectItem value="专属">专属</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
-                             <FormField control={form.control} name="category" render={({ field }) => (<FormItem><FormLabel>类别</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="文本">文本</SelectItem><SelectItem value="图像">图像</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
+                             <FormField control={form.control} name="category" render={({ field }) => (<FormItem><FormLabel>类别</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="文本">文本</SelectItem><SelectItem value="图像">图像</SelectItem><SelectItem value="推理">推理</SelectItem><SelectItem value="多模态">多模态</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
                         </div>
                         <div className="flex justify-between items-center pt-4">
                             <Button type="button" variant="outline" onClick={handleTestAvailability} disabled={isTesting}>
@@ -404,4 +491,5 @@ export default function AdminDashboardPage() {
         </AppLayout>
     );
 }
+
 
