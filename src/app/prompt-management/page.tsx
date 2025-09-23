@@ -13,8 +13,11 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { Slider } from '@/components/ui/slider';
+import { Checkbox } from '@/components/ui/checkbox';
 
-import { Edit, Trash2, Loader2, PlusCircle, Frown, Bot, Workflow, Settings2, Star, User, Key, Info, Download, Copy } from 'lucide-react';
+
+import { Edit, Trash2, Loader2, PlusCircle, Frown, Bot, Workflow, Settings2, Star, User, Key, Info, Download, Copy, Database, Library, Building2 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { collection, getDocs, query, where, orderBy, doc, updateDoc, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -31,6 +34,18 @@ import { LlmConnection } from '@/lib/types';
 // =================================================================
 // TYPE DEFINITIONS
 // =================================================================
+type QuerySources = {
+    suppliers: boolean;
+    knowledgeBase: boolean;
+    publicResources: boolean;
+};
+
+type SourceTemperatures = {
+    suppliers: number;
+    knowledgeBase: number;
+    publicResources: number;
+};
+
 type Prompt = {
     id: string;
     name: string;
@@ -43,6 +58,8 @@ type Prompt = {
     ownerType?: 'platform' | 'creator';
     modelId?: string;
     priority?: number;
+    querySources?: QuerySources;
+    sourceTemperatures?: SourceTemperatures;
 };
 
 
@@ -62,6 +79,16 @@ const promptSchema = z.object({
     z.number().int().min(1).optional()
   ),
   promptKey: z.string().optional(),
+  querySources: z.object({
+    suppliers: z.boolean().default(false),
+    knowledgeBase: z.boolean().default(true),
+    publicResources: z.boolean().default(false),
+  }).default({ suppliers: false, knowledgeBase: true, publicResources: false }),
+  sourceTemperatures: z.object({
+      suppliers: z.number().min(0).max(1).default(0.5),
+      knowledgeBase: z.number().min(0).max(1).default(0.2),
+      publicResources: z.number().min(0).max(1).default(0.8),
+  }).default({ suppliers: 0.5, knowledgeBase: 0.2, publicResources: 0.8 }),
 });
 
 
@@ -286,41 +313,38 @@ function PromptEditDialog({ prompt, llms, open, onOpenChange, onSave }: {
     const { user, role } = useAuthStore();
     const isEditing = !!prompt?.id;
 
-    // Determine if the current user has permission to edit the content
-    // Admin can edit anything. Creator can only edit their own prompts' content.
     const canEditContent = role === 'admin' || (isEditing ? prompt.ownerId === user?.uid : true);
-
+    
+    const defaultValues = promptSchema.parse(undefined);
 
     const form = useForm<z.infer<typeof promptSchema>>({
         resolver: zodResolver(promptSchema),
-        defaultValues: {
-            name: '', description: '', content: '', scope: '通用', status: '生效中',
-            modelId: '', priority: 10, promptKey: ''
-        },
+        defaultValues,
     });
+    
+    // Watch for temperature changes to update UI
+    const sourceTemperatures = form.watch("sourceTemperatures");
+
 
     useEffect(() => {
         if (prompt) {
              form.reset({
+                ...defaultValues,
                 ...prompt,
                 modelId: prompt.modelId || '',
              });
         } else {
-            form.reset({
-                name: '', description: '', content: '', scope: '通用', status: '生效中',
-                modelId: '', priority: 10, promptKey: ''
-            });
+            form.reset(defaultValues);
         }
-    }, [prompt, form]);
+    }, [prompt, form, defaultValues]);
     
-    // Helper function to generate a kebab-case key from the name
     const generateKeyFromName = (name: string) => {
         return name
             .trim()
             .toLowerCase()
-            .replace(/[\s_]+/g, '-') // Replace spaces and underscores with a hyphen
-            .replace(/[^\w-]+/g, '') // Remove all non-word chars except hyphens
-            .replace(/--+/g, '-'); // Replace multiple hyphens with a single one
+            .replace(/[\s_]+/g, '-')
+            .replace(/[^\w-]+/g, '')
+            .replace(/--+/g, '-');
     }
     
     const handleImportMetaPrompt = () => {
@@ -347,7 +371,6 @@ Based on the context, provide a clear and concise answer. If the context does no
         }
     };
 
-
     const handleSubmit = async (values: z.infer<typeof promptSchema>) => {
         if (!user || !role) return;
 
@@ -359,19 +382,15 @@ Based on the context, provide a clear and concise answer. If the context does no
                 priority: values.priority || null,
             };
             
-            // Clean up empty optional fields so they are removed from firestore
             if (!dataToSave.modelId) delete dataToSave.modelId;
             if (!dataToSave.priority) delete dataToSave.priority;
-
 
             if (isEditing) {
                 const docRef = doc(db, 'prompts', prompt!.id!);
                 await updateDoc(docRef, dataToSave);
                 toast({ title: "成功", description: "提示词已更新。" });
             } else {
-                // Generate a unique key for new prompts
                 const newKey = generateKeyFromName(values.name);
-                // In a real-world scenario, you'd check for key uniqueness here.
                 const finalKey = `${newKey}-${Date.now().toString().slice(-4)}`;
                 
                 await addDoc(collection(db, 'prompts'), { 
@@ -395,7 +414,7 @@ Based on the context, provide a clear and concise answer. If the context does no
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-2xl">
+            <DialogContent className="sm:max-w-3xl">
                 <DialogHeader>
                     <DialogTitle className="font-headline">{isEditing ? '编辑提示词' : '新增提示词'}</DialogTitle>
                 </DialogHeader>
@@ -430,7 +449,7 @@ Based on the context, provide a clear and concise answer. If the context does no
                                     readOnly={!canEditContent}
                                     className={!canEditContent ? 'bg-muted cursor-not-allowed' : ''}
                                     {...field}
-                                    rows={10}
+                                    rows={8}
                                 />
                             </FormControl>
                              {!canEditContent && (
@@ -452,6 +471,54 @@ Based on the context, provide a clear and concise answer. If the context does no
                                 </div>
                             </FormItem>
                         )}
+                        
+                        <Card className="bg-muted/50">
+                          <CardHeader className="p-4 pb-2">
+                            <CardTitle className="text-base flex items-center gap-2"><Key/> 查询范围与配置</CardTitle>
+                             <CardDescription className="text-xs">定义此提示词在执行时应从哪些数据源检索信息，并调整其创造性程度（温度）。</CardDescription>
+                          </CardHeader>
+                          <CardContent className="p-4 pt-2 space-y-4">
+                            {([
+                                { id: 'knowledgeBase', icon: Database, label: '知识库' },
+                                { id: 'suppliers', icon: Building2, label: '供应商及商品库' },
+                                { id: 'publicResources', icon: Library, label: '公共资源库' },
+                            ] as const).map(source => (
+                                <div key={source.id} className="grid grid-cols-12 items-center gap-4">
+                                    <FormField
+                                        control={form.control}
+                                        name={`querySources.${source.id}`}
+                                        render={({ field }) => (
+                                            <FormItem className="col-span-4 flex items-center gap-2 space-y-0">
+                                                <FormControl>
+                                                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                                                </FormControl>
+                                                <FormLabel className="flex items-center gap-2 font-normal cursor-pointer">
+                                                    <source.icon className="w-4 h-4 text-muted-foreground"/>
+                                                    {source.label}
+                                                </FormLabel>
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <div className="col-span-8 flex items-center gap-4">
+                                        <FormField
+                                            control={form.control}
+                                            name={`sourceTemperatures.${source.id}`}
+                                            render={({ field }) => (
+                                                <FormControl>
+                                                    <Slider
+                                                        min={0} max={1} step={0.1}
+                                                        defaultValue={[field.value]}
+                                                        onValueChange={(value) => field.onChange(value[0])}
+                                                    />
+                                                </FormControl>
+                                            )}
+                                        />
+                                        <span className="text-sm font-mono w-10 text-right">{sourceTemperatures[source.id].toFixed(1)}</span>
+                                    </div>
+                                </div>
+                            ))}
+                          </CardContent>
+                        </Card>
                         
                         <Card className="bg-muted/50">
                           <CardHeader className="p-4">
