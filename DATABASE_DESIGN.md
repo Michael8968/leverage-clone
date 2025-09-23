@@ -15,7 +15,7 @@
 
 | 字段名 | 数据类型 | 描述 |
 | :--- | :--- | :--- |
-| **id** | `string` | 文档ID，与Firebase Auth UID一致。 |
+| **uid** | `string` | 文档ID，与Firebase Auth UID一致，是用户的唯一标识符。 |
 | **name** | `string` | 用户姓名或昵称。 |
 | **email** | `string` | 用户注册邮箱 (唯一)。 |
 | **avatar** | `string` | 用户头像图片的URL。 |
@@ -52,7 +52,7 @@
 | **budget** | `number` | 预算 (人民币)。 |
 | **category** | `string` | 需求类别。 |
 | **status** | `string` | 需求状态 (`开放中`, `进行中`, `已完成`)。 |
-| **requesterId** | `string` | 发布者ID，对应 `users` 集合的文档ID。 |
+| **requesterId** | `string` | 发布者ID，对应 `users` 集合的文档UID。 |
 | **requesterName** | `string` | 发布者姓名。 |
 | **requesterAvatar**| `string` | 发布者头像URL。 |
 | **creatorId** | `string` | (可选) 接受此需求的创作者ID。 |
@@ -77,6 +77,7 @@
 
 *   **`prompts`**: 存储用于AI流程的提示词模板。
 *   **`resources`**: 存储公共资源，如外部API链接。
+*   **`designers`**: 存储设计师信息 (用于 `/designers` 页面)。
 
 ---
 
@@ -101,7 +102,7 @@
 
 *   **`generate3dModel`**:
     *   **输入**: 文本提示 (Prompt)。
-    *   **功能**: 调用AI模型（如Tripo Studio），根据文本生成3D模型的预览图。
+    *   **功能**: 调用AI模型（如Imagen），根据文本生成3D模型的预览图。
     *   **调用位置**: `创意者工作台` (`creator-workbench/page.tsx`)。
 
 *   **`evaluateSellerData`**:
