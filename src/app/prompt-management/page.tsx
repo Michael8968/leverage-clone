@@ -314,12 +314,29 @@ function PromptEditDialog({ prompt, llms, open, onOpenChange, onSave }: {
     const isEditing = !!prompt?.id;
 
     const canEditContent = role === 'admin' || (isEditing ? prompt.ownerId === user?.uid : true);
-    
-    const defaultValues = promptSchema.parse(undefined);
 
     const form = useForm<z.infer<typeof promptSchema>>({
         resolver: zodResolver(promptSchema),
-        defaultValues,
+        defaultValues: {
+            name: '',
+            description: '',
+            content: '',
+            scope: '通用',
+            status: '生效中',
+            modelId: '',
+            priority: undefined,
+            promptKey: '',
+            querySources: {
+                suppliers: false,
+                knowledgeBase: true,
+                publicResources: false,
+            },
+            sourceTemperatures: {
+                suppliers: 0.5,
+                knowledgeBase: 0.2,
+                publicResources: 0.8,
+            }
+        },
     });
     
     // Watch for temperature changes to update UI
@@ -327,16 +344,31 @@ function PromptEditDialog({ prompt, llms, open, onOpenChange, onSave }: {
 
 
     useEffect(() => {
-        if (prompt) {
-             form.reset({
-                ...defaultValues,
-                ...prompt,
-                modelId: prompt.modelId || '',
-             });
-        } else {
-            form.reset(defaultValues);
+        if (open) {
+            if (prompt) {
+                form.reset({
+                    ...prompt,
+                    modelId: prompt.modelId || '',
+                    priority: prompt.priority || undefined,
+                    querySources: prompt.querySources || { suppliers: false, knowledgeBase: true, publicResources: false },
+                    sourceTemperatures: prompt.sourceTemperatures || { suppliers: 0.5, knowledgeBase: 0.2, publicResources: 0.8 },
+                });
+            } else {
+                form.reset({
+                    name: '',
+                    description: '',
+                    content: '',
+                    scope: '通用',
+                    status: '生效中',
+                    modelId: '',
+                    priority: undefined,
+                    promptKey: '',
+                    querySources: { suppliers: false, knowledgeBase: true, publicResources: false },
+                    sourceTemperatures: { suppliers: 0.5, knowledgeBase: 0.2, publicResources: 0.8 },
+                });
+            }
         }
-    }, [prompt, form, defaultValues]);
+    }, [prompt, open, form]);
     
     const generateKeyFromName = (name: string) => {
         return name
@@ -534,6 +566,7 @@ Based on the context, provide a clear and concise answer. If the context does no
                                      <Select onValueChange={field.onChange} value={field.value || ''}>
                                         <FormControl><SelectTrigger><SelectValue placeholder="使用系统默认模型" /></SelectTrigger></FormControl>
                                         <SelectContent>
+                                            <SelectItem value="">-- 使用系统默认模型 --</SelectItem>
                                             {llms.map(llm => <SelectItem key={llm.id} value={llm.id}>{llm.modelName} ({llm.provider})</SelectItem>)}
                                         </SelectContent>
                                     </Select>
@@ -541,7 +574,7 @@ Based on the context, provide a clear and concise answer. If the context does no
                                 </FormItem>
                                 )}
                             />
-                             <FormField control={form.control} name="priority" render={({ field }) => (<FormItem><FormLabel>调用优先级</FormLabel><FormControl><Input type="number" placeholder="1-100, 越小越高" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                             <FormField control={form.control} name="priority" render={({ field }) => (<FormItem><FormLabel>调用优先级</FormLabel><FormControl><Input type="number" placeholder="1-100, 越小越高" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
                           </CardContent>
                         </Card>
 
