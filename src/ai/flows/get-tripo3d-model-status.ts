@@ -40,9 +40,11 @@ const getTripo3dModelStatusFlow = ai.defineFlow(
     if (!response.ok) {
         const errorText = await response.text();
          try {
+            // Try to parse the structured error from Tripo3D
             const errorData = JSON.parse(errorText);
             throw new Error(errorData.message || 'Failed to fetch Tripo3D task status.');
         } catch (e) {
+            // If parsing fails, return the raw server response
             throw new Error(`Failed to fetch Tripo3D task status. Server response: ${errorText}`);
         }
     }
