@@ -7,8 +7,7 @@ import type { User as FirebaseUser } from 'firebase/auth';
 export type Role = 'admin' | 'supplier' | 'user' | 'creator';
 
 export interface User {
-  uid?: string;
-  id?: string;
+  uid: string;
   name: string;
   email: string;
   role: Role;
