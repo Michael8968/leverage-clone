@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -17,6 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Label } from '@/components/ui/label';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -446,7 +446,7 @@ function ApiDataFetcher() {
             <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
                     <div className="space-y-2">
-                        <FormLabel>选择数据源 (自动填充 URL/Key)</FormLabel>
+                        <Label>选择数据源 (自动填充 URL/Key)</Label>
                         <Select onValueChange={setSelectedResourceId} value={selectedResourceId} disabled={isLoading}>
                             <SelectTrigger>
                                 <SelectValue placeholder={isLoading ? '加载中...' : '选择一个已配置的数据源...'} />
@@ -459,7 +459,7 @@ function ApiDataFetcher() {
                         </Select>
                     </div>
                      <div className="space-y-2">
-                        <FormLabel>JSON 请求配置</FormLabel>
+                        <Label>JSON 请求配置</Label>
                         <Textarea 
                             value={jsonInput}
                             onChange={(e) => setJsonInput(e.target.value)}
