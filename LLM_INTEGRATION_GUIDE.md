@@ -11,7 +11,7 @@
 *   **支持多厂商**: 无缝对接全球主流的LLM提供商，包括但不限于Google, OpenAI, Anthropic, DeepSeek等。
 *   **动态可配置**: 平台管理员可以通过独立的后台界面 (`/admin-dashboard`)，动态地添加、编辑、删除和测试与各个模型的API连接，而无需修改任何代码。
 *   **稳定可靠**: 彻底解决因第三方SDK与Next.js框架版本不兼容而导致的各类编译和运行时错误。
-*   **统一调用接口**: 为平台所有上层AI业务提供一个统一、简洁、标准的调用入口 (`executePrompt`)。
+*   **统一调用接口**: 为平台所有上层AI业务提供一个统一、简洁、标准的调用入口 (`executePrompt`)，该入口支持按模型ID调用，也支持按提示词KEY调用。
 *   **提示词与模型绑定**: 允许在提示词库中，为每个提示词明确指定一个执行模型和调用优先级。
 
 ### 1.2. 核心策略：模型解耦与原生API调用
@@ -42,7 +42,7 @@
 
 *   **集合路径**: `firestore_root/prompts/{prompt_id}`
 *   **关键字段**:
-    *   `promptKey` (string): **新增**，唯一的、人类可读的业务调用KEY，是提示词的“调用句柄”，用于保护提示词内容。
+    *   `promptKey` (string): **(核心)** 唯一的、人类可读的业务调用KEY，是提示词的“调用句柄”，用于保护提示词内容。
     *   `modelId` (string, optional): 关联的`llm_connections`文档ID。如果为空，则使用系统默认模型。
     *   `priority` (number, optional): 特定于此提示词的调用优先级。
 
@@ -60,9 +60,11 @@
 **工作流程**:
 
 1.  **接收标准输入**: 函数接收一个平台内部标准化的请求对象`PromptExecutionInput`，该对象包含`modelId`或`promptKey`, `messages`数组, `temperature`等。
-2.  **查询配置**: 根据`modelId`或`promptKey`从Firestore获取模型和提示词的完整配置。
-3.  **分离系统提示词**: 从`messages`数组中找出并分离出`{ role: 'system', ... }`的消息。
-4.  **请求路由与适配 (核心)**: 进入一个`switch (provider.toLowerCase())`分支，根据厂商执行不同的请求体构建逻辑（例如，适配Google AI的`generateContent`或OpenAI的`chat/completions` API）。
+2.  **查询配置 (核心路由)**:
+    *   如果提供了 `promptKey`，则优先从`prompts`集合中查找对应的提示词文档，获取其 `content` 和绑定的 `modelId`。
+    *   如果没有提供 `promptKey`，则直接使用传入的 `modelId`。
+3.  **获取LLM连接**: 根据上一步确定的 `modelId`，从`llm_connections`集合中获取完整的连接配置（API Key, Provider等）。
+4.  **请求适配**: 进入一个`switch (provider.toLowerCase())`分支，根据厂商执行不同的请求体构建逻辑（例如，适配Google AI的`generateContent`或OpenAI的`chat/completions` API）。如果使用了 `promptKey`，其 `content` 会被用作 `system` 角色的消息。
 5.  **发送原生请求**: 使用`fetch` API，带上构建好的`requestUrl`, `requestHeaders`, 和`requestBody`，向目标厂商的API端点发送请求。
 6.  **结果解析与返回**: 根据不同厂商的响应体结构，从返回的JSON中精准提取出模型生成的文本内容，并将其作为标准化的`PromptExecutionOutput`对象返回。
 
@@ -94,7 +96,7 @@
 *   **多厂商LLM支持**: 可通过后台配置，无代码修改地接入任何提供原生API的LLM厂商。
 *   **配置即服务**: 管理员可在独立的UI界面完成模型的添加、编辑、删除和状态切换。
 *   **连接健康检查**: 提供一键“测试连接”功能，实时验证API Key和网络配置的有效性。
-*   **统一调用接口**: 平台所有AI能力都通过调用`executePrompt`这一个函数来完成。
+*   **统一调用接口**: 平台所有AI能力都通过调用`executePrompt`这一个函数来完成，支持按`modelId`或`promptKey`调用。
 *   **提示词与模型绑定**: 允许在创建或编辑提示词时，为其指定一个执行模型和调用优先级。
 *   **提示词知识产权保护**: 通过`promptKey`调用机制，保护了提示词内容不被非授权用户查看。
 *   **高可维护性**: 模型支持列表集中在后端管理，便于统一更新和维护；所有配置均支持预设与自定义输入，兼顾易用性和扩展性。

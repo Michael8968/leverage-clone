@@ -9,10 +9,10 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { LlmConnection } from '@/lib/types';
-import { LlmProvider, getPlatformAssets } from './admin-management-flows';
+import { getPlatformAssets } from './admin-management-flows';
 
 // Standardized Message Format
 const PromptMessageSchema = z.object({
@@ -24,8 +24,9 @@ export type PromptMessage = z.infer<typeof PromptMessageSchema>;
 
 // Standardized Input for the Gateway
 const PromptExecutionInputSchema = z.object({
-  modelId: z.string().describe("The ID of the llm_connections document in Firestore."),
-  messages: z.array(PromptMessageSchema).describe("The conversation history."),
+  modelId: z.string().optional().describe("The ID of the llm_connections document. Required if promptKey is not provided."),
+  promptKey: z.string().optional().describe("The business key of the prompt in the prompts collection. Required if modelId is not provided."),
+  messages: z.array(PromptMessageSchema).describe("The conversation history. The content from the prompt document will be used as the 'system' message if a promptKey is provided."),
   temperature: z.number().optional().default(0.7),
   // other generic parameters can be added here
 });
@@ -50,15 +51,50 @@ const executePromptFlow = ai.defineFlow(
     inputSchema: PromptExecutionInputSchema,
     outputSchema: PromptExecutionOutputSchema,
   },
-  async ({ modelId, messages, temperature }) => {
-    // 1. Fetch the model configuration from Firestore
-    const llmConnectionRef = doc(db, 'llm_connections', modelId);
-    const llmConnectionSnap = await getDoc(llmConnectionRef);
+  async ({ modelId, promptKey, messages, temperature }) => {
+    let connection: LlmConnection;
+    let systemPromptContent: string | undefined;
 
-    if (!llmConnectionSnap.exists()) {
-      throw new Error(`LLM Connection with ID "${modelId}" not found.`);
+    if (promptKey) {
+        // --- Logic for promptKey based execution ---
+        const promptsCollection = collection(db, 'prompts');
+        const q = query(promptsCollection, where("promptKey", "==", promptKey));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+            throw new Error(`Prompt with key "${promptKey}" not found.`);
+        }
+        const promptDoc = querySnapshot.docs[0].data();
+        
+        systemPromptContent = promptDoc.content;
+        
+        const effectiveModelId = promptDoc.modelId || modelId; // Use prompt's model, fallback to direct modelId if provided
+
+        if (!effectiveModelId) {
+             throw new Error(`No modelId was associated with promptKey "${promptKey}" and no default was provided.`);
+        }
+        
+        const llmConnectionRef = doc(db, 'llm_connections', effectiveModelId);
+        const llmConnectionSnap = await getDoc(llmConnectionRef);
+
+        if (!llmConnectionSnap.exists()) {
+             throw new Error(`LLM Connection with ID "${effectiveModelId}" (from prompt) not found.`);
+        }
+        connection = llmConnectionSnap.data() as LlmConnection;
+
+    } else if (modelId) {
+        // --- Logic for direct modelId based execution ---
+        const llmConnectionRef = doc(db, 'llm_connections', modelId);
+        const llmConnectionSnap = await getDoc(llmConnectionRef);
+
+        if (!llmConnectionSnap.exists()) {
+            throw new Error(`LLM Connection with ID "${modelId}" not found.`);
+        }
+        connection = llmConnectionSnap.data() as LlmConnection;
+    } else {
+        throw new Error("Either 'modelId' or 'promptKey' must be provided.");
     }
-    const connection = llmConnectionSnap.data() as LlmConnection;
+
 
     if (connection.status !== '活跃') {
         throw new Error(`LLM Connection "${connection.modelName}" is currently disabled.`);
@@ -74,9 +110,14 @@ const executePromptFlow = ai.defineFlow(
     const { provider, modelName, apiKey } = connection;
     const { apiBaseUrl } = providerInfo;
 
-    // 2. Isolate system prompt
-    const systemPromptMessage = messages.find(m => m.role === 'system');
+    // 2. Isolate system prompt and conversation messages
+    let systemPromptMessage = messages.find(m => m.role === 'system');
     const conversationMessages = messages.filter(m => m.role !== 'system');
+    
+    // If a promptKey was used, its content overrides any system message in the 'messages' array
+    if (systemPromptContent) {
+        systemPromptMessage = { role: 'system', content: systemPromptContent };
+    }
     
     let requestUrl: string;
     let requestHeaders: Record<string, string> = {
