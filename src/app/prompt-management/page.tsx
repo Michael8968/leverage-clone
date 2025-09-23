@@ -1,3 +1,4 @@
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -128,17 +129,20 @@ function PromptEditDialog({ prompt, open, onOpenChange, onSave, availableLlms }:
         resolver: zodResolver(promptSchema),
         defaultValues: { 
             name: '', description: '', scope: '通用', status: '草稿', content: '',
-            modelId: undefined, priority: 10,
+            modelId: '', priority: 10,
         },
     });
 
     useEffect(() => {
         if (open && prompt) {
-            form.reset(prompt);
+            form.reset({
+                ...prompt,
+                modelId: prompt.modelId || '', // Ensure modelId is never null/undefined for the form
+            });
         } else if (!open) {
             form.reset({ 
                 name: '', description: '', scope: '通用', status: '草稿', content: '',
-                modelId: undefined, priority: 10,
+                modelId: '', priority: 10,
             });
         }
     }, [open, prompt, form]);
@@ -147,7 +151,7 @@ function PromptEditDialog({ prompt, open, onOpenChange, onSave, availableLlms }:
         if (!user) return;
         setIsSubmitting(true);
         try {
-            const dataToSave: Partial<Prompt> = {
+            const dataToSave: Partial<Prompt> & {modelId: string} = {
                 ...values,
                 modelId: values.modelId || '',
                 priority: values.priority || 10,
@@ -200,14 +204,13 @@ function PromptEditDialog({ prompt, open, onOpenChange, onSave, availableLlms }:
                             <FormField control={form.control} name="modelId" render={({ field }) => (
                                 <FormItem className="col-span-2">
                                     <FormLabel>绑定模型</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value}>
+                                    <Select onValueChange={field.onChange} value={field.value || ''}>
                                         <FormControl>
                                             <SelectTrigger>
                                                 <SelectValue placeholder="默认（或选择一个模型）" />
                                             </SelectTrigger>
                                         </FormControl>
                                         <SelectContent>
-                                            <SelectItem value="">默认</SelectItem>
                                             {availableLlms.map(llm => (
                                                 <SelectItem key={llm.id} value={llm.id}>
                                                     {llm.provider} - {llm.modelName} (P{llm.priority})
@@ -706,3 +709,4 @@ export default function PromptManagementPage() {
         </AppLayout>
     );
 }
+
