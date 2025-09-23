@@ -27,7 +27,7 @@ import type { ProductService, Supplier } from '@/lib/types';
 import { getProductRecommendations, GetProductRecommendationsOutput } from '@/ai/flows/shopping-assistant';
 import { UserProfile } from '@/ai/flows/user-profiling';
 import { useAuthStore } from '@/store/auth';
-import { getPrompts } from '@/ai/flows/admin-management-flows';
+import { getPrompts, GetPromptsOutput } from '@/ai/flows/admin-management-flows';
 import { executePrompt } from '@/ai/flows/prompt-execution-flow';
 
 
@@ -72,7 +72,7 @@ export function ShoppingAssistant() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [products, setProducts] = useState<ProductService[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [prompts, setPrompts] = useState<SimplePrompt[]>([]);
+  const [prompts, setPrompts] = useState<GetPromptsOutput['prompts']>([]);
   const [isAiSearching, startAiSearch] = useTransition();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -218,7 +218,7 @@ export function ShoppingAssistant() {
                         )}
                         <FormField control={form.control} name="promptKey" render={({ field }) => (
                             <FormItem>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <Select onValueChange={field.onChange} value={field.value || ''}>
                                     <FormControl>
                                         <SelectTrigger className="h-9 text-xs">
                                             <div className="flex items-center gap-2">
