@@ -290,7 +290,7 @@ function BuiltInGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
 // TRIPO3D AI TAB
 // =================================================================
 function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => void }) {
-    const [personalApiKey, setPersonalApiKey] = useState('tcli_875370411c2b40a8a50e9752359b1d41');
+    const [personalApiKey, setPersonalApiKey] = useState('tsk_xSDWi-Yord9VKHspB0VLxkvFkrcgK8ffrWw3Yj1CWBd');
     const [globalApiKey, setGlobalApiKey] = useState('');
     const [prompt, setPrompt] = useState('');
     const [taskId, setTaskId] = useState<string | null>(null);
@@ -737,3 +737,4 @@ export default function CreatorWorkbenchPage() {
     
 
     
+
