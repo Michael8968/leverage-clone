@@ -182,7 +182,16 @@ function ScenarioEditDialog({
                 endTime: isRepetitionEnabled && endTime ? format(endTime, 'HH:mm') : undefined,
             };
             
-            await setDoc(scenarioRef, dataToSave, { merge: true });
+            // **FIX**: Filter out undefined values before saving to Firestore
+            const cleanedDataToSave = Object.entries(dataToSave).reduce((acc, [key, value]) => {
+                if (value !== undefined) {
+                    acc[key as keyof FullScenario] = value;
+                }
+                return acc;
+            }, {} as Partial<FullScenario>);
+
+
+            await setDoc(scenarioRef, cleanedDataToSave, { merge: true });
             
             toast({
                 title: '保存成功',
@@ -582,6 +591,7 @@ export default function AIScenarioConfigPage() {
 }
 
     
+
 
 
 
