@@ -44,6 +44,7 @@ import {
   Home,
   Settings,
   Workflow,
+  Puzzle,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
@@ -64,6 +65,7 @@ const navItems: NavItem[] = [
   { href: '/suppliers', label: '供应商中心', icon: Building, roles: ['admin', 'supplier'] },
   { href: '/admin-dashboard', label: '管理后台', icon: Settings, roles: ['admin'] },
   { href: '/prompt-management', label: '提示词管理', icon: Workflow, roles: ['admin', 'creator']},
+  { href: '/ai-scenario-config', label: 'AI场景配置', icon: Puzzle, roles: ['admin'] },
   { href: '/knowledge-base', label: '知识库管理', icon: Database, roles: ['admin'] },
   { href: '/public-resources', label: '公共资源库', icon: Library, roles: ['admin'] },
   { href: '/permissions', label: '权限管理', icon: ShieldCheck, roles: ['admin'] },
