@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -7,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Download, Edit, Library, Link, PlusCircle, Trash2, Upload, Loader2, KeyRound, Calendar as CalendarIcon, Settings2 } from 'lucide-react';
+import { Download, Edit, Library, Link, PlusCircle, Trash2, Upload, Loader2, Info, Tag, CalendarClock } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { collection, getDocs, query, orderBy, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -22,44 +21,29 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
+import { X } from 'lucide-react';
 
-
-// 定义 Resource 数据的 TypeScript 接口
+// 更新后的 Resource 数据接口，以反映其作为数据源的本质
 export interface Resource {
     id: string;
-    name: string;
-    endpoint: string;
-    authType: 'API Key' | 'OAuth' | 'None';
-    status: '生效中' | '已停用';
-    docsUrl?: string;
-    apiKey?: string;
-    // New fields for usage rules
-    usageLimit?: number;
-    expiresAt?: Timestamp;
-    scope?: string;
+    name: string; // 数据源名称，例如：“科技媒体头条”
+    sourceUrl: string; // 原始数据来源网址
+    category: string; // 资讯类别，例如：“人工智能”, “元宇宙”
+    tags: string[]; // 标签数组
+    updateFrequency: '实时' | '每日' | '每周' | '每月'; // 更新频率
+    status: '可用' | '已停用'; // 状态
+    createdAt?: Timestamp;
 }
 
+// 更新 Zod schema 以匹配新的数据模型
 const resourceSchema = z.object({
-  name: z.string().min(2, "名称至少需要2个字符"),
-  endpoint: z.string().url("请输入有效的URL"),
-  docsUrl: z.string().url("请输入有效的文档URL").optional().or(z.literal('')),
-  authType: z.enum(['API Key', 'OAuth', 'None']),
-  status: z.enum(['生效中', '已停用']),
-  apiKey: z.string().optional(),
-  // New fields for validation
-  usageLimit: z.preprocess(
-    (val) => val ? parseInt(String(val), 10) : undefined,
-    z.number().positive("用量必须是正数").optional()
-  ),
-  expiresAt: z.date().optional(),
-  scope: z.string().optional(),
+  name: z.string().min(2, "数据源名称至少需要2个字符"),
+  sourceUrl: z.string().url("请输入有效的来源URL"),
+  category: z.string().min(1, "类别不能为空"),
+  tags: z.string().min(1, "至少需要一个标签").transform(val => val.split(/,|，|\s+/).filter(Boolean)), // 将逗号/空格分隔的字符串转换为数组
+  updateFrequency: z.enum(['实时', '每日', '每周', '每月']),
+  status: z.enum(['可用', '已停用']),
 });
-
 
 function ResourceDialog({ resource, open, onOpenChange, onSave }: {
     resource: Partial<Resource> | null;
@@ -75,14 +59,11 @@ function ResourceDialog({ resource, open, onOpenChange, onSave }: {
         resolver: zodResolver(resourceSchema),
         defaultValues: {
             name: '',
-            endpoint: '',
-            docsUrl: '',
-            authType: 'None',
-            status: '生效中',
-            apiKey: '',
-            usageLimit: undefined,
-            expiresAt: undefined,
-            scope: '',
+            sourceUrl: '',
+            category: '',
+            tags: '',
+            updateFrequency: '每日',
+            status: '可用',
         },
     });
 
@@ -90,19 +71,16 @@ function ResourceDialog({ resource, open, onOpenChange, onSave }: {
         if (open && resource) {
             form.reset({
                 ...resource,
-                expiresAt: resource.expiresAt ? resource.expiresAt.toDate() : undefined,
+                tags: Array.isArray(resource.tags) ? resource.tags.join(', ') : '',
             });
         } else if (!open) {
             form.reset({
-              name: '',
-              endpoint: '',
-              docsUrl: '',
-              authType: 'None',
-              status: '生效中',
-              apiKey: '',
-              usageLimit: undefined,
-              expiresAt: undefined,
-              scope: '',
+                name: '',
+                sourceUrl: '',
+                category: '',
+                tags: '',
+                updateFrequency: '每日',
+                status: '可用',
             });
         }
     }, [open, resource, form]);
@@ -111,20 +89,17 @@ function ResourceDialog({ resource, open, onOpenChange, onSave }: {
     const handleSubmit = async (values: z.infer<typeof resourceSchema>) => {
         setIsSubmitting(true);
         try {
-            const dataToSave: any = { ...values };
-            if (values.expiresAt) {
-                dataToSave.expiresAt = Timestamp.fromDate(values.expiresAt);
-            } else {
-                delete dataToSave.expiresAt;
-            }
+            const dataToSave: Omit<Resource, 'id'> = { ...values, createdAt: serverTimestamp() } as any;
 
             if(isEditing) {
                 const docRef = doc(db, 'resources', resource!.id!);
-                await updateDoc(docRef, dataToSave);
-                toast({ title: "成功", description: "资源已更新。" });
+                // Omit createdAt on update
+                const { createdAt, ...updateData } = dataToSave;
+                await updateDoc(docRef, updateData);
+                toast({ title: "成功", description: "数据源已更新。" });
             } else {
-                await addDoc(collection(db, 'resources'), { ...dataToSave, createdAt: serverTimestamp() });
-                toast({ title: "成功", description: "新资源已添加。" });
+                await addDoc(collection(db, 'resources'), dataToSave);
+                toast({ title: "成功", description: "新数据源已添加。" });
             }
             onSave();
             onOpenChange(false);
@@ -140,51 +115,22 @@ function ResourceDialog({ resource, open, onOpenChange, onSave }: {
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
-                    <DialogTitle className="font-headline">{isEditing ? '编辑接口资源' : '新增接口资源'}</DialogTitle>
+                    <DialogTitle className="font-headline">{isEditing ? '编辑数据源' : '新增数据源'}</DialogTitle>
                     <DialogDescription>
-                        请填写接口的详细信息。API Key等敏感信息将被安全存储。
+                        添加和配置用于AI分析的外部行业资讯数据源。
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto pr-4">
-                        <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>接口名称</FormLabel><FormControl><Input placeholder="例如：Tripo3D API" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                        <FormField control={form.control} name="endpoint" render={({ field }) => (<FormItem><FormLabel>端点 (Endpoint)</FormLabel><FormControl><Input placeholder="https://api.example.com/v1" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                        <FormField control={form.control} name="docsUrl" render={({ field }) => (<FormItem><FormLabel>相关文档 URL</FormLabel><FormControl><Input placeholder="https://docs.example.com" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                        <div className="grid grid-cols-2 gap-4">
-                            <FormField control={form.control} name="authType" render={({ field }) => (<FormItem><FormLabel>认证方式</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="选择认证方式" /></SelectTrigger></FormControl><SelectContent><SelectItem value="API Key">API Key</SelectItem><SelectItem value="OAuth">OAuth</SelectItem><SelectItem value="None">None</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
-                            <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>状态</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="选择状态" /></SelectTrigger></FormControl><SelectContent><SelectItem value="生效中">生效中</SelectItem><SelectItem value="已停用">已停用</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
-                        </div>
-                         {form.watch('authType') === 'API Key' && (
-                            <FormField control={form.control} name="apiKey" render={({ field }) => (<FormItem><FormLabel>API Key</FormLabel><FormControl><Input type="password" placeholder="输入您的 API Key" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                         )}
+                        <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>数据源名称</FormLabel><FormControl><Input placeholder="例如：前沿科技动态" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                        <FormField control={form.control} name="sourceUrl" render={({ field }) => (<FormItem><FormLabel>数据来源 URL</FormLabel><FormControl><Input placeholder="https://example.com/data-feed" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                        <FormField control={form.control} name="category" render={({ field }) => (<FormItem><FormLabel>资讯类别</FormLabel><FormControl><Input placeholder="例如：人工智能" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                        <FormField control={form.control} name="tags" render={({ field }) => (<FormItem><FormLabel>标签 (用逗号或空格分隔)</FormLabel><FormControl><Input placeholder="例如: AI, 融资, 新产品" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                         
-                        <Accordion type="single" collapsible>
-                            <AccordionItem value="advanced-settings">
-                                <AccordionTrigger><div className="flex items-center gap-2"><Settings2 className="w-4 h-4"/> 可选高级配置</div></AccordionTrigger>
-                                <AccordionContent className="space-y-4 pt-4">
-                                     <FormField control={form.control} name="usageLimit" render={({ field }) => (<FormItem><FormLabel>用量限制 (按次)</FormLabel><FormControl><Input type="number" placeholder="例如: 1000" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : e.target.value)} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
-                                     <FormField control={form.control} name="expiresAt" render={({ field }) => (
-                                        <FormItem className="flex flex-col"><FormLabel>过期时间 (按时长)</FormLabel>
-                                            <Popover>
-                                                <PopoverTrigger asChild>
-                                                    <FormControl>
-                                                    <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                                                        {field.value ? format(field.value, "PPP") : <span>选择日期</span>}
-                                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                                    </Button>
-                                                    </FormControl>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-auto p-0" align="start">
-                                                    <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus/>
-                                                </PopoverContent>
-                                            </Popover>
-                                        <FormMessage />
-                                        </FormItem>
-                                     )}/>
-                                     <FormField control={form.control} name="scope" render={({ field }) => (<FormItem><FormLabel>使用范围 (按范围)</FormLabel><FormControl><Input placeholder="例如: 仅限创意者角色" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                                </AccordionContent>
-                            </AccordionItem>
-                        </Accordion>
+                        <div className="grid grid-cols-2 gap-4">
+                            <FormField control={form.control} name="updateFrequency" render={({ field }) => (<FormItem><FormLabel>更新频率</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="实时">实时</SelectItem><SelectItem value="每日">每日</SelectItem><SelectItem value="每周">每周</SelectItem><SelectItem value="每月">每月</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
+                            <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>状态</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="可用">可用</SelectItem><SelectItem value="已停用">已停用</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
+                        </div>
                         
                         <DialogFooter className="pt-4 sticky bottom-0 bg-popover -mx-6 px-6 pb-6 -mb-6">
                             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>取消</Button>
@@ -202,7 +148,7 @@ function ResourceDialog({ resource, open, onOpenChange, onSave }: {
 
 const getStatusBadge = (status: Resource['status']) => {
     switch (status) {
-        case '生效中':
+        case '可用':
             return <Badge variant="default" className="bg-green-500 hover:bg-green-600">{status}</Badge>;
         case '已停用':
             return <Badge variant="destructive">{status}</Badge>;
@@ -230,7 +176,6 @@ export default function PublicResourcesPage() {
                 return {
                     ...data,
                     id: doc.id,
-                    expiresAt: data.expiresAt,
                 } as Resource;
             });
             setResources(resourcesList);
@@ -238,7 +183,7 @@ export default function PublicResourcesPage() {
             console.error("Error fetching resources:", error);
             toast({
                 title: '加载失败',
-                description: '无法加载资源列表，请检查数据库连接或稍后重试。',
+                description: '无法加载数据源列表，请检查数据库连接或稍后重试。',
                 variant: 'destructive',
             });
         } finally {
@@ -269,7 +214,7 @@ export default function PublicResourcesPage() {
         if (!selectedResource) return;
         try {
             await deleteDoc(doc(db, 'resources', selectedResource.id));
-            toast({ title: "成功", description: "资源已删除。" });
+            toast({ title: "成功", description: "数据源已删除。" });
             fetchResources();
         } catch (error) {
              toast({ title: "删除失败", description: "操作失败，请重试。", variant: "destructive" });
@@ -285,26 +230,23 @@ export default function PublicResourcesPage() {
                 <header>
                     <h1 className="text-2xl font-headline font-bold flex items-center gap-2">
                         <Library />
-                        公共资源库管理
+                        行业资讯数据中心
                     </h1>
-                    <p className="text-muted-foreground">管理外部链接、API接口及其他关联信息，支持批量导入和导出，丰富AI的数据维度。</p>
+                    <p className="text-muted-foreground">管理用于增强AI能力的外部行业数据源。在这里收集、整理、分类并为数据打上标签，为AI在各种场景下的交互体验提供数据依据。</p>
                 </header>
 
                 <Card>
                     <CardHeader>
-                        <CardTitle className="font-headline">资源列表</CardTitle>
-                        <CardDescription>管理所有外部链接和API接口。</CardDescription>
-                        <div className="flex items-center justify-between pt-4">
-                            <div className="flex items-center gap-2 border-b">
-                               <Button variant="ghost" className="rounded-b-none text-muted-foreground" disabled>外部链接</Button>
-                               <Button variant="ghost" className="rounded-b-none border-b-2 border-primary">API 接口</Button>
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <CardTitle className="font-headline">数据源列表</CardTitle>
+                                <CardDescription>管理所有用于AI分析的外部数据源。</CardDescription>
                             </div>
                             <div className="flex items-center gap-2">
                                 <Button variant="outline" disabled><Upload className="mr-2"/> 导入</Button>
-                                <Button variant="outline" disabled><Download className="mr-2"/> 导出</Button>
                                 <Button onClick={handleAdd}>
                                     <PlusCircle className="mr-2" />
-                                    新增接口
+                                    新增数据源
                                 </Button>
                             </div>
                         </div>
@@ -313,12 +255,11 @@ export default function PublicResourcesPage() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>接口名称</TableHead>
-                                    <TableHead>认证方式</TableHead>
+                                    <TableHead>数据源名称</TableHead>
+                                    <TableHead>类别</TableHead>
+                                    <TableHead>标签</TableHead>
+                                    <TableHead>更新频率</TableHead>
                                     <TableHead>状态</TableHead>
-                                    <TableHead>API Key</TableHead>
-                                    <TableHead>用量限制</TableHead>
-                                    <TableHead>过期时间</TableHead>
                                     <TableHead className="text-right">操作</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -326,19 +267,18 @@ export default function PublicResourcesPage() {
                                 {isLoading ? (
                                      Array.from({ length: 3 }).map((_, i) => (
                                         <TableRow key={i}>
-                                            <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                                            <TableCell><Skeleton className="h-6 w-20 rounded-md" /></TableCell>
-                                            <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
+                                            <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                                            <TableCell><Skeleton className="h-6 w-24 rounded-md" /></TableCell>
+                                            <TableCell><Skeleton className="h-6 w-48 rounded-md" /></TableCell>
                                             <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                                            <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                                            <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                                            <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
                                             <TableCell className="text-right"><Skeleton className="h-8 w-24 rounded-md ml-auto" /></TableCell>
                                         </TableRow>
                                     ))
                                 ) : resources.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={7} className="h-24 text-center">
-                                            数据库中暂无资源。请点击“新增接口”按钮添加。
+                                        <TableCell colSpan={6} className="h-24 text-center">
+                                            暂无数据源。请点击“新增数据源”按钮添加。
                                         </TableCell>
                                     </TableRow>
                                 ) : (
@@ -347,22 +287,28 @@ export default function PublicResourcesPage() {
                                             <TableCell className="font-medium">
                                                 <div className="flex flex-col">
                                                     <span>{item.name}</span>
-                                                    <Button variant="link" size="sm" asChild className="p-0 h-auto justify-start" disabled={!item.docsUrl}>
-                                                        <a href={item.docsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-muted-foreground">
-                                                            查看文档 <Link className="w-3 h-3"/>
+                                                    <Button variant="link" size="sm" asChild className="p-0 h-auto justify-start" disabled={!item.sourceUrl}>
+                                                        <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                            查看来源 <Link className="w-3 h-3"/>
                                                         </a>
                                                     </Button>
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                <Badge variant="outline">{item.authType}</Badge>
+                                                <Badge variant="outline">{item.category}</Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex flex-wrap gap-1 max-w-xs">
+                                                   {(item.tags || []).map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                                    <CalendarClock className="w-4 h-4"/>
+                                                    <span>{item.updateFrequency}</span>
+                                                </div>
                                             </TableCell>
                                             <TableCell>{getStatusBadge(item.status)}</TableCell>
-                                            <TableCell>
-                                                {item.apiKey ? <span className="flex items-center gap-1 text-xs text-muted-foreground"><KeyRound className="w-3 h-3 text-green-500"/> 已配置</span> : <span className="text-xs text-muted-foreground/50">未配置</span>}
-                                            </TableCell>
-                                            <TableCell className="text-xs text-muted-foreground">{item.usageLimit ? `${item.usageLimit} 次` : '无限制'}</TableCell>
-                                            <TableCell className="text-xs text-muted-foreground">{item.expiresAt ? format(item.expiresAt.toDate(), 'yyyy-MM-dd') : '永不过期'}</TableCell>
                                             <TableCell className="text-right">
                                                 <div className="flex items-center justify-end gap-2">
                                                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(item)}>
@@ -393,7 +339,7 @@ export default function PublicResourcesPage() {
                     <AlertDialogHeader>
                         <AlertDialogTitle>确认删除</AlertDialogTitle>
                         <AlertDialogDescription>
-                            您确定要删除资源 “{selectedResource?.name}” 吗？此操作不可撤销。
+                            您确定要删除数据源 “{selectedResource?.name}” 吗？此操作不可撤销。
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
