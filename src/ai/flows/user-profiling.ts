@@ -5,6 +5,7 @@
  * - generateUserProfile - A function that takes user input and returns a structured user profile.
  * - GenerateUserProfileInput - The input type for the generateUserProfile function.
  * - UserProfile - The return type for the generateUserProfile function.
+ * - UserProfileSchema - The Zod schema for the UserProfile type.
  */
 
 import { ai } from '@/ai/genkit';
@@ -23,7 +24,7 @@ export type GenerateUserProfileInput = z.infer<
   typeof GenerateUserProfileInputSchema
 >;
 
-const UserProfileSchema = z.object({
+export const UserProfileSchema = z.object({
   summary: z
     .string()
     .describe(

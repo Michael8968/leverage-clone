@@ -11,7 +11,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { generateUserProfile, UserProfile, GenerateUserProfileInput } from './user-profiling';
+import { generateUserProfile, UserProfileSchema, type GenerateUserProfileInput, type UserProfile } from './user-profiling';
 
 
 const ProductSchema = z.object({
@@ -47,7 +47,7 @@ export type GetProductRecommendationsInput = z.infer<
 >;
 
 const GetProductRecommendationsOutputSchema = z.object({
-  userProfile: UserProfile.describe("The generated user profile."),
+  userProfile: UserProfileSchema.describe("The generated user profile."),
   recommendations: z
     .array(z.string())
     .describe('An array of recommended product IDs. Should be between 3 to 5 products.'),
@@ -63,7 +63,7 @@ export async function getProductRecommendations(
 }
 
 const RecommendationPromptInputSchema = GetProductRecommendationsInputSchema.extend({
-    userProfile: UserProfile
+    userProfile: UserProfileSchema
 });
 
 
