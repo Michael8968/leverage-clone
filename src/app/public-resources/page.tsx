@@ -6,9 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Download, Edit, Library, Link, PlusCircle, Trash2, Upload, Loader2, KeyRound } from 'lucide-react';
+import { Download, Edit, Library, Link, PlusCircle, Trash2, Upload, Loader2, KeyRound, Calendar as CalendarIcon, Settings2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { collection, getDocs, query, orderBy, addDoc, updateDoc, doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,6 +21,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 
 // 定义 Resource 数据的 TypeScript 接口
@@ -32,6 +37,10 @@ export interface Resource {
     status: '生效中' | '已停用';
     docsUrl?: string;
     apiKey?: string;
+    // New fields for usage rules
+    usageLimit?: number;
+    expiresAt?: Timestamp;
+    scope?: string;
 }
 
 const resourceSchema = z.object({
@@ -41,6 +50,13 @@ const resourceSchema = z.object({
   authType: z.enum(['API Key', 'OAuth', 'None']),
   status: z.enum(['生效中', '已停用']),
   apiKey: z.string().optional(),
+  // New fields for validation
+  usageLimit: z.preprocess(
+    (val) => val ? parseInt(String(val), 10) : undefined,
+    z.number().positive("用量必须是正数").optional()
+  ),
+  expiresAt: z.date().optional(),
+  scope: z.string().optional(),
 });
 
 
@@ -62,13 +78,19 @@ function ResourceDialog({ resource, open, onOpenChange, onSave }: {
             docsUrl: '',
             authType: 'None',
             status: '生效中',
-            apiKey: ''
+            apiKey: '',
+            usageLimit: undefined,
+            expiresAt: undefined,
+            scope: '',
         },
     });
 
     useEffect(() => {
         if (open && resource) {
-            form.reset(resource);
+            form.reset({
+                ...resource,
+                expiresAt: resource.expiresAt ? resource.expiresAt.toDate() : undefined,
+            });
         } else if (!open) {
             form.reset();
         }
@@ -78,12 +100,17 @@ function ResourceDialog({ resource, open, onOpenChange, onSave }: {
     const handleSubmit = async (values: z.infer<typeof resourceSchema>) => {
         setIsSubmitting(true);
         try {
+            const dataToSave: any = { ...values };
+            if (values.expiresAt) {
+                dataToSave.expiresAt = Timestamp.fromDate(values.expiresAt);
+            }
+
             if (isEditing) {
                 const docRef = doc(db, 'resources', resource!.id!);
-                await updateDoc(docRef, values);
+                await updateDoc(docRef, dataToSave);
                 toast({ title: "成功", description: "资源已更新。" });
             } else {
-                await addDoc(collection(db, 'resources'), { ...values, createdAt: serverTimestamp() });
+                await addDoc(collection(db, 'resources'), { ...dataToSave, createdAt: serverTimestamp() });
                 toast({ title: "成功", description: "新资源已添加。" });
             }
             onSave();
@@ -98,7 +125,7 @@ function ResourceDialog({ resource, open, onOpenChange, onSave }: {
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
                     <DialogTitle className="font-headline">{isEditing ? '编辑接口资源' : '新增接口资源'}</DialogTitle>
                     <DialogDescription>
@@ -106,7 +133,7 @@ function ResourceDialog({ resource, open, onOpenChange, onSave }: {
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 py-4">
+                    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto pr-4">
                         <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>接口名称</FormLabel><FormControl><Input placeholder="例如：Tripo3D API" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                         <FormField control={form.control} name="endpoint" render={({ field }) => (<FormItem><FormLabel>端点 (Endpoint)</FormLabel><FormControl><Input placeholder="https://api.example.com/v1" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                         <FormField control={form.control} name="docsUrl" render={({ field }) => (<FormItem><FormLabel>相关文档 URL</FormLabel><FormControl><Input placeholder="https://docs.example.com" {...field} /></FormControl><FormMessage /></FormItem>)}/>
@@ -117,7 +144,36 @@ function ResourceDialog({ resource, open, onOpenChange, onSave }: {
                          {form.watch('authType') === 'API Key' && (
                             <FormField control={form.control} name="apiKey" render={({ field }) => (<FormItem><FormLabel>API Key</FormLabel><FormControl><Input type="password" placeholder="输入您的 API Key" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                          )}
-                        <DialogFooter className="pt-4">
+                        
+                        <Accordion type="single" collapsible>
+                            <AccordionItem value="advanced-settings">
+                                <AccordionTrigger><div className="flex items-center gap-2"><Settings2 className="w-4 h-4"/> 可选高级配置</div></AccordionTrigger>
+                                <AccordionContent className="space-y-4 pt-4">
+                                     <FormField control={form.control} name="usageLimit" render={({ field }) => (<FormItem><FormLabel>用量限制 (按次)</FormLabel><FormControl><Input type="number" placeholder="例如: 1000" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : e.target.value)} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+                                     <FormField control={form.control} name="expiresAt" render={({ field }) => (
+                                        <FormItem className="flex flex-col"><FormLabel>过期时间 (按时长)</FormLabel>
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <FormControl>
+                                                    <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                                                        {field.value ? format(field.value, "PPP") : <span>选择日期</span>}
+                                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                                    </Button>
+                                                    </FormControl>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0" align="start">
+                                                    <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus/>
+                                                </PopoverContent>
+                                            </Popover>
+                                        <FormMessage />
+                                        </FormItem>
+                                     )}/>
+                                     <FormField control={form.control} name="scope" render={({ field }) => (<FormItem><FormLabel>使用范围 (按范围)</FormLabel><FormControl><Input placeholder="例如: 仅限创意者角色" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                                </AccordionContent>
+                            </AccordionItem>
+                        </Accordion>
+                        
+                        <DialogFooter className="pt-4 sticky bottom-0 bg-popover -mx-6 px-6 pb-6 -mb-6">
                             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>取消</Button>
                             <Button type="submit" disabled={isSubmitting}>
                                 {isSubmitting && <Loader2 className="animate-spin mr-2"/>}
@@ -172,7 +228,8 @@ export default function PublicResourcesPage() {
     
     useEffect(() => {
         fetchResources();
-    }, [toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const handleAdd = () => {
         setSelectedResource(null);
@@ -238,11 +295,11 @@ export default function PublicResourcesPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>接口名称</TableHead>
-                                    <TableHead>端点 (Endpoint)</TableHead>
                                     <TableHead>认证方式</TableHead>
                                     <TableHead>状态</TableHead>
                                     <TableHead>API Key</TableHead>
-                                    <TableHead>相关文档</TableHead>
+                                    <TableHead>用量限制</TableHead>
+                                    <TableHead>过期时间</TableHead>
                                     <TableHead className="text-right">操作</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -251,10 +308,10 @@ export default function PublicResourcesPage() {
                                      Array.from({ length: 3 }).map((_, i) => (
                                         <TableRow key={i}>
                                             <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                                            <TableCell><Skeleton className="h-4 w-48" /></TableCell>
                                             <TableCell><Skeleton className="h-6 w-20 rounded-md" /></TableCell>
                                             <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
                                             <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                                            <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                                             <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                                             <TableCell className="text-right"><Skeleton className="h-8 w-24 rounded-md ml-auto" /></TableCell>
                                         </TableRow>
@@ -268,8 +325,16 @@ export default function PublicResourcesPage() {
                                 ) : (
                                     resources.map((item) => (
                                         <TableRow key={item.id}>
-                                            <TableCell className="font-medium">{item.name}</TableCell>
-                                            <TableCell className="font-mono text-xs text-muted-foreground">{item.endpoint}</TableCell>
+                                            <TableCell className="font-medium">
+                                                <div className="flex flex-col">
+                                                    <span>{item.name}</span>
+                                                    <Button variant="link" size="sm" asChild className="p-0 h-auto justify-start" disabled={!item.docsUrl}>
+                                                        <a href={item.docsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                            查看文档 <Link className="w-3 h-3"/>
+                                                        </a>
+                                                    </Button>
+                                                </div>
+                                            </TableCell>
                                             <TableCell>
                                                 <Badge variant="outline">{item.authType}</Badge>
                                             </TableCell>
@@ -277,13 +342,8 @@ export default function PublicResourcesPage() {
                                             <TableCell>
                                                 {item.apiKey ? <span className="flex items-center gap-1 text-xs text-muted-foreground"><KeyRound className="w-3 h-3 text-green-500"/> 已配置</span> : <span className="text-xs text-muted-foreground/50">未配置</span>}
                                             </TableCell>
-                                            <TableCell>
-                                                <Button variant="link" size="sm" asChild className="p-0 h-auto" disabled={!item.docsUrl}>
-                                                    <a href={item.docsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm">
-                                                        查看文档 <Link className="w-3 h-3"/>
-                                                    </a>
-                                                </Button>
-                                            </TableCell>
+                                            <TableCell className="text-xs text-muted-foreground">{item.usageLimit ? `${item.usageLimit} 次` : '无限制'}</TableCell>
+                                            <TableCell className="text-xs text-muted-foreground">{item.expiresAt ? format(item.expiresAt.toDate(), 'yyyy-MM-dd') : '永不过期'}</TableCell>
                                             <TableCell className="text-right">
                                                 <div className="flex items-center justify-end gap-2">
                                                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(item)}>
@@ -323,7 +383,5 @@ export default function PublicResourcesPage() {
                 </AlertDialogContent>
             </AlertDialog>
         </AppLayout>
-    );
-}
-
+    
     
