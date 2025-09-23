@@ -130,6 +130,8 @@
 | **ownerType** | `string` | 创建者类型 (`platform`, `creator`)。 |
 | **modelId** | `string` | **(核心)** (可选) 绑定的`llm_connections`文档ID。如果为空，则使用系统默认模型。 |
 | **priority** | `number` | **(核心)** (可选) 特定于此提示词的调用优先级。 |
+| **querySources** | `Object` | (可选) 查询范围，定义此提示词可从哪些核心数据源检索信息。 |
+| **sourceTemperatures**| `Object`| (可选) 为每个数据源设置独立的创造性温度（0-1）。 |
 
 ### 1.8. `ai_scenarios` 集合 (新增 & 升级)
 
