@@ -1,4 +1,3 @@
-
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -26,10 +25,11 @@ import { useAuthStore } from '@/store/auth';
 import { useRouter } from 'next/navigation';
 
 import { getPlatformAssets, testLlmConnection, type LlmProvider } from '@/ai/flows/admin-management-flows';
+import type { LlmConnection } from '@/lib/types';
 
 
 // =================================================================
-// TYPE DEFINITIONS
+// TYPE DEFINITIONS (Matching Firestore Structures)
 // =================================================================
 
 interface Prompt {
@@ -41,19 +41,12 @@ interface Prompt {
     content: string;
     ownerId: string;
     ownerType: 'platform' | 'creator';
-    ownerName?: string; // For display
+    ownerName?: string;
+    // New fields for LLM binding
+    modelId?: string;
+    priority?: number;
 }
 
-interface LLMConfig {
-    id: string;
-    modelName: string;
-    provider: string;
-    apiKey?: string;
-    priority: number;
-    status: '活跃' | '已禁用';
-    scope?: '通用' | '专属';
-    category?: '文本' | '图像';
-}
 
 // =================================================================
 // ZOD SCHEMAS
@@ -65,6 +58,11 @@ const promptSchema = z.object({
   scope: z.string().min(2, "范围不能为空"),
   status: z.enum(['生效中', '草稿', '已停用']),
   content: z.string().min(20, "提示词内容至少需要20个字符"),
+  modelId: z.string().optional(),
+  priority: z.preprocess(
+    (val) => val ? parseInt(String(val), 10) : undefined,
+    z.number().int().min(1).max(100).optional()
+  ),
 });
 
 const llmConnectionSchema = z.object({
@@ -85,7 +83,7 @@ const llmConnectionSchema = z.object({
 // HELPER & UTILITY COMPONENTS
 // =================================================================
 
-const getStatusBadge = (status: Prompt['status'] | LLMConfig['status']) => {
+const getStatusBadge = (status: Prompt['status'] | LlmConnection['status']) => {
     switch (status) {
         case '生效中':
         case '活跃':
@@ -114,11 +112,12 @@ function RestrictedAccess() {
 // PROMPT EDIT DIALOG
 // =================================================================
 
-function PromptEditDialog({ prompt, open, onOpenChange, onSave }: {
+function PromptEditDialog({ prompt, open, onOpenChange, onSave, availableLlms }: {
     prompt: Partial<Prompt> | null;
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSave: () => void;
+    availableLlms: LlmConnection[];
 }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
@@ -127,14 +126,20 @@ function PromptEditDialog({ prompt, open, onOpenChange, onSave }: {
 
     const form = useForm<z.infer<typeof promptSchema>>({
         resolver: zodResolver(promptSchema),
-        defaultValues: { name: '', description: '', scope: '通用', status: '草稿', content: '' },
+        defaultValues: { 
+            name: '', description: '', scope: '通用', status: '草稿', content: '',
+            modelId: undefined, priority: 10,
+        },
     });
 
     useEffect(() => {
         if (open && prompt) {
             form.reset(prompt);
         } else if (!open) {
-            form.reset({ name: '', description: '', scope: '通用', status: '草稿', content: '' });
+            form.reset({ 
+                name: '', description: '', scope: '通用', status: '草稿', content: '',
+                modelId: undefined, priority: 10,
+            });
         }
     }, [open, prompt, form]);
 
@@ -142,13 +147,19 @@ function PromptEditDialog({ prompt, open, onOpenChange, onSave }: {
         if (!user) return;
         setIsSubmitting(true);
         try {
+            const dataToSave: Partial<Prompt> = {
+                ...values,
+                modelId: values.modelId || '',
+                priority: values.priority || 10,
+            }
+
             if (isEditing) {
                 const docRef = doc(db, 'prompts', prompt!.id!);
-                await updateDoc(docRef, values);
+                await updateDoc(docRef, dataToSave);
                 toast({ title: "成功", description: "提示词已更新。" });
             } else {
                 const newPromptData = {
-                    ...values,
+                    ...dataToSave,
                     ownerId: user.uid,
                     ownerType: user.role === 'admin' ? 'platform' : 'creator',
                     ownerName: user.name,
@@ -173,7 +184,7 @@ function PromptEditDialog({ prompt, open, onOpenChange, onSave }: {
                 <DialogHeader>
                     <DialogTitle className="font-headline">{isEditing ? `编辑提示词: ${prompt?.name}` : '创建新提示词'}</DialogTitle>
                     <DialogDescription>
-                        设计一个专业的结构化提示词。请谨慎操作，这将直接影响相关AI功能的行为。
+                        设计一个专业的结构化提示词，并为其绑定一个执行模型和调用优先级。
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
@@ -183,7 +194,41 @@ function PromptEditDialog({ prompt, open, onOpenChange, onSave }: {
                              <FormField control={form.control} name="scope" render={({ field }) => (<FormItem><FormLabel>生效范围</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
                         </div>
                         <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>功能简述</FormLabel><FormControl><Textarea rows={2} {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                        <FormField control={form.control} name="content" render={({ field }) => (<FormItem><FormLabel>提示词内容 (Prompt)</FormLabel><FormControl><Textarea className="font-mono text-xs" rows={12} {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                        <FormField control={form.control} name="content" render={({ field }) => (<FormItem><FormLabel>提示词内容 (Prompt)</FormLabel><FormControl><Textarea className="font-mono text-xs" rows={10} {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                        
+                        <div className="grid grid-cols-3 gap-4 items-end">
+                            <FormField control={form.control} name="modelId" render={({ field }) => (
+                                <FormItem className="col-span-2">
+                                    <FormLabel>绑定模型</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value}>
+                                        <FormControl>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="默认（或选择一个模型）" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="">默认</SelectItem>
+                                            {availableLlms.map(llm => (
+                                                <SelectItem key={llm.id} value={llm.id}>
+                                                    {llm.provider} - {llm.modelName} (P{llm.priority})
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                            )}/>
+                            <FormField control={form.control} name="priority" render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>调用优先级</FormLabel>
+                                    <FormControl>
+                                        <Input type="number" placeholder="10" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}/>
+                        </div>
+                        
                         <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>状态</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="选择状态" /></SelectTrigger></FormControl><SelectContent><SelectItem value="生效中">生效中</SelectItem><SelectItem value="草稿">草稿</SelectItem><SelectItem value="已停用">已停用</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
 
                         <DialogFooter className="pt-4 sticky bottom-0 bg-popover -mx-6 px-6 pb-6 -mb-6">
@@ -205,13 +250,13 @@ function PromptEditDialog({ prompt, open, onOpenChange, onSave }: {
 // =================================================================
 
 function LLMConfigDialog({ llm, open, onOpenChange, onSave }: {
-    llm: Partial<LLMConfig> | null;
+    llm: Partial<LlmConnection> | null;
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSave: () => void;
 }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isTesting, setIsTesting] = useTransition();
+    const [isTesting, startTesting] = useTransition();
     const { toast } = useToast();
     const isEditing = !!llm?.id;
     const [providers, setProviders] = useState<LlmProvider[]>([]);
@@ -292,7 +337,7 @@ function LLMConfigDialog({ llm, open, onOpenChange, onSave }: {
         }
 
         const values = form.getValues();
-        setIsTesting(async () => {
+        startTesting(async () => {
             try {
                 // We need to save the connection to get an ID for testing
                 let modelId = isEditing ? llm!.id! : '';
@@ -310,7 +355,7 @@ function LLMConfigDialog({ llm, open, onOpenChange, onSave }: {
                     variant: result.success ? "default" : "destructive",
                 });
                 
-                if (!isEditing && !result.success) {
+                if (!isEditing && !result.success && modelId) {
                     await deleteDoc(doc(db, 'llm_connections', modelId));
                 }
             } catch (error: any) {
@@ -402,7 +447,7 @@ function LLMConfigDialog({ llm, open, onOpenChange, onSave }: {
 
 export default function PromptManagementPage() {
     const [prompts, setPrompts] = useState<Prompt[]>([]);
-    const [llms, setLlms] = useState<LLMConfig[]>([]);
+    const [llms, setLlms] = useState<LlmConnection[]>([]);
     const [isLoadingPrompts, setIsLoadingPrompts] = useState(true);
     const [isLoadingLLMs, setIsLoadingLLMs] = useState(true);
     
@@ -411,8 +456,8 @@ export default function PromptManagementPage() {
     const [isAlertOpen, setIsAlertOpen] = useState(false);
 
     const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
-    const [selectedLLM, setSelectedLLM] = useState<LLMConfig | null>(null);
-    const [itemToDelete, setItemToDelete] = useState<{id: string; name: string; type: 'prompt' | 'llm_connections'} | null>(null);
+    const [selectedLLM, setSelectedLLM] = useState<LlmConnection | null>(null);
+    const [itemToDelete, setItemToDelete] = useState<{id: string; name: string; type: 'prompts' | 'llm_connections'} | null>(null);
 
     const { toast } = useToast();
     const { user, role, isLoading: isAuthLoading } = useAuthStore();
@@ -443,29 +488,26 @@ export default function PromptManagementPage() {
     }, [user, role, toast]);
     
     const fetchLLMs = useCallback(async () => {
-        if (role !== 'admin') return;
         setIsLoadingLLMs(true);
         try {
             const llmsCollection = collection(db, 'llm_connections');
             const q = query(llmsCollection, orderBy('priority'));
             const llmsSnapshot = await getDocs(q);
-            setLlms(llmsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as LLMConfig)));
+            setLlms(llmsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as LlmConnection)));
         } catch (error) {
             console.log(error);
             toast({ title: '加载失败', description: '无法加载LLM连接列表。', variant: 'destructive' });
         } finally {
             setIsLoadingLLMs(false);
         }
-    }, [role, toast]);
+    }, [toast]);
 
 
     useEffect(() => {
         if (!isAuthLoading) {
+            fetchLLMs(); // All roles with access can see LLMs to select
             if (role === 'admin' || role === 'creator') {
                 fetchPrompts();
-            }
-            if (role === 'admin') {
-                fetchLLMs();
             }
         }
     }, [isAuthLoading, role, fetchPrompts, fetchLLMs]);
@@ -473,18 +515,18 @@ export default function PromptManagementPage() {
     // --- HANDLERS ---
     const handleEditPrompt = (prompt: Prompt) => { setSelectedPrompt(prompt); setIsPromptDialogOpen(true); };
     const handleAddPrompt = () => { setSelectedPrompt(null); setIsPromptDialogOpen(true); };
-    const handleDeletePrompt = (prompt: Prompt) => { setItemToDelete({id: prompt.id, name: prompt.name, type: 'prompt'}); setIsAlertOpen(true); };
+    const handleDeletePrompt = (prompt: Prompt) => { setItemToDelete({id: prompt.id, name: prompt.name, type: 'prompts'}); setIsAlertOpen(true); };
 
-    const handleEditLLM = (llm: LLMConfig) => { setSelectedLLM(llm); setIsLLMDialogOpen(true); };
+    const handleEditLLM = (llm: LlmConnection) => { setSelectedLLM(llm); setIsLLMDialogOpen(true); };
     const handleAddLLM = () => { setSelectedLLM(null); setIsLLMDialogOpen(true); };
-    const handleDeleteLLM = (llm: LLMConfig) => { setItemToDelete({id: llm.id, name: llm.modelName, type: 'llm_connections'}); setIsAlertOpen(true); };
+    const handleDeleteLLM = (llm: LlmConnection) => { setItemToDelete({id: llm.id, name: llm.modelName, type: 'llm_connections'}); setIsAlertOpen(true); };
     
     const confirmDelete = async () => {
         if (!itemToDelete) return;
         try {
             await deleteDoc(doc(db, itemToDelete.type, itemToDelete.id));
             toast({ title: "成功", description: `“${itemToDelete.name}”已删除。` });
-            if (itemToDelete.type === 'prompt') fetchPrompts();
+            if (itemToDelete.type === 'prompts') fetchPrompts();
             else fetchLLMs();
         } catch (error) {
              toast({ title: "删除失败", description: "操作失败，请重试。", variant: "destructive" });
@@ -635,8 +677,17 @@ export default function PromptManagementPage() {
                 </div>
             </div>
 
-            <PromptEditDialog open={isPromptDialogOpen} onOpenChange={setIsPromptDialogOpen} onSave={fetchPrompts} prompt={selectedPrompt}/>
-            <LLMConfigDialog open={isLLMDialogOpen} onOpenChange={setIsLLMDialogOpen} onSave={fetchLLMs} llm={selectedLLM} />
+            <PromptEditDialog 
+                open={isPromptDialogOpen} 
+                onOpenChange={setIsPromptDialogOpen} 
+                onSave={fetchPrompts} 
+                prompt={selectedPrompt}
+                availableLlms={llms.filter(llm => llm.status === '活跃')}
+            />
+            
+            {role === 'admin' && (
+                <LLMConfigDialog open={isLLMDialogOpen} onOpenChange={setIsLLMDialogOpen} onSave={fetchLLMs} llm={selectedLLM} />
+            )}
 
             <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
                 <AlertDialogContent>

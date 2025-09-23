@@ -44,7 +44,16 @@
     *   `status` (enum): "活跃" | "已禁用"。控制该连接是否可用。
     *   `category` (enum): "文本", "图像"等。用于分类。
 
-#### b. `SUPPORTED_PROVIDERS` (后端硬编码)
+#### b. `prompts` 集合 (Firestore) - 新增关联
+
+为了实现提示词与模型的绑定，`prompts`集合将增加字段。
+
+*   **集合路径**: `firestore_root/prompts/{prompt_id}`
+*   **新增关键字段**:
+    *   `modelId` (string, optional): 关联的`llm_connections`文档ID。如果为空，则使用系统默认模型。
+    *   `priority` (number, optional): 特定于此提示词的调用优先级。
+
+#### c. `SUPPORTED_PROVIDERS` (后端硬编码)
 
 这是一个定义在后端流程`admin-management-flows.ts`中的静态常量，是平台**唯一权威的、支持的厂商及其模型列表**。
 
@@ -86,6 +95,10 @@
     *   它内部构造一个包含`system`和`user`消息的标准`messages`数组。
     *   它调用核心的`executePrompt`网关函数。
     *   它捕获`executePrompt`的成功或失败结果，并返回给前端一个包含成功信息或详细错误信息的对象，前端则用Toast组件将其展示出来。
+4.  **提示词绑定模型 (新增)**:
+    *   在“编辑提示词”弹窗 (`PromptEditDialog`) 中，新增一个“绑定模型”的下拉选择框。
+    *   该下拉框的数据源为所有状态为“活跃”的 `llm_connections`。
+    *   用户保存后，`prompts`文档的`modelId`字段将被更新。
 
 ---
 
@@ -174,6 +187,7 @@ const availableModels = useMemo(() => {
 *   **配置即服务**: 管理员可在UI界面完成模型的添加、编辑、删除和状态切换。
 *   **连接健康检查**: 提供一键“测试连接”功能，实时验证API Key和网络配置的有效性。
 *   **统一调用接口**: 平台所有需要AI能力的地方，都通过调用`executePrompt({ modelId, messages, ... })`这一个函数来完成，极大简化了上层业务开发。
+*   **提示词与模型绑定 (新增)**: 允许在创建或编辑提示词时，从可用模型库中为其指定一个执行模型和调用优先级。
 *   **优先级与默认模型**: 通过`priority`字段，实现了平台级默认模型的智能选择机制。
 *   **优雅降级**: 如果没有配置可用的模型，或API调用失败，流程会抛出明确、友好的错误信息，便于前端捕获并提示用户。
 *   **高可维护性**: 模型支持列表集中在后端管理，便于统一更新和维护。
