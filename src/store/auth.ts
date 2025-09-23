@@ -12,6 +12,7 @@ export interface User {
   email: string;
   role: Role;
   avatar: string;
+  rating?: number; // Added optional rating field
 }
 
 interface AuthState {

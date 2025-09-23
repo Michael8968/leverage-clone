@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect } from 'react';
@@ -7,10 +8,10 @@ import { auth, db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
 /**
- * AuthProvider 的唯一职责:
- * 在应用加载时，静默地监听 Firebase 的认证状态，
- * 并将被动获取到的用户信息同步到 Zustand 全局状态。
- * 它不执行任何主动的路由跳转。
+ * AuthProvider's single responsibility:
+ * On app load, it silently listens to Firebase's authentication state
+ * and syncs the passively received user information to the Zustand global state.
+ * It does not perform any active routing.
  */
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const { setUser, setIsLoading } = useAuthStore();
@@ -31,6 +32,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             email: firebaseUser.email!,
             avatar: userDataFromDb.avatar || firebaseUser.photoURL || `https://i.pravatar.cc/150?u=${firebaseUser.uid}`,
             role: userDataFromDb.role || 'user',
+            rating: userDataFromDb.rating, // Include rating if it exists
           };
           setUser(user, user.role);
         } else {

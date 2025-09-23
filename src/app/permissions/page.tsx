@@ -1,3 +1,4 @@
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -25,7 +26,7 @@ import { collection, getDocs, query, orderBy, doc, updateDoc } from 'firebase/fi
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 
-// RoleBadge and StarRating components remain the same...
+// RoleBadge remains the same
 const RoleBadge = ({ role }: { role: Role }) => {
     const roleConfig = {
         admin: { label: '管理员', color: 'bg-red-500 hover:bg-red-600' },
@@ -37,15 +38,25 @@ const RoleBadge = ({ role }: { role: Role }) => {
     return <Badge className={color}>{label}</Badge>;
 };
 
-const StarRating = ({ rating = 0 }: { rating?: number }) => (
+// StarRating component now takes an optional onClick handler for interactivity
+const StarRating = ({ rating = 0, onSetRating }: { rating?: number; onSetRating?: (rating: number) => void; }) => (
     <div className="flex items-center">
         {Array.from({ length: 5 }).map((_, i) => (
-            <Star key={i} className={`w-4 h-4 ${i < rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
+            <Star 
+                key={i} 
+                className={cn(
+                    "w-4 h-4",
+                    i < rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300',
+                    onSetRating && 'cursor-pointer'
+                )}
+                onClick={onSetRating ? () => onSetRating(i + 1) : undefined}
+            />
         ))}
     </div>
 );
 
-// New Component: UserActionsCell
+
+// UserActionsCell updated to include rating management
 function UserActionsCell({ user, onUserUpdate }: { user: User; onUserUpdate: (updatedUser: User) => void; }) {
     const { user: currentUser } = useAuthStore();
     const { toast } = useToast();
@@ -53,22 +64,30 @@ function UserActionsCell({ user, onUserUpdate }: { user: User; onUserUpdate: (up
 
     const isSelf = currentUser?.uid === user.uid;
 
+    const updateUserData = async (data: Partial<User>) => {
+        startTransition(async () => {
+            try {
+                const userRef = doc(db, 'users', user.uid);
+                await updateDoc(userRef, data);
+                onUserUpdate({ ...user, ...data });
+                toast({ title: "成功", description: `用户 ${user.name} 的信息已更新。` });
+            } catch (error) {
+                console.error("Failed to update user:", error);
+                toast({ title: "失败", description: "更新用户信息时发生错误。", variant: "destructive" });
+            }
+        });
+    };
+
     const handleChangeRole = (newRole: Role) => {
         if (isSelf) {
             toast({ title: "操作无效", description: "您不能更改自己的角色。", variant: "destructive" });
             return;
         }
-        startTransition(async () => {
-            try {
-                const userRef = doc(db, 'users', user.uid);
-                await updateDoc(userRef, { role: newRole });
-                onUserUpdate({ ...user, role: newRole });
-                toast({ title: "成功", description: `用户 ${user.name} 的角色已更新为 ${newRole}。` });
-            } catch (error) {
-                console.error("Failed to update role:", error);
-                toast({ title: "失败", description: "更新用户角色时发生错误。", variant: "destructive" });
-            }
-        });
+        updateUserData({ role: newRole });
+    };
+    
+    const handleSetRating = (newRating: number) => {
+        updateUserData({ rating: newRating });
     };
 
     return (
@@ -86,12 +105,22 @@ function UserActionsCell({ user, onUserUpdate }: { user: User; onUserUpdate: (up
                     <DropdownMenuPortal>
                         <DropdownMenuSubContent>
                             {(['admin', 'supplier', 'creator', 'user'] as Role[]).map(role => (
-                                <DropdownMenuItem 
-                                    key={role} 
-                                    onClick={() => handleChangeRole(role)}
-                                    disabled={user.role === role}
-                                >
+                                <DropdownMenuItem key={role} onClick={() => handleChangeRole(role)} disabled={user.role === role}>
                                     {role.charAt(0).toUpperCase() + role.slice(1)}
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuSubContent>
+                    </DropdownMenuPortal>
+                </DropdownMenuSub>
+                <DropdownMenuSub>
+                    <DropdownMenuSubTrigger disabled={isPending}>
+                        <Star className="mr-2" /> 评定星级...
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuPortal>
+                        <DropdownMenuSubContent>
+                           {Array.from({ length: 5 }).map((_, i) => (
+                                <DropdownMenuItem key={i} onClick={() => handleSetRating(i + 1)}>
+                                    <StarRating rating={i + 1}/>
                                 </DropdownMenuItem>
                             ))}
                         </DropdownMenuSubContent>
@@ -190,7 +219,7 @@ export default function PermissionsPage() {
                             </TableCell>
                             <TableCell className="text-muted-foreground">{user.email}</TableCell>
                             <TableCell><RoleBadge role={user.role} /></TableCell>
-                            <TableCell><StarRating rating={5}/></TableCell>
+                            <TableCell><StarRating rating={user.rating}/></TableCell>
                             <TableCell className="text-right">
                                 <UserActionsCell user={user} onUserUpdate={handleUserUpdate} />
                             </TableCell>
