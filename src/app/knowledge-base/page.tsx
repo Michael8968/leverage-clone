@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -7,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Database, Edit, Filter, PlusCircle, Search, Trash2, Loader2 } from 'lucide-react';
+import { Database, Edit, Filter, PlusCircle, Search, Trash2, Loader2, Library, FileCog, Server } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -19,10 +20,12 @@ import { format } from 'date-fns';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DataProcessor } from '@/components/features/data-processor';
 
 
 // =================================================================
@@ -111,10 +114,7 @@ function KnowledgeItemDialog({ item, open, onOpenChange, onSave }: {
     )
 }
 
-// =================================================================
-// MAIN PAGE COMPONENT
-// =================================================================
-export default function KnowledgeBasePage() {
+function KnowledgeBaseList() {
     const [knowledgeItems, setKnowledgeItems] = useState<ProductService[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -187,94 +187,83 @@ export default function KnowledgeBasePage() {
         fetchKnowledgeItems(); // Refresh list after save
     };
 
-    return (
-        <AppLayout>
-            <div className="p-4 md:p-8 space-y-8">
-                <header>
-                    <h1 className="text-2xl font-headline font-bold flex items-center gap-2">
-                        <Database />
-                        知识库管理系统
-                    </h1>
-                    <p className="text-muted-foreground">在此增、改、删知识条目。知识库支持标签化管理，并可由AI辅助进行维护，为智能匹配和智能搜索提供数据基础。</p>
-                </header>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="font-headline">知识条目列表</CardTitle>
-                        <CardDescription>管理所有产品、服务及相关知识。</CardDescription>
-                        <div className="flex items-center justify-between pt-4">
-                            <div className="flex items-center gap-2">
-                                <div className="relative">
-                                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                                    <Input placeholder="搜索条目名称或标签..." className="pl-8 w-64" />
-                                </div>
-                                <Button variant="outline" disabled>
-                                    <Filter className="mr-2 h-4 w-4" />
-                                    筛选
-                                </Button>
+     return (
+        <>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline">知识条目列表</CardTitle>
+                    <CardDescription>管理所有产品、服务及相关知识。</CardDescription>
+                    <div className="flex items-center justify-between pt-4">
+                        <div className="flex items-center gap-2">
+                            <div className="relative">
+                                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input placeholder="搜索条目名称或标签..." className="pl-8 w-64" />
                             </div>
-                            <Button onClick={handleAdd}>
-                                <PlusCircle className="mr-2" />
-                                新增条目
+                            <Button variant="outline" disabled>
+                                <Filter className="mr-2 h-4 w-4" />
+                                筛选
                             </Button>
                         </div>
-                    </CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>条目名称</TableHead>
-                                    <TableHead>类别</TableHead>
-                                    <TableHead>价格 (元)</TableHead>
-                                    <TableHead>创建/更新</TableHead>
-                                    <TableHead className="text-right">操作</TableHead>
+                        <Button onClick={handleAdd}>
+                            <PlusCircle className="mr-2" />
+                            新增条目
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>条目名称</TableHead>
+                                <TableHead>类别</TableHead>
+                                <TableHead>价格 (元)</TableHead>
+                                <TableHead>创建/更新</TableHead>
+                                <TableHead className="text-right">操作</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading ? (
+                                Array.from({ length: 5 }).map((_, i) => (
+                                    <TableRow key={i}>
+                                        <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                                        <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                                        <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                                        <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
+                                    </TableRow>
+                                ))
+                            ) : knowledgeItems.length === 0 ? (
+                                    <TableRow>
+                                    <TableCell colSpan={5} className="h-24 text-center">
+                                        知识库中暂无条目。
+                                    </TableCell>
                                 </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {isLoading ? (
-                                    Array.from({ length: 5 }).map((_, i) => (
-                                        <TableRow key={i}>
-                                            <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                                            <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                                            <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                                            <TableCell><Skeleton className="h-4 w-28" /></TableCell>
-                                            <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
-                                        </TableRow>
-                                    ))
-                                ) : knowledgeItems.length === 0 ? (
-                                     <TableRow>
-                                        <TableCell colSpan={5} className="h-24 text-center">
-                                            知识库中暂无条目。
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    knowledgeItems.map((item) => (
-                                    <TableRow key={item.id}>
-                                        <TableCell className="font-medium">{item.name}</TableCell>
-                                        <TableCell>
-                                            <Badge variant="secondary">{item.category}</Badge>
-                                        </TableCell>
-                                        <TableCell>{item.price.toLocaleString()}</TableCell>
-                                        <TableCell>{item.createdAt ? format(item.createdAt, 'yyyy-MM-dd') : 'N/A'}</TableCell>
-                                        <TableCell className="text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(item)}>
-                                                    <Edit className="h-4 w-4" />
-                                                </Button>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(item)}>
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                )))}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
-            </div>
-            
-            <KnowledgeItemDialog
+                            ) : (
+                                knowledgeItems.map((item) => (
+                                <TableRow key={item.id}>
+                                    <TableCell className="font-medium">{item.name}</TableCell>
+                                    <TableCell>
+                                        <Badge variant="secondary">{item.category}</Badge>
+                                    </TableCell>
+                                    <TableCell>{item.price.toLocaleString()}</TableCell>
+                                    <TableCell>{item.createdAt ? format(item.createdAt, 'yyyy-MM-dd') : 'N/A'}</TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="flex items-center justify-end gap-2">
+                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(item)}>
+                                                <Edit className="h-4 w-4" />
+                                            </Button>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(item)}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            )))}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+             <KnowledgeItemDialog
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
                 onSave={handleSave}
@@ -295,6 +284,49 @@ export default function KnowledgeBasePage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+        </>
+    );
+}
+
+// =================================================================
+// MAIN PAGE COMPONENT
+// =================================================================
+export default function KnowledgeBasePage() {
+    return (
+        <AppLayout>
+            <div className="p-4 md:p-8 space-y-8">
+                <header>
+                    <h1 className="text-2xl font-headline font-bold flex items-center gap-2">
+                        <Database />
+                        知识库管理系统
+                    </h1>
+                    <p className="text-muted-foreground">在此增、改、删知识条目。知识库支持标签化管理，并可由AI辅助进行维护，为智能浏览和检索引擎提供数据基础。</p>
+                </header>
+                 <Tabs defaultValue="list" className="w-full">
+                    <TabsList className="grid w-full grid-cols-3 max-w-xl">
+                        <TabsTrigger value="list"><Library className="mr-2"/>知识条目列表</TabsTrigger>
+                        <TabsTrigger value="batch"><FileCog className="mr-2"/>批量导入</TabsTrigger>
+                        <TabsTrigger value="external"><Server className="mr-2"/>对接外部知识库</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="list" className="mt-6">
+                        <KnowledgeBaseList />
+                    </TabsContent>
+                    <TabsContent value="batch" className="mt-6">
+                        <DataProcessor destination="products" />
+                    </TabsContent>
+                    <TabsContent value="external" className="mt-6">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="font-headline">对接外部知识库</CardTitle>
+                                <CardDescription>连接到外部API或数据库，实现知识的自动同步和更新。</CardDescription>
+                            </CardHeader>
+                            <CardContent className="h-40 flex items-center justify-center text-muted-foreground">
+                                <p>此功能正在开发中...</p>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                </Tabs>
+            </div>
         </AppLayout>
     );
 }
