@@ -100,15 +100,17 @@ function CompanyInfoForm() {
     try {
       const supplierDocRef = doc(db, 'suppliers', user.uid);
       
-      const dataToSave: Partial<Supplier> = {
+      const dataToSave: Partial<Supplier> & { establishedDate?: any } = {
         ...values,
         id: user.uid,
         email: user.email, // ensure email is saved from auth state
         supplementaryFields: supplementaryFields,
       };
 
-      if(dataToSave.establishedDate) {
-          dataToSave.establishedDate = Timestamp.fromDate(dataToSave.establishedDate as Date);
+      if (dataToSave.establishedDate && dataToSave.establishedDate instanceof Date) {
+          dataToSave.establishedDate = Timestamp.fromDate(dataToSave.establishedDate);
+      } else {
+          dataToSave.establishedDate = null;
       }
       
       // Sanitize optional fields to be null instead of undefined
