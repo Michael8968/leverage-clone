@@ -110,6 +110,11 @@ function CompanyInfoForm() {
       if(dataToSave.establishedDate) {
           dataToSave.establishedDate = Timestamp.fromDate(dataToSave.establishedDate as Date);
       }
+      
+      // Sanitize optional fields to be null instead of undefined
+      dataToSave.registeredCapital = dataToSave.registeredCapital || null;
+      dataToSave.creditCode = dataToSave.creditCode || null;
+
 
       await setDoc(supplierDocRef, dataToSave, { merge: true });
       toast({ title: "保存成功", description: "您的公司信息已更新。" });
