@@ -9,19 +9,24 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { RadioTower, Users } from 'lucide-react';
+import { RadioTower, Users, MessageSquare } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import type { User } from '@/store/auth';
+import { useAuthStore, type User } from '@/store/auth';
+import { ChatDialog } from '@/components/features/chat-dialog';
+import type { Demand } from '@/lib/types';
 
 
 export default function DesignersPage() {
   const [creators, setCreators] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isChatDialogOpen, setIsChatDialogOpen] = useState(false);
+  const [selectedDemandForChat, setSelectedDemandForChat] = useState<Demand | null>(null);
   const { toast } = useToast();
   const router = useRouter();
+  const { user } = useAuthStore();
 
   useEffect(() => {
     async function fetchCreators() {
@@ -45,6 +50,50 @@ export default function DesignersPage() {
     }
     fetchCreators();
   }, [toast]);
+  
+  const handleStartChat = async (creator: User) => {
+    if (!user) {
+      toast({ title: "请先登录", description: "您需要登录后才能与创意师交流。", variant: "destructive" });
+      router.push('/login');
+      return;
+    }
+    if (user.uid === creator.uid) {
+        toast({ title: "操作无效", description: "您不能与自己发起对话。", variant: "destructive"});
+        return;
+    }
+
+    try {
+        // Create a new demand to act as the context for this chat
+        const newDemandData = {
+            title: `与创意师 ${creator.name} 的直接沟通`,
+            description: `由用户 ${user.name} 主动发起的与创意师 ${creator.name} 的一对一沟通。`,
+            budget: 0,
+            category: '直接沟通',
+            status: '进行中',
+            requesterId: user.uid,
+            requesterName: user.name,
+            requesterAvatar: user.avatar,
+            creatorId: creator.uid,
+            createdAt: serverTimestamp(),
+        };
+
+        const docRef = await addDoc(collection(db, "demands"), newDemandData);
+        
+        const demandForChat: Demand = {
+            ...newDemandData,
+            id: docRef.id,
+            createdAt: new Date(),
+        };
+
+        setSelectedDemandForChat(demandForChat);
+        setIsChatDialogOpen(true);
+
+    } catch (error) {
+        console.error("Error creating direct chat demand:", error);
+        toast({ title: '发起对话失败', description: '无法创建沟通频道，请稍后重试。', variant: 'destructive'});
+    }
+  };
+
 
   return (
     <AppLayout>
@@ -69,21 +118,13 @@ export default function DesignersPage() {
             {creators.map(creator => (
               <Card key={creator.uid} className="text-center flex flex-col">
                 <CardHeader className="items-center">
-                  <div className="relative">
-                    <Image
-                      src={creator.avatar}
-                      alt={creator.name}
-                      width={80}
-                      height={80}
-                      className="rounded-full"
-                    />
-                    {creator.status === 'active' && (
-                        <Badge variant="default" className="absolute bottom-0 right-0 gap-1 pr-1.5 pl-1 bg-green-500 hover:bg-green-600">
-                            <RadioTower className="w-3 h-3 animate-pulse" />
-                            在线
-                        </Badge>
-                    )}
-                  </div>
+                  <Image
+                    src={creator.avatar}
+                    alt={creator.name}
+                    width={80}
+                    height={80}
+                    className="rounded-full"
+                  />
                 </CardHeader>
                 <CardContent className="space-y-2 flex-1">
                   <CardTitle className="font-headline text-xl">{creator.name}</CardTitle>
@@ -94,14 +135,35 @@ export default function DesignersPage() {
                     ))}
                   </div>
                 </CardContent>
-                <div className="p-6 pt-2">
-                    <Button className="w-full" disabled={creator.status !== 'active'}>立即预约</Button>
+                <div className="p-4 pt-2 grid grid-cols-2 gap-2">
+                    <Button 
+                        onClick={() => handleStartChat(creator)}
+                        disabled={creator.status !== 'active'}
+                    >
+                        <MessageSquare className="mr-2 h-4 w-4"/>
+                        立即交流
+                    </Button>
+                    <Button variant="outline">
+                        立即预约
+                    </Button>
                 </div>
               </Card>
             ))}
           </div>
         )}
       </div>
+
+       {selectedDemandForChat && user && (
+            <ChatDialog
+                open={isChatDialogOpen}
+                onOpenChange={(isOpen) => {
+                    if (!isOpen) setSelectedDemandForChat(null);
+                    setIsChatDialogOpen(isOpen);
+                }}
+                demand={selectedDemandForChat}
+                currentUser={user}
+            />
+        )}
     </AppLayout>
   );
 }
