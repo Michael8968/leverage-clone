@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -9,12 +10,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { PlusCircle, Trash2, Loader2, Building, Package, Upload, FileCog, Frown } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Building, Package, Upload, FileCog, Frown, ImagePlus, GripVertical, ChevronDown, ChevronUp } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { DataProcessor } from '@/components/features/data-processor';
 import { useAuthStore } from '@/store/auth';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -23,6 +24,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useRouter } from 'next/navigation';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import Image from 'next/image';
 
 // =================================================================
 // Form Schema for Company Info
@@ -140,7 +143,6 @@ function CompanyInfoForm() {
 // =================================================================
 // PRODUCT MANAGEMENT TAB
 // =================================================================
-// Note: This component is also fully functional now.
 function ProductManagement() {
     const [products, setProducts] = useState<ProductService[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -165,13 +167,23 @@ function ProductManagement() {
 
     const addProduct = async () => {
         if (!user) return;
-        const newProductData = {
-            name: '新产品 - ' + new Date().toLocaleTimeString(), description: '请填写详细描述', price: 99, category: '待分类',
-            supplierId: user.uid, supplierName: user.name, createdAt: serverTimestamp(),
+        const newProductData: Partial<ProductService> = {
+            name: '新产品/服务 - ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
+            description: '请填写详细描述', 
+            price: 99, 
+            category: '待分类',
+            supplierId: user.uid, 
+            supplierName: user.name, 
+            createdAt: new Date(),
+            imageUrls: [],
+            details: [],
         };
         try {
-            const docRef = await addDoc(collection(db, 'products'), newProductData);
-            setProducts(prev => [{ ...newProductData, id: docRef.id, createdAt: new Date() } as unknown as ProductService, ...prev]);
+            const docRef = await addDoc(collection(db, 'products'), {
+                ...newProductData,
+                createdAt: serverTimestamp() // Use server-side timestamp for writing
+            });
+            setProducts(prev => [{ ...newProductData, id: docRef.id } as ProductService, ...prev]);
             toast({ title: "成功", description: "新产品已添加，请继续编辑。" });
         } catch (error) {
             toast({ title: "错误", description: "添加新产品失败。", variant: "destructive" });
@@ -206,12 +218,9 @@ function ProductManagement() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {isLoading ? <div className="space-y-4"><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></div>
-            : products.length > 0 ? products.map((product, index) => (
-                <div key={product.id}>
-                  <ProductServiceItem product={product} onUpdate={updateProduct} onRemove={removeProduct} />
-                  {index < products.length - 1 && <Separator className="my-6" />}
-                </div>
+            {isLoading ? <div className="space-y-4"><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /></div>
+            : products.length > 0 ? products.map((product) => (
+                <ProductServiceItem key={product.id} product={product} onUpdate={updateProduct} onRemove={removeProduct} />
               ))
             : <div className="text-center text-muted-foreground py-8">暂无产品，请点击右上角按钮添加。</div>}
           </CardContent>
@@ -222,6 +231,7 @@ function ProductManagement() {
 function ProductServiceItem({ product, onUpdate, onRemove }: { product: ProductService; onUpdate: (id: string, data: Partial<ProductService>) => void; onRemove: (id: string) => void; }) {
   const [isSaving, setIsSaving] = useState(false);
   const [localProduct, setLocalProduct] = useState(product);
+  const [isOpen, setIsOpen] = useState(false);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const triggerUpdate = useCallback((updatedData: Partial<ProductService>) => {
@@ -230,31 +240,135 @@ function ProductServiceItem({ product, onUpdate, onRemove }: { product: ProductS
     debounceTimeoutRef.current = setTimeout(() => {
         onUpdate(product.id, updatedData);
         setIsSaving(false);
-    }, 1000);
+    }, 1200);
   }, [onUpdate, product.id]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    const updatedValue = name === 'price' ? parseFloat(value) || 0 : value;
-    setLocalProduct(prev => ({ ...prev, [name]: updatedValue }));
-    triggerUpdate({ [name]: updatedValue });
+  const handleFieldChange = (field: keyof ProductService, value: any) => {
+      setLocalProduct(prev => ({...prev, [field]: value}));
+      triggerUpdate({ [field]: value });
   };
   
   useEffect(() => { setLocalProduct(product); }, [product]);
+  
+  const handleImageUrlsChange = (newUrls: string[]) => {
+      handleFieldChange('imageUrls', newUrls);
+  }
+  
+  const handleDetailsChange = (newDetails: SupplementaryField[]) => {
+      handleFieldChange('details', newDetails);
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Input name="name" placeholder="产品名称" value={localProduct.name} onChange={handleChange} />
-        <Input name="price" type="number" placeholder="价格" value={localProduct.price} onChange={handleChange} />
-      </div>
-      <Textarea name="description" placeholder="产品描述" value={localProduct.description} onChange={handleChange} />
-      <div className="flex justify-end items-center gap-4">
-        {isSaving && <Loader2 className="animate-spin text-muted-foreground" />}
-        <Button variant="destructive" size="sm" onClick={() => onRemove(product.id)}><Trash2 className="mr-2 h-4 w-4" />删除</Button>
-      </div>
-    </div>
+    <Card className="overflow-hidden">
+        <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+            <div className="p-4 bg-muted/30">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                         <CollapsibleTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <GripVertical className="h-4 w-4" />
+                                <span className="sr-only">Toggle</span>
+                            </Button>
+                        </CollapsibleTrigger>
+                        <Input 
+                            value={localProduct.name}
+                            onChange={(e) => handleFieldChange('name', e.target.value)}
+                            className="text-base font-semibold border-0 bg-transparent focus-visible:ring-1"
+                        />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {isSaving && <Loader2 className="animate-spin text-muted-foreground" />}
+                         <Button variant="ghost" size="sm" onClick={() => setIsOpen(!isOpen)}>
+                            {isOpen ? '收起' : '展开'}
+                            {isOpen ? <ChevronUp className="h-4 w-4 ml-2" /> : <ChevronDown className="h-4 w-4 ml-2" />}
+                        </Button>
+                        <Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => onRemove(product.id)}><Trash2 className="h-4 w-4" /></Button>
+                    </div>
+                </div>
+            </div>
+            <CollapsibleContent>
+                <div className="p-6 space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <FormItem>
+                            <FormLabel>价格 (元)</FormLabel>
+                            <Input name="price" type="number" placeholder="99.00" value={localProduct.price} onChange={(e) => handleFieldChange('price', parseFloat(e.target.value) || 0)} />
+                        </FormItem>
+                        <FormItem>
+                            <FormLabel>类别</FormLabel>
+                            <Input name="category" placeholder="产品类别" value={localProduct.category} onChange={(e) => handleFieldChange('category', e.target.value)} />
+                        </FormItem>
+                         <FormItem>
+                            <FormLabel>主图URL</FormLabel>
+                            <Input name="imageUrl" placeholder="主图链接" value={localProduct.imageUrl || ''} onChange={(e) => handleFieldChange('imageUrl', e.target.value)} />
+                        </FormItem>
+                    </div>
+                     <FormItem>
+                        <FormLabel>产品/服务描述</FormLabel>
+                        <Textarea name="description" placeholder="详细描述您的产品或服务..." value={localProduct.description} onChange={(e) => handleFieldChange('description', e.target.value)} rows={3} />
+                    </FormItem>
+                    
+                    <Separator />
+
+                    <ImageManager urls={localProduct.imageUrls || []} onUrlsChange={handleImageUrlsChange} />
+
+                    <Separator />
+                    
+                    <SupplementaryFieldsManager fields={localProduct.details || []} onFieldsChange={handleDetailsChange} title="详细设计/规格表"/>
+                </div>
+            </CollapsibleContent>
+        </Collapsible>
+    </Card>
   );
+}
+
+function ImageManager({ urls, onUrlsChange }: { urls: string[], onUrlsChange: (urls: string[]) => void }) {
+    const addImageUrl = () => {
+        onUrlsChange([...urls, '']);
+    };
+
+    const updateImageUrl = (index: number, value: string) => {
+        const newUrls = [...urls];
+        newUrls[index] = value;
+        onUrlsChange(newUrls);
+    };
+
+    const removeImageUrl = (index: number) => {
+        onUrlsChange(urls.filter((_, i) => i !== index));
+    };
+    
+    return (
+        <div className="space-y-4">
+            <h4 className="font-semibold">产品图片集</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {urls.map((url, index) => (
+                    <Card key={index} className="group relative">
+                        <CardContent className="p-2 aspect-video flex items-center justify-center bg-muted/50">
+                            {url ? (
+                                <Image src={url} alt={`Product image ${index + 1}`} width={160} height={90} className="object-contain rounded-md" onError={(e) => e.currentTarget.style.display = 'none'}/>
+                            ) : (
+                                <ImagePlus className="w-8 h-8 text-muted-foreground" />
+                            )}
+                        </CardContent>
+                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                             <Button variant="destructive" size="icon" onClick={() => removeImageUrl(index)}>
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
+                        <Input 
+                            value={url}
+                            onChange={(e) => updateImageUrl(index, e.target.value)}
+                            placeholder="输入图片URL..."
+                            className="mt-2"
+                        />
+                    </Card>
+                ))}
+                 <Button variant="outline" onClick={addImageUrl} className="aspect-video flex-col h-auto">
+                    <ImagePlus className="w-8 h-8 text-muted-foreground mb-2" />
+                    添加图片
+                </Button>
+            </div>
+        </div>
+    );
 }
 
 // =================================================================

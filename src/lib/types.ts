@@ -36,11 +36,13 @@ export type ProductService = {
   supplierScore?: number;
   purchaseUrl?: string;
   sku?: string;
-  supplementaryFields?: SupplementaryField[];
+  supplementaryFields?: SupplementaryField[]; // Legacy, for general supplier info
+  details?: SupplementaryField[]; // New, for product-specific specifications
   creatorId?: string;
   createdAt?: Date; // Firestore Timestamps will be converted to Date objects
   status?: '审核中' | '已入库' | '需要修改';
-  imageUrl?: string;
+  imageUrl?: string; // Main image
+  imageUrls?: string[]; // New, for multiple product images
 };
 
 export type Supplier = {
