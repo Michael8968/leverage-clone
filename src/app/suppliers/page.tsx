@@ -81,7 +81,6 @@ function CompanyInfoForm() {
         if (docSnap.exists()) {
           const supplierData = docSnap.data() as Supplier;
           
-          // Sanitize null values to empty strings for form compatibility
           const sanitizedData: { [key: string]: any } = {};
           for (const key in supplierData) {
               sanitizedData[key] = (supplierData as any)[key] === null ? '' : (supplierData as any)[key];
@@ -111,12 +110,12 @@ function CompanyInfoForm() {
       const dataToSave: Partial<Supplier> = {
         ...values,
         id: user.uid,
-        email: user.email, // ensure email is saved from auth state
+        email: user.email,
         supplementaryFields: supplementaryFields,
       };
 
-      if ((dataToSave as any).establishedDate) {
-          (dataToSave as any).establishedDate = Timestamp.fromDate((dataToSave as any).establishedDate);
+      if (values.establishedDate) {
+          (dataToSave as any).establishedDate = Timestamp.fromDate(values.establishedDate);
       } else {
           dataToSave.establishedDate = null;
       }
