@@ -105,7 +105,7 @@ function ScenarioEditDialog({
     const [targetUserRoles, setTargetUserRoles] = useState<TargetUserRoles>({});
     const [ruleLogic, setRuleLogic] = useState<RuleLogic>('and');
 
-    const form = useForm({
+    const form = useForm<z.infer<typeof scenarioCreationSchema>>({
         resolver: zodResolver(scenarioCreationSchema),
         defaultValues: { id: '', name: '', description: '', tags: '' },
     });
@@ -237,8 +237,21 @@ function ScenarioEditDialog({
         );
     };
 
+    const handleSystemTagClick = (tag: string) => {
+        const currentTags = form.getValues('tags') || '';
+        const tagsArray = currentTags.split(/,|，|\s+/).filter(Boolean);
+        if (!tagsArray.includes(tag)) {
+            form.setValue('tags', [...tagsArray, tag].join(', '), { shouldValidate: true, shouldDirty: true });
+        }
+    };
+
     const dialogTitle = isCreating ? '新增功能场景' : `编辑场景: ${scenario?.name}`;
     const dialogDescription = isCreating ? '定义一个新的AI业务场景及其默认配置。' : scenario?.description;
+    
+    const systemTags = [
+        { tag: 'shopping', description: 'AI购物助手' },
+        { tag: 'chat', description: '聊天AI助理' }
+    ];
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -263,9 +276,15 @@ function ScenarioEditDialog({
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>标签 (用逗号或空格分隔)</FormLabel>
+                                             <div className="flex items-center gap-2 mb-2">
+                                                <span className="text-xs text-muted-foreground">快捷标签:</span>
+                                                {systemTags.map(st => (
+                                                    <Badge key={st.tag} variant="outline" className="cursor-pointer" onClick={() => handleSystemTagClick(st.tag)}>{st.tag}</Badge>
+                                                ))}
+                                            </div>
                                             <FormControl><Input placeholder="e.g., shopping, chat" {...field} /></FormControl>
                                             <FormDescription className="text-xs">
-                                                <span>特殊系统标签: `chat` (用于聊天助理), `shopping` (用于AI购物助手)。</span>
+                                                特殊系统标签会关联特定功能，如 `shopping` 会显示在AI购物助手中。
                                             </FormDescription>
                                             <FormMessage />
                                         </FormItem>
@@ -283,9 +302,15 @@ function ScenarioEditDialog({
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>标签 (用逗号或空格分隔)</FormLabel>
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <span className="text-xs text-muted-foreground">快捷标签:</span>
+                                                {systemTags.map(st => (
+                                                    <Badge key={st.tag} variant="outline" className="cursor-pointer" onClick={() => handleSystemTagClick(st.tag)}>{st.tag}</Badge>
+                                                ))}
+                                            </div>
                                             <FormControl><Input placeholder="e.g., shopping, chat" {...field} /></FormControl>
                                             <FormDescription className="text-xs">
-                                                <span>特殊系统标签: `chat` (用于聊天助理), `shopping` (用于AI购物助手)。</span>
+                                                特殊系统标签会关联特定功能，如 `shopping` 会显示在AI购物助手中。
                                             </FormDescription>
                                             <FormMessage />
                                         </FormItem>
