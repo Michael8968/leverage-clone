@@ -90,5 +90,70 @@ export interface LlmConnection {
     priority: number;
     status: '活跃' | '已禁用';
     scope?: '通用' | '专属';
-    category?: '文本' | '图像';
+    category?: '文本' | '图像' | '推理' | '多模态';
+}
+
+export interface LlmProvider {
+  providerName: string;
+  models: string[];
+}
+
+export interface Prompt {
+    id: string;
+    name: string;
+    promptKey: string;
+    description: string;
+    content: string;
+    scope: '通用' | '专属';
+    status: '生效中' | '已停用';
+    ownerId?: string;
+    ownerType?: 'platform' | 'creator';
+    modelId?: string;
+    priority?: number;
+    querySources?: QuerySources;
+    sourceTemperatures?: SourceTemperatures;
+}
+
+export type QuerySources = {
+    suppliers: boolean;
+    knowledgeBase: boolean;
+    publicResources: boolean;
+};
+
+export type SourceTemperatures = {
+    suppliers: number;
+    knowledgeBase: number;
+    publicResources: number;
+};
+
+export type AIScenarioRules = {
+  repetition?: 'none' | 'daily' | 'weekly';
+  daysOfWeek?: ('mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun')[];
+  startTime?: string; // HH:mm format
+  endTime?: string; // HH:mm format
+  startsAt?: any; // Firestore Timestamp
+  expiresAt?: any; // Firestore Timestamp
+  targetUserRoles?: { [key in 'admin' | 'creator' | 'supplier' | 'user']?: number[] };
+  ruleLogic?: 'and' | 'or';
+};
+
+
+export type AIScenario = {
+  id: string;
+  name: string;
+  description: string;
+  promptKey: string;
+  rules: AIScenarioRules;
+};
+
+export type MediaAsset = {
+  id: string;
+  userId: string;
+  storagePath: string;
+  publicUrl: string;
+  mediaType: 'image' | 'video' | 'audio' | 'file';
+  mimeType: string;
+  status: 'uploading' | 'processing' | 'ready' | 'error';
+  createdAt: any; // Firestore Timestamp
+  analysis?: string; // Result from AI analysis
 }
