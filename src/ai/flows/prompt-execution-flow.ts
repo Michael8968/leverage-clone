@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { ai } from '@/ai/genkit';
@@ -130,6 +131,50 @@ async function findAvailableModels(promptDoc?: Prompt, allConnections?: LlmConne
     return activeConnections;
 }
 
+// =================================================================
+// (NEW) API Adapter Layer
+// =================================================================
+function getApiConfig(model: LlmConnection, messages: z.infer<typeof PromptMessageSchema>[], temperature?: number) {
+    const provider = model.provider.toLowerCase();
+
+    // Default to Google's format
+    let url = `https://generativelanguage.googleapis.com/v1beta/models/${model.modelName}:generateContent`;
+    let headers: Record<string, string> = { 'Content-Type': 'application/json', 'x-goog-api-key': model.apiKey };
+    let body: Record<string, any> = {
+        contents: messages.map(msg => ({
+            role: msg.role === 'assistant' ? 'model' : msg.role,
+            parts: [{ text: msg.content }]
+        })),
+        generationConfig: { temperature }
+    };
+    
+    // Switch for OpenAI and other potential providers
+    if (provider.includes('openai')) {
+        url = 'https://api.openai.com/v1/chat/completions';
+        headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${model.apiKey}` };
+        body = {
+            model: model.modelName,
+            messages: messages,
+            temperature,
+        };
+    }
+    // Add other providers like Anthropic, etc. here in the future
+    // else if (provider.includes('anthropic')) { ... }
+
+    return { url, method: 'POST', headers, body };
+}
+
+function parseApiResponse(provider: string, response: any) {
+    const lowerProvider = provider.toLowerCase();
+
+    if (lowerProvider.includes('openai')) {
+        return response.choices?.[0]?.message?.content || '';
+    }
+    
+    // Default to Google's response format
+    return response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+}
+
 
 // =================================================================
 // Core Flow: executePrompt (Upgraded with Advanced Rule Validation & Context Injection)
@@ -229,24 +274,12 @@ const executePromptFlow = ai.defineFlow(
         try {
             console.log(`[Flow] Attempting to call model: ${model.provider} - ${model.modelName}`);
             
-            // This is a proxy call to a generic API route that will then make the actual call
+            const apiConfig = getApiConfig(model, finalMessages, temperature);
+
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/generate`, {
                  method: 'POST',
                  headers: { 'Content-Type': 'application/json' },
-                 body: JSON.stringify({
-                     url: `https://generativelanguage.googleapis.com/v1beta/models/${model.modelName}:generateContent`,
-                     method: 'POST',
-                     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': model.apiKey },
-                     body: {
-                         contents: finalMessages.map(msg => ({
-                             role: msg.role === 'assistant' ? 'model' : msg.role,
-                             parts: [{ text: msg.content }]
-                         })),
-                         generationConfig: {
-                             temperature: temperature,
-                         }
-                     }
-                 })
+                 body: JSON.stringify(apiConfig)
             });
 
             if (!response.ok) {
@@ -255,7 +288,11 @@ const executePromptFlow = ai.defineFlow(
             }
 
             const result = await response.json();
-            const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            const textResponse = parseApiResponse(model.provider, result);
+
+            if (!textResponse) {
+                throw new Error('Model returned an empty response.');
+            }
 
             return { text: textResponse };
 
@@ -269,5 +306,4 @@ const executePromptFlow = ai.defineFlow(
     throw new Error(`All available LLM models failed to respond.`);
   }
 );
-
     
