@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useRef, useEffect, useTransition } from 'react';
@@ -12,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormMessage, FormLabel } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Paperclip, Send, X, Bot, User, BrainCircuit, Sparkles, Building, Loader2, FilePlus2, ExternalLink, Workflow, Puzzle } from 'lucide-react';
+import { Paperclip, Send, X, Bot, User, BrainCircuit, Sparkles, Building, Loader2, FilePlus2, ExternalLink, Workflow, Puzzle, Users } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -287,7 +288,7 @@ const AIMessage = ({ profile, recommendations, text, isRawText }: Message) => (
 const LoadingMessage = () => (
     <div className="flex items-start gap-3"><Bot className="w-8 h-8 text-accent" /><div className="bg-card rounded-lg p-3 max-w-sm border w-full"><div className="space-y-3"><p className='text-sm font-semibold text-muted-foreground'>AI 正在分析您的需求，请稍候...</p><Skeleton className="h-16 w-full" /><Skeleton className="h-24 w-full" /></div></div></div>
 );
-const CustomServiceConnector = () => { const router = useRouter(); return (<Card><CardHeader><CardTitle className="font-headline flex items-center gap-2"><Building/> 高端定制服务</CardTitle><CardDescription>将您的构想变为现实，寻找能为您提供专属设计服务的供应商。</CardDescription></CardHeader><CardContent><Button className="w-full" variant="accent" onClick={() => router.push('/suppliers')}>寻找供应商 →</Button></CardContent></Card>); };
+const CustomServiceConnector = () => { const router = useRouter(); return (<Card><CardHeader><CardTitle className="font-headline flex items-center gap-2"><Users/> 寻找创意师</CardTitle><CardDescription>浏览平台上的创意人才，查看他们的作品集和专长。</CardDescription></CardHeader><CardContent><Button className="w-full" variant="accent" onClick={() => router.push('/designers')}>寻找创意师 →</Button></CardContent></Card>); };
 const DemandPoolConnector = () => { const router = useRouter(); return (<Card className="bg-accent/10 border-accent"><CardHeader><CardTitle className="font-headline flex items-center gap-2"><FilePlus2/> 没找到满意的？</CardTitle><CardDescription>您可以将您的需求发布到需求池，让更多的供应商和创意者来帮助您。</CardDescription></CardHeader><CardContent><Button className="w-full" onClick={() => router.push('/demand-pool')}>发布到需求池</Button></CardContent></Card>); };
 const UserProfileDisplay = ({ profile }: { profile: UserProfile }) => ( <Card className="bg-background"><CardHeader className="p-3"><CardTitle className="text-base font-semibold flex items-center gap-2"><BrainCircuit className="w-5 h-5 text-accent"/> 用户画像分析</CardTitle></CardHeader><CardContent className="p-3 pt-0"><p className="text-sm text-muted-foreground mb-2">{profile.summary}</p><div className="flex flex-wrap gap-1">{profile.tags.map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}</div></CardContent></Card> );
 const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductService[] }) => ( <div><h4 className="font-semibold mb-2 flex items-center gap-2"><Sparkles className="w-5 h-5 text-amber-500" /> 首要推荐</h4><div className="space-y-3">{recommendations.map((rec) => ( <Card key={rec.id} className="overflow-hidden"><div className="aspect-video relative w-full"><Image src={rec.imageUrl || `https://picsum.photos/seed/${rec.id}/300/200`} alt={rec.name} fill style={{objectFit: "cover"}}/></div><div className="p-3"><div className='flex justify-between items-start gap-2'><div><h5 className="font-semibold truncate pr-2">{rec.name}</h5>{rec.supplierName && <p className="text-xs text-muted-foreground">由 {rec.supplierName} 提供</p>}</div><p className="font-bold text-right text-primary whitespace-nowrap">¥{rec.price.toLocaleString()}</p></div></div>
