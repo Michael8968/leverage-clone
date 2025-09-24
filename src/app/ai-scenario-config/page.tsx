@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -8,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Puzzle, Edit, Workflow, Loader2, Frown, Users, Clock, Settings2, Calendar as CalendarIcon, Repeat, Info, Star, PlusCircle, ShoppingBag } from 'lucide-react';
+import { Puzzle, Edit, Workflow, Loader2, Frown, Users, Clock, Settings2, Calendar as CalendarIcon, Repeat, Info, Star, PlusCircle, ShoppingBag, BrainCircuit } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore, type Role } from '@/store/auth';
 import { useRouter } from 'next/navigation';
@@ -29,6 +30,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import type { AIScenario } from '@/lib/types';
+import { useForm } from 'react-hook-form';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import * as z from 'zod';
 
@@ -158,7 +160,7 @@ function ScenarioEditDialog({
             const dataToSave: Omit<Partial<FullScenario>, 'id'> = {
                 name: values.name,
                 description: values.description,
-                tags: values.tags?.split(',').map(t => t.trim()).filter(Boolean),
+                tags: values.tags?.split(',').map(t => t.trim().toLowerCase()).filter(Boolean),
                 configuredPromptKey: selectedPromptKey === 'default' ? '' : selectedPromptKey,
                 targetUserRoles,
                 ruleLogic: ruleLogic,
@@ -257,7 +259,7 @@ function ScenarioEditDialog({
                                      <FormLabel>标签 (用逗号分隔)</FormLabel>
                                      <FormControl><Input placeholder="e.g., shopping, chat" {...field} /></FormControl>
                                      <FormDescription className="text-xs">
-                                        特殊系统标签：<Badge variant="outline" className="text-xs">shopping</Badge> (用于AI购物助手), <Badge variant="outline" className="text-xs">chat</Badge> (用于聊天助理)。
+                                        特殊系统标签：<Badge variant="outline" className="text-xs">chat</Badge> (用于聊天助理), <Badge variant="outline" className="text-xs">shopping</Badge> (用于AI购物助手)。
                                      </FormDescription>
                                      <FormMessage />
                                  </FormItem>)}/>
@@ -523,7 +525,7 @@ export default function AIScenarioConfigPage() {
             <div className="p-4 md:p-8 space-y-8">
                 <header>
                 <h1 className="text-2xl font-headline font-bold flex items-center gap-2">
-                    <Puzzle />
+                    <BrainCircuit />
                     AI 场景配置
                 </h1>
                 <p className="text-muted-foreground">为平台中不同的AI功能场景，配置默认使用的提示词（Prompt），并可选择性地增加时间或用户限制。</p>
