@@ -132,61 +132,7 @@ async function findAvailableModels(promptDoc?: Prompt, allConnections?: LlmConne
 }
 
 // =================================================================
-// API Adapter Layer
-// =================================================================
-function getApiConfig(model: LlmConnection, messages: z.infer<typeof PromptMessageSchema>[], temperature?: number) {
-    const provider = model.provider.toLowerCase();
-
-    // Default to Google's format
-    let url = `https://generativelanguage.googleapis.com/v1beta/models/${model.modelName}:generateContent?key=${model.apiKey}`;
-    let headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    let body: Record<string, any> = {
-        contents: messages.map(msg => ({
-            role: msg.role === 'assistant' ? 'model' : msg.role,
-            parts: [{ text: msg.content }]
-        })),
-        generationConfig: { temperature }
-    };
-    
-    // Switch for OpenAI and other potential providers
-    if (provider.includes('openai')) {
-        url = 'https://api.openai.com/v1/chat/completions';
-        headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${model.apiKey}` };
-        body = {
-            model: model.modelName,
-            messages: messages,
-            temperature,
-        };
-    }
-    // Add other providers like Anthropic, etc. here in the future
-    // else if (provider.includes('anthropic')) { ... }
-
-    return { url, method: 'POST', headers, body: JSON.stringify(body) };
-}
-
-function parseApiResponse(provider: string, response: any) {
-    const lowerProvider = provider.toLowerCase();
-
-    if (lowerProvider.includes('openai')) {
-        return response.choices?.[0]?.message?.content || '';
-    }
-    
-    // Default to Google's response format
-    if (response.candidates?.[0]?.content?.parts?.[0]?.text) {
-        return response.candidates[0].content.parts[0].text;
-    }
-
-    // Handle potential errors from Google API
-    if (response.error) {
-         throw new Error(`Google API Error: ${response.error.message}`);
-    }
-
-    return '';
-}
-
-
-// =================================================================
-// Core Flow: executePrompt (Upgraded with Advanced Rule Validation & Context Injection)
+// Core Flow: executePrompt (Upgraded with LiteLLM Integration)
 // =================================================================
 export async function executePrompt(input: z.infer<typeof PromptExecutionInputSchema>): Promise<z.infer<typeof PromptExecutionOutputSchema>> {
   return executePromptFlow(input);
@@ -204,6 +150,7 @@ const executePromptFlow = ai.defineFlow(
     let finalPromptKey = promptKey;
     let systemPromptContent: string | undefined;
     let promptDocument: Prompt | null = null;
+    let targetModelIdentifier: string | undefined; // This will hold the LiteLLM-compatible model string
 
     // 1. SCENARIO LOOKUP (HIGHEST PRIORITY)
     if (scenario) {
@@ -213,38 +160,50 @@ const executePromptFlow = ai.defineFlow(
         if (scenarioSnap.exists()) {
             const scenarioData = scenarioSnap.data() as AIScenario;
             if (await isRuleSetValid(scenarioData, userId)) {
-                console.log(`[Flow] Scenario "${scenario}" triggered and rules met. Using prompt key: ${scenarioData.configuredPromptKey}`);
+                console.log(`[Flow] Scenario "${scenario}" triggered. Using prompt key: ${scenarioData.configuredPromptKey}`);
                 finalPromptKey = scenarioData.configuredPromptKey;
-                finalModelId = undefined; // CRITICAL FIX: Scenario's prompt key takes absolute precedence.
+                finalModelId = undefined; // Scenario's prompt key takes absolute precedence.
             }
         }
     }
     
     // 2. DETERMINE EXECUTION TARGET (PROMPT OR MODEL)
-    const allConnectionsSnapshot = await getDocs(query(collection(db, 'llm_connections'), where('status', '==', '活跃'), orderBy('priority')));
-    const allConnections = allConnectionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LlmConnection));
-    let modelsToTry: LlmConnection[] = [];
-
     if (finalPromptKey) {
         const q = query(collection(db, 'prompts'), where("promptKey", "==", finalPromptKey));
         const snapshot = await getDocs(q);
         if (snapshot.empty) throw new Error(`Prompt with key "${finalPromptKey}" not found.`);
-        promptDocument = snapshot.docs[0].data() as Prompt;
+        
+        promptDocument = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Prompt;
         systemPromptContent = promptDocument.content;
-        modelsToTry = await findAvailableModels(promptDocument, allConnections);
-    } else if (finalModelId) {
-        const specificModel = allConnections.find(c => c.id === finalModelId);
-        if (!specificModel) throw new Error(`Target LLM Connection with ID "${finalModelId}" not found or is not active.`);
-        modelsToTry = [specificModel];
+        
+        // If prompt has a model bound, use that.
+        if (promptDocument.modelId) {
+            finalModelId = promptDocument.modelId;
+        }
+    }
+
+    // 3. GET THE LITELLM MODEL IDENTIFIER
+    let targetLlmConnection: LlmConnection | undefined;
+    if (finalModelId) {
+        const modelDoc = await getDoc(doc(db, 'llm_connections', finalModelId));
+        if (!modelDoc.exists() || modelDoc.data()?.status !== '活跃') {
+            throw new Error(`Target LLM Connection with ID "${finalModelId}" not found or is not active.`);
+        }
+        targetLlmConnection = { id: modelDoc.id, ...modelDoc.data() } as LlmConnection;
     } else {
-        const defaultConnection = await getDefaultLlmConnection(null);
-        if (!defaultConnection) throw new Error("No execution target specified and no default LLM connection is available.");
-        modelsToTry = [defaultConnection];
+        // Fallback to default if no model was determined
+        targetLlmConnection = await getDefaultLlmConnection(null);
+        if (!targetLlmConnection) {
+            throw new Error("No execution target specified and no default LLM connection is available.");
+        }
     }
     
-    if (modelsToTry.length === 0) throw new Error("No active and suitable LLM connections available for the target.");
+    // The key change: construct the model string for LiteLLM
+    // Example: "gemini/gemini-1.5-pro-latest" or "openai/gpt-4o"
+    targetModelIdentifier = `${targetLlmConnection.provider.toLowerCase()}/${targetLlmConnection.modelName}`;
+    console.log(`[Flow] Routing to LiteLLM with model identifier: ${targetModelIdentifier}`);
 
-    // 3. DYNAMIC CONTEXT INJECTION
+    // 4. DYNAMIC CONTEXT INJECTION (No changes here)
     let dynamicContext = "";
     if (promptDocument?.querySources) {
         const contextParts: string[] = [];
@@ -263,7 +222,6 @@ const executePromptFlow = ai.defineFlow(
     // Prepare messages: Inject system prompt and dynamic context
     const finalMessages = [...messages];
     if (systemPromptContent) {
-        // Replace a {{context}} placeholder in the prompt content, or prepend it.
         if (systemPromptContent.includes('{{{context}}}')) {
             systemPromptContent = systemPromptContent.replace('{{{context}}}', dynamicContext);
         } else {
@@ -278,44 +236,49 @@ const executePromptFlow = ai.defineFlow(
         }
     }
 
-    // 4. LOOP & EXECUTE WITH FAILOVER
-    for (const model of modelsToTry) {
-        try {
-            console.log(`[Flow] Attempting to call model: ${model.provider} - ${model.modelName}`);
-            
-            const apiConfig = getApiConfig(model, finalMessages, temperature);
-
-            const response = await fetch(apiConfig.url, {
-                 method: apiConfig.method,
-                 headers: apiConfig.headers,
-                 body: apiConfig.body,
-            });
-
-            if (!response.ok) {
-                const errorBody = await response.text();
-                throw new Error(`Model API request failed with status ${response.status}: ${errorBody}`);
-            }
-
-            const result = await response.json();
-            const textResponse = parseApiResponse(model.provider, result);
-            
-            if (!textResponse && !result.error) {
-                 // Check for cases where parsing might fail but there's no explicit error from the parsing function
-                 console.error("Parsed text is empty, but no error thrown. Full response:", result);
-                 throw new Error('Model returned a valid but empty or unparsable response.');
-            }
-
-
-            return { text: textResponse };
-
-        } catch (error: any) {
-            console.error(`[Flow] Failed to call model ${model.modelName}. Error: ${error.message}. Trying next model...`);
-            continue; // Try the next model in the list
-        }
+    // 5. EXECUTE CALL TO LITELLM PROXY
+    const liteLLMProxyUrl = process.env.LITELLM_PROXY_URL;
+    if (!liteLLMProxyUrl) {
+        throw new Error("LITELLM_PROXY_URL environment variable is not set.");
     }
     
-    // If all models failed
-    throw new Error(`All available LLM models failed to respond.`);
+    // Construct the request body in OpenAI format, which LiteLLM understands
+    const requestBody = {
+        model: targetModelIdentifier,
+        messages: finalMessages,
+        temperature: temperature,
+    };
+    
+    try {
+        console.log(`[Flow] Calling LiteLLM proxy at ${liteLLMProxyUrl}`);
+        
+        const response = await fetch(liteLLMProxyUrl, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${process.env.LITELLM_API_KEY}`
+            },
+            body: JSON.stringify(requestBody),
+        });
+
+        if (!response.ok) {
+            const errorBody = await response.text();
+            throw new Error(`LiteLLM proxy request failed with status ${response.status}: ${errorBody}`);
+        }
+
+        const result = await response.json();
+        const textResponse = result.choices?.[0]?.message?.content || '';
+
+        if (!textResponse) {
+             console.error("[Flow] LiteLLM returned a valid but empty or unparsable response:", result);
+             throw new Error('Model returned an empty response.');
+        }
+
+        return { text: textResponse };
+
+    } catch (error: any) {
+        console.error(`[Flow] Failed to call LiteLLM. Error: ${error.message}`);
+        throw error; // Re-throw the error to be caught by the caller
+    }
   }
 );
-    

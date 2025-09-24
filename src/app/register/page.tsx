@@ -172,7 +172,7 @@ export default function RegisterPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="user">普通用户</SelectItem>
+                          <SelectItem value="user">用户</SelectItem>
                           <SelectItem value="creator">创意者</SelectItem>
                           <SelectItem value="supplier">供应商</SelectItem>
                         </SelectContent>

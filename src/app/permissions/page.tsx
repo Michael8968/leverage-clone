@@ -46,7 +46,7 @@ const RoleBadge = ({ role }: { role: Role }) => {
         admin: { label: '管理员', color: 'bg-red-500 hover:bg-red-600' },
         supplier: { label: '供应商', color: 'bg-blue-500 hover:bg-blue-600' },
         creator: { label: '创意者', color: 'bg-green-500 hover:bg-green-600' },
-        user: { label: '普通用户', color: 'bg-gray-500 hover:bg-gray-600' },
+        user: { label: '用户', color: 'bg-gray-500 hover:bg-gray-600' },
         suspended: { label: '已禁用', color: 'bg-yellow-500 hover:bg-yellow-600'},
     };
     const { label, color } = roleConfig[role] || { label: role, color: 'bg-gray-400' };
