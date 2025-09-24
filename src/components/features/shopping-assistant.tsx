@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect, useTransition } from 'react';
@@ -88,7 +89,7 @@ export function ShoppingAssistant() {
                 const allScenarios = scenariosSnapshot.docs.map(doc => ({id: doc.id, ...doc.data() } as AIScenario));
 
                 // Filter scenarios to only show those relevant to the shopping assistant
-                const shoppingScenarios = allScenarios.filter(s => s.scope === 'AI智能购物');
+                const shoppingScenarios = allScenarios.filter(s => s.tags?.includes('AI智能购物'));
 
                 setProducts(productsList);
                 setSuppliers(suppliersList);

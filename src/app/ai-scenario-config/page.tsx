@@ -86,7 +86,6 @@ function ScenarioEditDialog({
     const [scenarioName, setScenarioName] = useState('');
     const [scenarioDescription, setScenarioDescription] = useState('');
     const [scenarioTags, setScenarioTags] = useState('');
-    const [scenarioScope, setScenarioScope] = useState('');
 
     // Time config state
     const [isRepetitionEnabled, setIsRepetitionEnabled] = useState(false);
@@ -113,7 +112,6 @@ function ScenarioEditDialog({
             setScenarioName(scenario.name);
             setScenarioDescription(scenario.description);
             setScenarioTags((scenario.tags || []).join(', '));
-            setScenarioScope(scenario.scope || '');
 
             // Repetition Config
             setRepetition(isRepEnabled ? scenario.repetition! : 'daily');
@@ -143,7 +141,6 @@ function ScenarioEditDialog({
             setScenarioName('');
             setScenarioDescription('');
             setScenarioTags('');
-            setScenarioScope('');
         }
     }, [scenario]);
 
@@ -166,7 +163,6 @@ function ScenarioEditDialog({
                 name: isCreating ? scenarioName : scenario!.name,
                 description: isCreating ? scenarioDescription : scenario!.description,
                 tags: scenarioTags.split(',').map(t => t.trim()).filter(Boolean),
-                scope: scenarioScope,
                 configuredPromptKey: selectedPromptKey === 'default' ? '' : selectedPromptKey,
                 targetUserRoles,
                 ruleLogic: ruleLogic,
@@ -268,10 +264,6 @@ function ScenarioEditDialog({
                              <div>
                                 <Label htmlFor="scenario-desc">功能描述</Label>
                                 <Textarea id="scenario-desc" value={scenarioDescription} onChange={(e) => setScenarioDescription(e.target.value)} placeholder="描述这个场景是做什么的"/>
-                             </div>
-                             <div>
-                                <Label htmlFor="scenario-scope">场景作用范围</Label>
-                                <Input id="scenario-scope" value={scenarioScope} onChange={(e) => setScenarioScope(e.target.value)} placeholder="例如：AI智能购物"/>
                              </div>
                              <div>
                                 <Label htmlFor="scenario-tags">标签 (用逗号分隔)</Label>
@@ -583,11 +575,10 @@ export default function AIScenarioConfigPage() {
                                     <TableCell>
                                     <div className="font-medium flex items-center">{scenario.name} {renderConfigBadge(scenario)}</div>
                                     <p className="text-xs text-muted-foreground">{scenario.description}</p>
-                                    {scenario.scope && (
-                                        <p className="text-xs text-primary flex items-center gap-1 mt-1">
-                                            <ShoppingBag className="w-3 h-3"/>
-                                            {scenario.scope}
-                                        </p>
+                                    {(scenario.tags && scenario.tags.length > 0) && (
+                                        <div className="flex items-center gap-1 mt-1">
+                                            {scenario.tags.map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}
+                                        </div>
                                     )}
                                     </TableCell>
                                     <TableCell>
