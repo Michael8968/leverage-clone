@@ -79,8 +79,14 @@ function CompanyInfoForm() {
         const docSnap = await getDoc(supplierDocRef);
         if (docSnap.exists()) {
           const supplierData = docSnap.data() as Supplier;
+          
+          // Convert null values to empty strings for form compatibility
+          const sanitizedData = Object.fromEntries(
+            Object.entries(supplierData).map(([key, value]) => [key, value === null ? '' : value])
+          );
+
           form.reset({
-              ...supplierData,
+              ...sanitizedData,
               establishedDate: supplierData.establishedDate ? (supplierData.establishedDate as Timestamp).toDate() : undefined,
           });
           setSupplementaryFields(supplierData.supplementaryFields || []);
@@ -100,23 +106,25 @@ function CompanyInfoForm() {
     try {
       const supplierDocRef = doc(db, 'suppliers', user.uid);
       
-      const dataToSave: Partial<Supplier> & { establishedDate?: any } = {
+      const dataToSave: Partial<Supplier> = {
         ...values,
         id: user.uid,
         email: user.email, // ensure email is saved from auth state
         supplementaryFields: supplementaryFields,
       };
 
-      if (dataToSave.establishedDate) {
-          dataToSave.establishedDate = Timestamp.fromDate(dataToSave.establishedDate);
+      if ((dataToSave as any).establishedDate) {
+          (dataToSave as any).establishedDate = Timestamp.fromDate((dataToSave as any).establishedDate);
       } else {
-          dataToSave.establishedDate = null;
+          (dataToSave as any).establishedDate = null;
       }
       
-      // Sanitize optional fields to be null instead of undefined
+      // Sanitize optional fields to be null instead of undefined before saving
       dataToSave.registeredCapital = values.registeredCapital || null;
       dataToSave.creditCode = values.creditCode || null;
-
+      dataToSave.shortName = values.shortName || null;
+      dataToSave.region = values.region || null;
+      dataToSave.address = values.address || null;
 
       await setDoc(supplierDocRef, dataToSave, { merge: true });
       toast({ title: "保存成功", description: "您的公司信息已更新。" });
