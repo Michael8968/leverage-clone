@@ -479,7 +479,7 @@ export default function SuppliersPage() {
             </TabsList>
             <TabsContent value="info" className="mt-6"><CompanyInfoForm /></TabsContent>
             <TabsContent value="products" className="mt-6"><ProductManagement /></TabsContent>
-            <TabsContent value="batch" className="mt-6"><DataProcessor /></TabsContent>
+            <TabsContent value="batch" className="mt-6"><DataProcessor destination="suppliers" /></TabsContent>
         </Tabs>
       </div>
     </AppLayout>

@@ -15,6 +15,8 @@ import { collection, writeBatch, doc, serverTimestamp } from 'firebase/firestore
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
 import { cn } from '@/lib/utils';
+import type { Resource } from '@/lib/types';
+
 
 const fileToDataUri = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -25,7 +27,7 @@ const fileToDataUri = (file: File): Promise<string> => {
     });
 };
 
-export function DataProcessor({ className, destination = 'suppliers' }: { className?: string, destination?: 'suppliers' | 'resources' }) {
+export function DataProcessor({ className, destination = 'suppliers' }: { className?: string, destination?: 'suppliers' | 'products' | 'resources' }) {
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -49,7 +51,7 @@ export function DataProcessor({ className, destination = 'suppliers' }: { classN
     setAiResult(null);
     try {
       const csvDataUri = await fileToDataUri(file);
-      const result = await evaluateSellerData({ csvDataUri, supplierId: user.id });
+      const result = await evaluateSellerData({ csvDataUri, supplierId: user.uid });
       setAiResult(result.processedSuppliers);
       toast({ title: '成功', description: 'AI分析完成，请检查结果并保存。' });
     } catch (error) {
@@ -72,16 +74,26 @@ export function DataProcessor({ className, destination = 'suppliers' }: { classN
         
         aiResult.forEach(itemData => {
             const newDocRef = doc(targetCollection); // Create a new document with a unique ID
-            batch.set(newDocRef, { 
-                ...itemData, 
+            
+            let dataToSave: any = {
+                ...itemData,
                 processedBy: user.uid, 
                 processedAt: serverTimestamp(),
-                // Default fields for 'resources' collection if applicable
-                sourceUrl: itemData.sourceUrl || '',
-                tags: itemData.tags || [],
-                updateFrequency: itemData.updateFrequency || '每日',
-                status: '可用',
-             });
+            };
+
+            // Add default fields for 'resources' collection if applicable
+            if (destination === 'resources') {
+                const resourceData = itemData as unknown as Partial<Resource>;
+                 dataToSave = {
+                    ...dataToSave,
+                    sourceUrl: resourceData.sourceUrl || '',
+                    tags: resourceData.tags || [],
+                    updateFrequency: resourceData.updateFrequency || '每日',
+                    status: '可用',
+                };
+            }
+
+            batch.set(newDocRef, dataToSave);
         });
 
         await batch.commit();
