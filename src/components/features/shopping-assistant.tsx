@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormMessage, FormLabel } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Paperclip, Send, X, Bot, User, BrainCircuit, Sparkles, Building, Loader2, FilePlus2, ExternalLink, Workflow } from 'lucide-react';
+import { Paperclip, Send, X, Bot, User, BrainCircuit, Sparkles, Building, Loader2, FilePlus2, ExternalLink, Workflow, Puzzle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -21,10 +21,9 @@ import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { db } from '@/lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
-import type { ProductService, Supplier, UserProfile, MediaAsset } from '@/lib/types';
+import type { ProductService, Supplier, UserProfile, MediaAsset, AIScenario } from '@/lib/types';
 import { getProductRecommendations } from '@/ai/flows/shopping-assistant';
 import { useAuthStore } from '@/store/auth';
-import { getPrompts, type GetPromptsOutput } from '@/ai/flows/admin-management-flows';
 import { executePrompt } from '@/ai/flows/prompt-execution-flow';
 import { getUploadUrlForMediaAsset, analyzeMediaAsset } from '@/ai/flows/multimodal-flows';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -47,7 +46,7 @@ type Message = {
 const formSchema = z.object({
   description: z.string().min(1, { message: '请输入您的需求描述。' }),
   image: z.instanceof(File).optional(),
-  promptKey: z.string().optional(),
+  scenarioId: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -58,7 +57,7 @@ export function ShoppingAssistant() {
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [products, setProducts]       = useState<ProductService[]>([]);
     const [suppliers, setSuppliers]     = useState<Supplier[]>([]);
-    const [prompts, setPrompts]         = useState<GetPromptsOutput['prompts']>([]);
+    const [scenarios, setScenarios]     = useState<AIScenario[]>([]);
     const [mediaAsset, setMediaAsset]   = useState<Partial<MediaAsset> & { previewUrl: string } | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const [isAiSearching, startAiSearch] = useTransition();
@@ -67,15 +66,15 @@ export function ShoppingAssistant() {
     const { toast }                     = useToast();
     const { role, user }                = useAuthStore();
     const router                        = useRouter();
-    const form                          = useForm<FormValues>({ resolver: zodResolver(formSchema), defaultValues: { description: "", promptKey: "default" } });
+    const form                          = useForm<FormValues>({ resolver: zodResolver(formSchema), defaultValues: { description: "", scenarioId: "default" } });
 
      useEffect(() => {
         const fetchInitialData = async () => {
             try {
-                const [productsSnapshot, suppliersSnapshot, promptsData] = await Promise.all([
+                const [productsSnapshot, suppliersSnapshot, scenariosSnapshot] = await Promise.all([
                     getDocs(collection(db, 'products')),
                     getDocs(collection(db, 'suppliers')),
-                    getPrompts()
+                    getDocs(collection(db, 'ai_scenarios'))
                 ]);
 
                 const productsList = productsSnapshot.docs.map(doc => {
@@ -87,16 +86,18 @@ export function ShoppingAssistant() {
                     return { ...data, id: doc.id } as ProductService;
                 });
                 const suppliersList = suppliersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Supplier));
+                const scenariosList = scenariosSnapshot.docs.map(doc => doc.data() as AIScenario);
+
 
                 setProducts(productsList);
                 setSuppliers(suppliersList);
-                setPrompts(promptsData.prompts);
+                setScenarios(scenariosList);
 
             } catch (error) {
                 console.error("Failed to fetch initial data:", error);
                 toast({
                     title: '数据加载失败',
-                    description: '无法加载产品或供应商目录，AI推荐功能可能受限。',
+                    description: '无法加载产品、供应商或AI场景目录，推荐功能可能受限。',
                     variant: 'destructive',
                 });
             }
@@ -153,24 +154,25 @@ export function ShoppingAssistant() {
         const userMessage: Message = { id: Date.now(), type: 'user', text: values.description, mediaPreviewUrl: mediaAsset?.previewUrl, mediaType: mediaAsset?.mediaType };
         const loadingMessage: Message = { id: Date.now() + 1, type: 'loading' };
         setMessages(prev => [...prev, userMessage, loadingMessage]);
-        form.reset({ description: "", promptKey: values.promptKey });
+        form.reset({ description: "", scenarioId: values.scenarioId });
         setMediaAsset(null);
 
         startAiSearch(async () => {
           let aiMessage: Message;
           try {
-            if (values.promptKey && values.promptKey !== 'default') {
-                const context = `User Query: ${values.description}\n\nAvailable Products: ${JSON.stringify(products)}\n\nAvailable Suppliers: ${JSON.stringify(suppliers)}`;
+            // New logic: Check for a selected scenario.
+            if (values.scenarioId && values.scenarioId !== 'default') {
                 const result = await executePrompt({
-                    promptKey: values.promptKey,
+                    scenario: values.scenarioId,
                     userId: user?.uid,
-                    messages: [{ role: 'user', content: context }],
+                    messages: [{ role: 'user', content: values.description }],
                 });
                 aiMessage = { id: Date.now() + 2, type: 'ai', text: result.text, isRawText: true };
             } else if (mediaAsset?.id) {
               const result = await analyzeMediaAsset({ mediaAssetId: mediaAsset.id, prompt: values.description });
               aiMessage = { id: Date.now() + 2, type: 'ai', text: result.analysis, isRawText: true };
             } else {
+              // Fallback to the original product recommendation flow if no scenario is selected.
               const result = await getProductRecommendations({ description: values.description, products, suppliers });
               const recommendedProducts = products.filter(p => result.recommendations.includes(p.id));
               aiMessage = { id: Date.now() + 2, type: 'ai', profile: result.userProfile, recommendations: recommendedProducts, isRawText: false };
@@ -211,22 +213,22 @@ export function ShoppingAssistant() {
                             {mediaAsset && ( <div className="relative w-24 h-24">{mediaAsset.mediaType === 'video' ? <video src={mediaAsset.previewUrl} className="w-full h-full rounded-md object-cover"/> : <Image src={mediaAsset.previewUrl!} alt="Preview" layout="fill" className="rounded-md object-cover"/>}<Button variant="ghost" size="icon" className="absolute top-0 right-0 h-6 w-6" onClick={() => setMediaAsset(null)}><X className="h-4 w-4" /></Button></div> )}
                              <FormField
                                 control={form.control}
-                                name="promptKey"
+                                name="scenarioId"
                                 render={({ field }) => (
                                     <FormItem>
                                         <Select onValueChange={field.onChange} value={field.value}>
                                             <FormControl>
                                                 <SelectTrigger>
                                                   <div className="flex items-center gap-2">
-                                                      <Workflow className="w-4 h-4 text-muted-foreground"/>
+                                                      <Puzzle className="w-4 h-4 text-muted-foreground"/>
                                                       <SelectValue placeholder="使用默认推荐逻辑" />
                                                   </div>
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
                                                 <SelectItem value="default">-- 使用默认推荐逻辑 --</SelectItem>
-                                                {prompts.map(p => (
-                                                    <SelectItem key={p.promptKey} value={p.promptKey}>{p.name}</SelectItem>
+                                                {scenarios.map(s => (
+                                                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>
@@ -320,3 +322,4 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
 
     
 
+  
