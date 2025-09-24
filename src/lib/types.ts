@@ -167,6 +167,8 @@ export type AIScenario = {
   name: string;
   description: string;
   configuredPromptKey: string;
+  tags?: string[];
+  scope?: string;
   // The rules are now nested in a property
   repetition: AIScenarioRules['repetition'];
   daysOfWeek: AIScenarioRules['daysOfWeek'];

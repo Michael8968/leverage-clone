@@ -9,11 +9,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Puzzle, Edit, Workflow, Loader2, Frown, Users, Clock, Settings2, Calendar as CalendarIcon, Repeat, Info, Star, PlusCircle } from 'lucide-react';
+import { Puzzle, Edit, Workflow, Loader2, Frown, Users, Clock, Settings2, Calendar as CalendarIcon, Repeat, Info, Star, PlusCircle, ShoppingBag } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore, type Role } from '@/store/auth';
 import { useRouter } from 'next/navigation';
-import { collection, doc, getDocs, setDoc, Timestamp, addDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, setDoc, Timestamp, addDoc, query, orderBy, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { getPrompts, type GetPromptsOutput } from '@/ai/flows/admin-management-flows';
@@ -86,6 +86,7 @@ function ScenarioEditDialog({
     const [scenarioName, setScenarioName] = useState('');
     const [scenarioDescription, setScenarioDescription] = useState('');
     const [scenarioTags, setScenarioTags] = useState('');
+    const [scenarioScope, setScenarioScope] = useState('');
 
     // Time config state
     const [isRepetitionEnabled, setIsRepetitionEnabled] = useState(false);
@@ -112,6 +113,7 @@ function ScenarioEditDialog({
             setScenarioName(scenario.name);
             setScenarioDescription(scenario.description);
             setScenarioTags((scenario.tags || []).join(', '));
+            setScenarioScope(scenario.scope || '');
 
             // Repetition Config
             setRepetition(isRepEnabled ? scenario.repetition! : 'daily');
@@ -141,6 +143,7 @@ function ScenarioEditDialog({
             setScenarioName('');
             setScenarioDescription('');
             setScenarioTags('');
+            setScenarioScope('');
         }
     }, [scenario]);
 
@@ -163,6 +166,7 @@ function ScenarioEditDialog({
                 name: isCreating ? scenarioName : scenario!.name,
                 description: isCreating ? scenarioDescription : scenario!.description,
                 tags: scenarioTags.split(',').map(t => t.trim()).filter(Boolean),
+                scope: scenarioScope,
                 configuredPromptKey: selectedPromptKey === 'default' ? '' : selectedPromptKey,
                 targetUserRoles,
                 ruleLogic: ruleLogic,
@@ -264,6 +268,10 @@ function ScenarioEditDialog({
                              <div>
                                 <Label htmlFor="scenario-desc">功能描述</Label>
                                 <Textarea id="scenario-desc" value={scenarioDescription} onChange={(e) => setScenarioDescription(e.target.value)} placeholder="描述这个场景是做什么的"/>
+                             </div>
+                             <div>
+                                <Label htmlFor="scenario-scope">场景作用范围</Label>
+                                <Input id="scenario-scope" value={scenarioScope} onChange={(e) => setScenarioScope(e.target.value)} placeholder="例如：AI智能购物"/>
                              </div>
                              <div>
                                 <Label htmlFor="scenario-tags">标签 (用逗号分隔)</Label>
@@ -441,7 +449,7 @@ export default function AIScenarioConfigPage() {
         setIsLoading(true);
         try {
             const [scenarioConfigsSnapshot, promptsData] = await Promise.all([
-                getDocs(collection(db, 'ai_scenarios')),
+                getDocs(query(collection(db, 'ai_scenarios'), orderBy('name'))),
                 getPrompts()
             ]);
 
@@ -575,6 +583,12 @@ export default function AIScenarioConfigPage() {
                                     <TableCell>
                                     <div className="font-medium flex items-center">{scenario.name} {renderConfigBadge(scenario)}</div>
                                     <p className="text-xs text-muted-foreground">{scenario.description}</p>
+                                    {scenario.scope && (
+                                        <p className="text-xs text-primary flex items-center gap-1 mt-1">
+                                            <ShoppingBag className="w-3 h-3"/>
+                                            {scenario.scope}
+                                        </p>
+                                    )}
                                     </TableCell>
                                     <TableCell>
                                         {scenario.configuredPromptKey ? (
