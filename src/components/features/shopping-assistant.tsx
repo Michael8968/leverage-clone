@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useRef, useEffect, useTransition } from 'react';
@@ -66,7 +67,7 @@ export function ShoppingAssistant() {
     const { toast }                     = useToast();
     const { role, user }                = useAuthStore();
     const router                        = useRouter();
-    const form                          = useForm<FormValues>({ resolver: zodResolver(formSchema), defaultValues: { description: "", promptKey: "" } });
+    const form                          = useForm<FormValues>({ resolver: zodResolver(formSchema), defaultValues: { description: "", promptKey: "default" } });
 
      useEffect(() => {
         const fetchInitialData = async () => {
@@ -158,7 +159,7 @@ export function ShoppingAssistant() {
         startAiSearch(async () => {
           let aiMessage: Message;
           try {
-            if (values.promptKey) {
+            if (values.promptKey && values.promptKey !== 'default') {
                 const context = `User Query: ${values.description}\n\nAvailable Products: ${JSON.stringify(products)}\n\nAvailable Suppliers: ${JSON.stringify(suppliers)}`;
                 const result = await executePrompt({
                     promptKey: values.promptKey,
@@ -223,7 +224,7 @@ export function ShoppingAssistant() {
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
-                                                <SelectItem value="">-- 使用默认推荐逻辑 --</SelectItem>
+                                                <SelectItem value="default">-- 使用默认推荐逻辑 --</SelectItem>
                                                 {prompts.map(p => (
                                                     <SelectItem key={p.promptKey} value={p.promptKey}>{p.name}</SelectItem>
                                                 ))}
@@ -318,3 +319,4 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
 </Card>))}</div></div> );
 
     
+
