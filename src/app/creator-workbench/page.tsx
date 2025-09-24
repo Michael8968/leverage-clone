@@ -6,7 +6,7 @@ import { AppLayout } from '@/components/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuthStore } from '@/store/auth';
-import { Frown, Bot, Loader2, ArrowRight, Wand2, Send, PackagePlus, Info, UploadCloud, FileImage, CalendarDays, Clock, Trash2 } from 'lucide-react';
+import { Frown, Bot, Loader2, ArrowRight, Wand2, Send, PackagePlus, Info, UploadCloud, FileImage, CalendarDays, Clock, Trash2, CheckCircle, XCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
@@ -709,7 +709,8 @@ function ScheduleTab() {
 
       const appointmentsQuery = query(collection(db, 'appointments'), where('creatorId', '==', user.uid));
       const appointmentsSnapshot = await getDocs(appointmentsQuery);
-      setAppointments(appointmentsSnapshot.docs.map(d => d.data() as Appointment));
+      const apptList = appointmentsSnapshot.docs.map(d => ({ ...d.data(), id: d.id } as Appointment));
+      setAppointments(apptList);
 
     } catch (error) {
       toast({ title: "加载失败", description: "无法加载您的排班和预约信息。", variant: "destructive" });
@@ -747,17 +748,50 @@ function ScheduleTab() {
       toast({ title: "失败", description: "移除时间段失败。", variant: "destructive" });
     }
   };
+
+  const handleAppointmentAction = async (appointmentId: string, newStatus: 'confirmed' | 'cancelled') => {
+      if(!user) return;
+      const appointmentRef = doc(db, 'appointments', appointmentId);
+      try {
+          await updateDoc(appointmentRef, { status: newStatus });
+
+          if (newStatus === 'cancelled') {
+              const appt = appointments.find(a => a.id === appointmentId);
+              if (appt) {
+                  // Add the slot back to availability
+                   const availRef = doc(db, 'availabilities', user.uid);
+                   await updateDoc(availRef, {
+                       slots: [...(availability?.slots || []), appt.appointmentTime]
+                   });
+              }
+          }
+
+          toast({ title: '操作成功', description: `预约已${newStatus === 'confirmed' ? '确认' : '拒绝'}。` });
+          fetchScheduleData();
+      } catch (error) {
+          toast({ title: '操作失败', description: '更新预约状态失败。', variant: 'destructive' });
+      }
+  };
   
   const dailySlots = availability?.slots
     ?.map(s => s.toDate())
     .filter(d => d.toDateString() === selectedDate?.toDateString())
     .sort((a,b) => a.getTime() - b.getTime()) || [];
 
+  const getStatusBadge = (status: Appointment['status']) => {
+      switch (status) {
+          case 'pending': return <Badge variant="secondary">待确认</Badge>;
+          case 'confirmed': return <Badge className="bg-green-500 hover:bg-green-600">已确认</Badge>;
+          case 'cancelled': return <Badge variant="destructive">已拒绝</Badge>;
+          default: return <Badge variant="outline">未知</Badge>;
+      }
+  };
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-headline">我的排班</CardTitle>
-        <CardDescription>管理您的空闲时间，并查看已收到的预约。</CardDescription>
+        <CardTitle className="font-headline">我的排班与预约</CardTitle>
+        <CardDescription>管理您的空闲时间，并处理收到的预约请求。</CardDescription>
       </CardHeader>
       <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-1">
@@ -781,34 +815,47 @@ function ScheduleTab() {
             <div className="border rounded-md p-4 min-h-[200px]">
                 {isLoading ? (
                     <div className="space-y-2">
-                        <Skeleton className="h-10 w-full" />
-                        <Skeleton className="h-10 w-full" />
+                        <Skeleton className="h-12 w-full" />
+                        <Skeleton className="h-12 w-full" />
                     </div>
-                ) : dailySlots.length === 0 ? (
-                    <p className="text-sm text-center text-muted-foreground py-10">当天没有排班</p>
+                ) : dailySlots.length === 0 && !appointments.some(app => app.appointmentTime.toDate().toDateString() === selectedDate?.toDateString()) ? (
+                    <p className="text-sm text-center text-muted-foreground py-10">当天没有排班或预约</p>
                 ) : (
                     <ul className="space-y-2">
-                        {dailySlots.map(slot => {
-                            const appointment = appointments.find(app => app.appointmentTime.toDate().getTime() === slot.getTime());
-                            return (
-                                <li key={slot.toISOString()} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-                                    <div className="flex items-center gap-2">
-                                        <Clock className="w-4 h-4"/>
-                                        <span className="font-mono">{format(slot, 'HH:mm')}</span>
-                                         {appointment ? (
-                                            <Badge variant="default" className="bg-blue-500">{appointment.requesterName} (已预约)</Badge>
-                                         ) : (
-                                            <Badge variant="secondary">空闲</Badge>
-                                         )}
+                        {dailySlots.map(slot => (
+                            <li key={slot.toISOString()} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
+                                <div className="flex items-center gap-2">
+                                    <Clock className="w-4 h-4"/>
+                                    <span className="font-mono">{format(slot, 'HH:mm')}</span>
+                                    <Badge variant="secondary">空闲</Badge>
+                                </div>
+                                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleRemoveSlot(Timestamp.fromDate(slot))}>
+                                    <Trash2 className="w-4 h-4"/>
+                                </Button>
+                            </li>
+                        ))}
+                        {appointments.filter(app => app.appointmentTime.toDate().toDateString() === selectedDate?.toDateString()).map(appointment => (
+                            <li key={appointment.id} className="flex items-center justify-between p-2 rounded-md bg-blue-500/10">
+                                <div className="flex items-center gap-2">
+                                    <Clock className="w-4 h-4"/>
+                                    <span className="font-mono">{format(appointment.appointmentTime.toDate(), 'HH:mm')}</span>
+                                    <div className="flex flex-col items-start">
+                                        <span className="font-semibold text-sm">{appointment.requesterName}</span>
+                                        {getStatusBadge(appointment.status)}
                                     </div>
-                                    {!appointment && (
-                                        <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleRemoveSlot(Timestamp.fromDate(slot))}>
-                                            <Trash2 className="w-4 h-4"/>
+                                </div>
+                                {appointment.status === 'pending' && (
+                                    <div className="flex gap-1">
+                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600" onClick={() => handleAppointmentAction(appointment.id, 'confirmed')}>
+                                            <CheckCircle className="w-5 h-5"/>
                                         </Button>
-                                    )}
-                                </li>
-                            );
-                        })}
+                                         <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleAppointmentAction(appointment.id, 'cancelled')}>
+                                            <XCircle className="w-5 h-5"/>
+                                        </Button>
+                                    </div>
+                                )}
+                            </li>
+                        ))}
                     </ul>
                 )}
             </div>
