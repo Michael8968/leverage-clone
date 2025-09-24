@@ -43,7 +43,7 @@ const PromptExecutionOutputSchema = z.object({
   text: z.string(),
 });
 
-async function isRuleSetValid(rules: AIScenarioRules, userId?: string): Promise<boolean> {
+async function isRuleSetValid(rules: AIScenario, userId?: string): Promise<boolean> {
     if (!rules) return true; // No rules means always valid
 
     let isTimeValid = false;
@@ -215,7 +215,7 @@ const executePromptFlow = ai.defineFlow(
             if (await isRuleSetValid(scenarioData, userId)) {
                 console.log(`[Flow] Scenario "${scenario}" triggered and rules met. Using prompt key: ${scenarioData.configuredPromptKey}`);
                 finalPromptKey = scenarioData.configuredPromptKey;
-                finalModelId = undefined; // Scenario's prompt key takes precedence
+                finalModelId = undefined; // CRITICAL FIX: Scenario's prompt key takes absolute precedence.
             }
         }
     }
