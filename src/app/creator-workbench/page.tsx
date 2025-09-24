@@ -6,14 +6,14 @@ import { AppLayout } from '@/components/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuthStore } from '@/store/auth';
-import { Frown, Bot, Loader2, ArrowRight, Wand2, Send, PackagePlus, Info, UploadCloud, FileImage } from 'lucide-react';
+import { Frown, Bot, Loader2, ArrowRight, Wand2, Send, PackagePlus, Info, UploadCloud, FileImage, CalendarDays, Clock } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { collection, getDocs, query, where, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, updateDoc, addDoc, serverTimestamp, getDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Demand, ProductService, LlmConnection } from '@/lib/types';
+import type { Demand, ProductService, LlmConnection, Appointment, Availability } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -25,7 +25,7 @@ import { generateNanoBananaImage } from '@/ai/flows/generate-nanobanana-image';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import Image from 'next/image';
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
 import { useForm } from 'react-hook-form';
@@ -35,6 +35,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Label } from '@/components/ui/label';
+import { Calendar } from '@/components/ui/calendar';
+import { TimePicker } from '@/components/ui/time-picker';
+
 
 // =================================================================
 // TASKS TAB
@@ -680,6 +683,140 @@ function CreationsTab({ onSubmissionSuccess }: { onSubmissionSuccess: () => void
     );
 }
 
+// =================================================================
+// SCHEDULE TAB (New)
+// =================================================================
+
+function ScheduleTab() {
+  const { user } = useAuthStore();
+  const { toast } = useToast();
+  const [availability, setAvailability] = useState<Availability | null>(null);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchScheduleData = useCallback(async () => {
+    if (!user) return;
+    setIsLoading(true);
+    try {
+      const availRef = doc(db, 'availabilities', user.uid);
+      const availSnap = await getDoc(availRef);
+      if (availSnap.exists()) {
+        setAvailability(availSnap.data() as Availability);
+      } else {
+        setAvailability({ creatorId: user.uid, slots: [] });
+      }
+
+      const appointmentsQuery = query(collection(db, 'appointments'), where('creatorId', '==', user.uid));
+      const appointmentsSnapshot = await getDocs(appointmentsQuery);
+      setAppointments(appointmentsSnapshot.docs.map(d => d.data() as Appointment));
+
+    } catch (error) {
+      toast({ title: "加载失败", description: "无法加载您的排班和预约信息。", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user, toast]);
+
+  useEffect(() => {
+    fetchScheduleData();
+  }, [fetchScheduleData]);
+
+  const handleAddTimeSlot = async () => {
+    if (!user || !selectedDate || !availability) return;
+    const newSlots = [...(availability.slots || []), Timestamp.fromDate(selectedDate)];
+    try {
+      const availRef = doc(db, 'availabilities', user.uid);
+      await setDoc(availRef, { creatorId: user.uid, slots: newSlots }, { merge: true });
+      fetchScheduleData(); // Refresh data
+      toast({ title: "成功", description: "新的空闲时间已添加。" });
+    } catch (error) {
+      toast({ title: "失败", description: "添加空闲时间失败。", variant: "destructive" });
+    }
+  };
+
+  const handleRemoveSlot = async (slotToRemove: Timestamp) => {
+    if (!user || !availability) return;
+    const newSlots = (availability.slots || []).filter(slot => !slot.isEqual(slotToRemove));
+    try {
+      const availRef = doc(db, 'availabilities', user.uid);
+      await setDoc(availRef, { creatorId: user.uid, slots: newSlots });
+      fetchScheduleData(); // Refresh data
+      toast({ title: "成功", description: "时间段已移除。" });
+    } catch (error) {
+      toast({ title: "失败", description: "移除时间段失败。", variant: "destructive" });
+    }
+  };
+  
+  const dailySlots = availability?.slots
+    ?.map(s => s.toDate())
+    .filter(d => d.toDateString() === selectedDate?.toDateString())
+    .sort((a,b) => a.getTime() - b.getTime()) || [];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="font-headline">我的排班</CardTitle>
+        <CardDescription>管理您的空闲时间，并查看已收到的预约。</CardDescription>
+      </CardHeader>
+      <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="md:col-span-1">
+          <h4 className="font-semibold mb-2">添加空闲时间</h4>
+          <Calendar
+            mode="single"
+            selected={selectedDate}
+            onSelect={setSelectedDate}
+            className="rounded-md border"
+            disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))}
+          />
+           <div className="flex items-center gap-2 mt-4">
+              <TimePicker date={selectedDate} setDate={setSelectedDate}/>
+              <Button onClick={handleAddTimeSlot} disabled={!selectedDate}>添加</Button>
+           </div>
+        </div>
+        <div className="md:col-span-2">
+            <h4 className="font-semibold mb-2">
+                {selectedDate ? format(selectedDate, 'yyyy年M月d日') : '选择日期'} 的日程
+            </h4>
+            <div className="border rounded-md p-4 min-h-[200px]">
+                {isLoading ? (
+                    <div className="space-y-2">
+                        <Skeleton className="h-10 w-full" />
+                        <Skeleton className="h-10 w-full" />
+                    </div>
+                ) : dailySlots.length === 0 ? (
+                    <p className="text-sm text-center text-muted-foreground py-10">当天没有排班</p>
+                ) : (
+                    <ul className="space-y-2">
+                        {dailySlots.map(slot => {
+                            const appointment = appointments.find(app => app.appointmentTime.toDate().getTime() === slot.getTime());
+                            return (
+                                <li key={slot.toISOString()} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
+                                    <div className="flex items-center gap-2">
+                                        <Clock className="w-4 h-4"/>
+                                        <span className="font-mono">{format(slot, 'HH:mm')}</span>
+                                         {appointment ? (
+                                            <Badge variant="default" className="bg-blue-500">{appointment.requesterName} (已预约)</Badge>
+                                         ) : (
+                                            <Badge variant="secondary">空闲</Badge>
+                                         )}
+                                    </div>
+                                    {!appointment && (
+                                        <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleRemoveSlot(Timestamp.fromDate(slot))}>
+                                            <Trash2 className="w-4 h-4"/>
+                                        </Button>
+                                    )}
+                                </li>
+                            );
+                        })}
+                    </ul>
+                )}
+            </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 // =================================================================
 // Parent Component and Page Entrypoint
@@ -702,12 +839,14 @@ function CreatorWorkbench() {
         <p className="text-muted-foreground mt-2">在这里, 您可以接受任务, 响应需求, 并利用AI工具将您的创意变为现实。</p>
       </header>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3 max-w-lg mx-auto">
+        <TabsList className="grid w-full grid-cols-4 max-w-2xl mx-auto">
           <TabsTrigger value="tasks">任务与需求</TabsTrigger>
+          <TabsTrigger value="schedule">我的排班</TabsTrigger>
           <TabsTrigger value="3d-creation">AI 创作</TabsTrigger>
           <TabsTrigger value="submissions">我的提交</TabsTrigger>
         </TabsList>
         <TabsContent value="tasks" className="mt-6"><TasksTab /></TabsContent>
+        <TabsContent value="schedule" className="mt-6"><ScheduleTab /></TabsContent>
         <TabsContent value="3d-creation" className="mt-6"><CreationsTab onSubmissionSuccess={handleSubmissionSuccess}/></TabsContent>
         <TabsContent value="submissions" className="mt-6"><SubmissionsTab refreshKey={submissionsRefreshKey} /></TabsContent>
       </Tabs>

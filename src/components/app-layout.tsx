@@ -46,6 +46,7 @@ import {
   Settings,
   Workflow,
   Puzzle,
+  CalendarDays,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';

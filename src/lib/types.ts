@@ -1,4 +1,5 @@
 
+
 import type { SupplementaryField } from "@/components/features/supplementary-fields-manager";
 import type { Role } from "@/store/auth";
 
@@ -9,7 +10,7 @@ export type Demand = {
   category: string;
   budget: number;
   status: '开放中' | '进行中' | '已完成';
-  createdAt: Date;
+  createdAt: any; // Can be Date or Firestore Timestamp or string
   requesterId: string;
   requesterName: string;
   requesterAvatar: string;
@@ -53,12 +54,12 @@ export type ProductService = {
 export type Supplier = {
   id: string;
   name:string;
-  shortName?: string;
-  region?: string;
-  address?: string;
-  establishedDate?: any; // Can be Date or Firestore Timestamp
-  registeredCapital?: string;
-  creditCode?: string;
+  shortName?: string | null;
+  region?: string | null;
+  address?: string | null;
+  establishedDate?: any; // Can be Date or Firestore Timestamp or null
+  registeredCapital?: string | null;
+  creditCode?: string | null;
   // Fields from form
   contactPerson?: string;
   jobTitle?: string;
@@ -202,4 +203,21 @@ export interface Resource {
     matchScore?: number;
     recommendation?: string;
     apiKey?: string;
+}
+
+// New types for Appointment scheduling
+export interface Availability {
+  creatorId: string;
+  slots: any[]; // Array of Firestore Timestamps
+}
+
+export interface Appointment {
+  id: string;
+  creatorId: string;
+  requesterId: string;
+  requesterName: string;
+  appointmentTime: any; // Firestore Timestamp
+  status: 'pending' | 'confirmed' | 'cancelled';
+  notes?: string;
+  createdAt: any; // Firestore Timestamp
 }
