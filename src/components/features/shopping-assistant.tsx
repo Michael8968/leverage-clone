@@ -67,53 +67,110 @@ export function ShoppingAssistant() {
     const router                        = useRouter();
     const form                          = useForm<FormValues>({ resolver: zodResolver(formSchema), defaultValues: { description: "", promptKey: "" } });
 
-    useEffect(() => { /* Fetch initial data */ }, [toast]);
+     useEffect(() => {
+        const fetchInitialData = async () => {
+            try {
+                const [productsSnapshot, suppliersSnapshot, promptsData] = await Promise.all([
+                    getDocs(collection(db, 'products')),
+                    getDocs(collection(db, 'suppliers')),
+                    getPrompts()
+                ]);
+
+                const productsList = productsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ProductService));
+                const suppliersList = suppliersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Supplier));
+
+                setProducts(productsList);
+                setSuppliers(suppliersList);
+                setPrompts(promptsData.prompts);
+
+            } catch (error) {
+                console.error("Failed to fetch initial data:", error);
+                toast({
+                    title: '数据加载失败',
+                    description: '无法加载产品或供应商目录，AI推荐功能可能受限。',
+                    variant: 'destructive',
+                });
+            }
+        };
+
+        fetchInitialData();
+    }, [toast]);
+    
     useEffect(() => { scrollAreaRef.current?.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' }); }, [messages]);
 
-    const handleMediaUpload = async (event: React.ChangeEvent<HTMLInputElement>) => { /* ... */ };
+    const handleMediaUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file || !user) {
+            toast({ title: '错误', description: '请选择一个文件并确保您已登录。', variant: 'destructive' });
+            return;
+        }
 
-    const onInvalid = (errors: FieldErrors<FormValues>) => {
-        console.error("[DIAGNOSTIC] Form validation failed.", errors);
-        const getFirstErrorMessage = (errs: any): string | null => { /* ... */ return null; };
-        toast({ title: "表单验证失败", description: getFirstErrorMessage(errors) || "请检查您输入的内容。", variant: "destructive" });
+        setIsUploading(true);
+        try {
+            const { uploadUrl, mediaAssetId } = await getUploadUrlForMediaAsset({ userId: user.uid, fileName: file.name, contentType: file.type });
+            
+            await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+
+            const objectUrl = URL.createObjectURL(file);
+            setMediaAsset({ id: mediaAssetId, mediaType: file.type.split('/')[0] as MediaAsset['mediaType'], previewUrl: objectUrl });
+
+            toast({ title: '上传成功', description: '媒体文件已准备好，请输入您的指令。' });
+        } catch (error) {
+            console.error('Media upload failed:', error);
+            toast({ title: '上传失败', description: '无法上传您的媒体文件，请重试。', variant: 'destructive' });
+        } finally {
+            setIsUploading(false);
+             if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+            }
+        }
     };
 
-    const onSubmit = (values: FormValues) => {
-        console.log("[DIAGNOSTIC] Step 1: onSubmit function triggered.", { values });
-        try {
-            const userMessage: Message = { id: Date.now(), type: 'user', text: values.description, mediaPreviewUrl: mediaAsset?.previewUrl, mediaType: mediaAsset?.mediaType };
-            const loadingMessage: Message = { id: Date.now() + 1, type: 'loading' };
-            setMessages(prev => [...prev, userMessage, loadingMessage]);
-            form.reset({ description: "", promptKey: values.promptKey });
-            setMediaAsset(null);
-            console.log("[DIAGNOSTIC] Step 2: UI state updated, preparing to call AI flow.");
-            startAiSearch(async () => {
-              try {
-                let aiMessage: Message;
-                console.log("[DIAGNOSTIC] Step 3: Inside startAiSearch async block.");
-                if (mediaAsset?.id) {
-                    console.log(`[DIAGNOSTIC] Step 4a: Calling analyzeMediaAsset with assetId: ${mediaAsset.id}`);
-                    const result = await analyzeMediaAsset({ mediaAssetId: mediaAsset.id, prompt: values.description });
-                    console.log("[DIAGNOSTIC] Step 5a: analyzeMediaAsset returned.", { result });
-                    aiMessage = { id: Date.now() + 2, type: 'ai', text: result.analysis, isRawText: true };
-                } else {
-                    console.log("[DIAGNOSTIC] Step 4b: Calling getProductRecommendations.");
-                    const result = await getProductRecommendations({ description: values.description, products, suppliers });
-                    console.log("[DIAGNOSTIC] Step 5b: getProductRecommendations returned.", { result });
-                    const recommendedProducts = products.filter(p => result.recommendations.includes(p.id));
-                    aiMessage = { id: Date.now() + 2, type: 'ai', profile: result.userProfile, recommendations: recommendedProducts, isRawText: false };
+    const onInvalid = (errors: FieldErrors<FormValues>) => {
+        const getFirstErrorMessage = (errs: any): string | null => {
+            for (const key in errs) {
+                if (errs[key]?.message) return errs[key].message;
+                if (typeof errs[key] === 'object') {
+                    const nested = getFirstErrorMessage(errs[key]);
+                    if (nested) return nested;
                 }
-                console.log("[DIAGNOSTIC] Step 6: AI processing complete, updating messages.");
-                setMessages(prev => prev.map(msg => (msg.id === loadingMessage.id ? aiMessage : msg)));
-              } catch (error) {
-                console.error("[DIAGNOSTIC] Step E1: Error inside startAiSearch async block.", error);
-                toast({ title: 'AI 分析失败', variant: "destructive" });
-              }
-            });
-        } catch (e: any) {
-            console.error("[DIAGNOSTIC] Step E2: Synchronous error in onSubmit handler.", e);
-            toast({ title: "前端错误", variant: "destructive"});
-        }
+            }
+            return null;
+        };
+        toast({ title: "表单验证失败", description: getFirstErrorMessage(errors) || "请检查您输入的内容。", variant: "destructive" });
+    };
+    
+    const onSubmit = (values: FormValues) => {
+        const userMessage: Message = { id: Date.now(), type: 'user', text: values.description, mediaPreviewUrl: mediaAsset?.previewUrl, mediaType: mediaAsset?.mediaType };
+        const loadingMessage: Message = { id: Date.now() + 1, type: 'loading' };
+        setMessages(prev => [...prev, userMessage, loadingMessage]);
+        form.reset({ description: "", promptKey: values.promptKey });
+        setMediaAsset(null);
+
+        startAiSearch(async () => {
+          let aiMessage: Message;
+          try {
+            // Logic Branch 1: Multi-modal analysis
+            if (mediaAsset?.id) {
+              const result = await analyzeMediaAsset({ mediaAssetId: mediaAsset.id, prompt: values.description });
+              aiMessage = { id: Date.now() + 2, type: 'ai', text: result.analysis, isRawText: true };
+            
+            // Logic Branch 2: Product recommendation
+            } else {
+              const result = await getProductRecommendations({ description: values.description, products, suppliers });
+              const recommendedProducts = products.filter(p => result.recommendations.includes(p.id));
+              aiMessage = { id: Date.now() + 2, type: 'ai', profile: result.userProfile, recommendations: recommendedProducts, isRawText: false };
+            }
+            // Update UI with the result from the correct branch
+            setMessages(prev => prev.map(msg => (msg.id === loadingMessage.id ? aiMessage : msg)));
+
+          } catch (error: any) {
+            console.error("AI search failed:", error);
+            const errorMessage: Message = { id: Date.now() + 2, type: 'ai', text: `抱歉，AI分析时遇到问题: ${error.message}`, isRawText: true };
+            setMessages(prev => prev.map(msg => (msg.id === loadingMessage.id ? errorMessage : msg)));
+            toast({ title: 'AI 分析失败', description: error.message || '请稍后重试。', variant: "destructive" });
+          }
+        });
     };
       
     const hasAiResponse = messages.some(m => m.type === 'ai');
