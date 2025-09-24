@@ -482,20 +482,12 @@ export default function AIScenarioConfigPage() {
 
             // 2. Overwrite and add scenarios from the database.
             dbScenarios.forEach(dbScenario => {
-                scenariosMap.set(dbScenario.id, { ...scenariosMap.get(dbScenario.id), ...dbScenario });
+                 scenariosMap.set(dbScenario.id, { ...scenariosMap.get(dbScenario.id), ...dbScenario });
             });
-
+            
             const combined = Array.from(scenariosMap.values());
 
-            const mergedScenarios = combined.map(scenario => {
-                const prompt = promptsData.prompts.find(p => p.promptKey === scenario.configuredPromptKey);
-                return {
-                    ...scenario,
-                    configuredPromptName: prompt?.name,
-                };
-            });
-
-            setFullScenarios(mergedScenarios);
+            setFullScenarios(combined);
 
         } catch (error) {
             console.error("Failed to fetch scenario configuration:", error);
