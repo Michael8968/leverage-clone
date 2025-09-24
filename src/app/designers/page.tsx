@@ -12,7 +12,7 @@ import { db } from '@/lib/firebase';
 import { collection, getDocs, query, where, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { RadioTower, Users, MessageSquare } from 'lucide-react';
+import { Users, MessageSquare } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore, type User } from '@/store/auth';
 import { ChatDialog } from '@/components/features/chat-dialog';
@@ -35,7 +35,7 @@ export default function DesignersPage() {
         const usersCollection = collection(db, 'users');
         const q = query(usersCollection, where("role", "==", "creator"));
         const snapshot = await getDocs(q);
-        const creatorsList = snapshot.docs.map(d => ({ ...d.data(), uid: d.id } as User));
+        const creatorsList = snapshot.docs.map(d => ({ ...d.data(), uid: d.id, status: d.data().status || 'active' } as User)); // Default status to 'active' if not set
         setCreators(creatorsList);
       } catch (error) {
         console.error("Error fetching creators:", error);
@@ -94,6 +94,13 @@ export default function DesignersPage() {
     }
   };
 
+  const handleBookAppointment = () => {
+    toast({
+      title: "功能开发中",
+      description: "在线预约功能即将上线，敬请期待！",
+    });
+  };
+
 
   return (
     <AppLayout>
@@ -143,7 +150,7 @@ export default function DesignersPage() {
                         <MessageSquare className="mr-2 h-4 w-4"/>
                         立即交流
                     </Button>
-                    <Button variant="outline">
+                    <Button variant="outline" onClick={handleBookAppointment}>
                         立即预约
                     </Button>
                 </div>
@@ -167,4 +174,5 @@ export default function DesignersPage() {
     </AppLayout>
   );
 }
+
 
