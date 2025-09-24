@@ -25,6 +25,12 @@ export type Creative = {
   type: '视频' | '图文' | '直播';
 };
 
+export type ProductImage = {
+  url: string;
+  view: '默认' | '前' | '后' | '左' | '右' | '上' | '下' | '整体';
+};
+
+
 export type ProductService = {
   id: string;
   name: string;
@@ -42,7 +48,7 @@ export type ProductService = {
   createdAt?: Date; // Firestore Timestamps will be converted to Date objects
   status?: '审核中' | '已入库' | '需要修改';
   imageUrl?: string; // Main image
-  imageUrls?: string[]; // New, for multiple product images
+  images?: ProductImage[]; // New, for multiple product images with views
 };
 
 export type Supplier = {
@@ -51,7 +57,7 @@ export type Supplier = {
   shortName?: string;
   region?: string;
   address?: string;
-  establishedDate?: Date;
+  establishedDate?: any; // Can be Date or Firestore Timestamp
   registeredCapital?: string;
   creditCode?: string;
   // Fields from form

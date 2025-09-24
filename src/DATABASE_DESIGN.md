@@ -39,7 +39,7 @@
 | **creatorId** | `string` | (可选) 关联的创作者ID，对应 `users` 集合中的文档ID。 |
 | **purchaseUrl** | `string` | (可选) 外部购买链接。 |
 | **imageUrl** | `string` | (可选) 产品主图的URL。 |
-| **imageUrls** | `Array<string>` | (可选) 产品的多张展示图片的URL数组。 |
+| **images** | `Array<Object>` | (可选) 产品的多张展示图片的URL数组，每个对象包含 `url` 和 `view` 字段。 |
 | **details** | `Array<Object>`| (可选) 产品的详细规格表，用于存储动态的键值对信息。 |
 | **status** | `string` | (仅创作者提交时) 审核状态 (`审核中`, `已入库`, `需要修改`)。 |
 | **createdAt** | `Timestamp`| 创建或提交日期。 |

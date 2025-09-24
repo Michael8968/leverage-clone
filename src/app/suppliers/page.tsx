@@ -4,7 +4,7 @@
 
 import { AppLayout } from '@/components/app-layout';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { ProductService, SupplementaryField, Supplier } from '@/lib/types';
+import type { ProductService, SupplementaryField, Supplier, ProductImage } from '@/lib/types';
 import { SupplementaryFieldsManager } from '@/components/features/supplementary-fields-manager';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // =================================================================
 // Form Schema for Company Info
@@ -98,10 +99,9 @@ function CompanyInfoForm() {
     setIsSubmitting(true);
     try {
       const supplierDocRef = doc(db, 'suppliers', user.uid);
-      const { email, ...restValues } = values as any; // email is not part of this form schema
       
       const dataToSave: Partial<Supplier> = {
-        ...restValues,
+        ...values,
         id: user.uid,
         email: user.email, // ensure email is saved from auth state
         supplementaryFields: supplementaryFields,
@@ -222,13 +222,13 @@ function ProductManagement() {
             price: 99, 
             category: '待分类',
             supplierId: user.uid, 
-            imageUrls: [],
+            images: [],
             details: [],
         };
         try {
             const docRef = await addDoc(collection(db, 'products'), {
                 ...newProductData,
-                createdAt: serverTimestamp() // Use server-side timestamp for writing
+                createdAt: serverTimestamp()
             });
             setProducts(prev => [{ ...newProductData, id: docRef.id, createdAt: new Date() } as ProductService, ...prev]);
             toast({ title: "成功", description: "新产品已添加，请继续编辑。" });
@@ -298,8 +298,8 @@ function ProductServiceItem({ product, onUpdate, onRemove }: { product: ProductS
   
   useEffect(() => { setLocalProduct(product); }, [product]);
   
-  const handleImageUrlsChange = (newUrls: string[]) => {
-      handleFieldChange('imageUrls', newUrls);
+  const handleImagesChange = (newImages: ProductImage[]) => {
+      handleFieldChange('images', newImages);
   }
   
   const handleDetailsChange = (newDetails: SupplementaryField[]) => {
@@ -359,7 +359,7 @@ function ProductServiceItem({ product, onUpdate, onRemove }: { product: ProductS
                     
                     <Separator />
 
-                    <ImageManager urls={localProduct.imageUrls || []} onUrlsChange={handleImageUrlsChange} />
+                    <ImageManager images={localProduct.images || []} onImagesChange={handleImagesChange} />
 
                     <Separator />
                     
@@ -371,48 +371,62 @@ function ProductServiceItem({ product, onUpdate, onRemove }: { product: ProductS
   );
 }
 
-function ImageManager({ urls, onUrlsChange }: { urls: string[], onUrlsChange: (urls: string[]) => void }) {
-    const addImageUrl = () => {
-        onUrlsChange([...urls, '']);
+function ImageManager({ images, onImagesChange }: { images: ProductImage[], onImagesChange: (images: ProductImage[]) => void }) {
+    const addImage = () => {
+        onImagesChange([...images, { url: '', view: '默认' }]);
     };
 
-    const updateImageUrl = (index: number, value: string) => {
-        const newUrls = [...urls];
-        newUrls[index] = value;
-        onUrlsChange(newUrls);
+    const updateImage = (index: number, field: 'url' | 'view', value: string) => {
+        const newImages = [...images];
+        newImages[index] = { ...newImages[index], [field]: value };
+        onImagesChange(newImages);
     };
 
-    const removeImageUrl = (index: number) => {
-        onUrlsChange(urls.filter((_, i) => i !== index));
+    const removeImage = (index: number) => {
+        onImagesChange(images.filter((_, i) => i !== index));
     };
     
+    const viewOptions: ProductImage['view'][] = ['默认', '前', '后', '左', '右', '上', '下', '整体'];
+
     return (
         <div className="space-y-4">
             <h4 className="font-semibold">产品图片集</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                {urls.map((url, index) => (
+                {images.map((image, index) => (
                     <Card key={index} className="group relative">
-                        <CardContent className="p-2 aspect-video flex items-center justify-center bg-muted/50">
-                            {url ? (
-                                <Image src={url} alt={`Product image ${index + 1}`} width={160} height={90} className="object-contain rounded-md" onError={(e) => e.currentTarget.style.display = 'none'}/>
-                            ) : (
-                                <ImagePlus className="w-8 h-8 text-muted-foreground" />
-                            )}
+                        <CardContent className="p-2 flex flex-col gap-2">
+                            <div className="aspect-video flex items-center justify-center bg-muted/50 rounded-md overflow-hidden">
+                                {image.url ? (
+                                    <Image src={image.url} alt={`Product image ${index + 1}`} width={160} height={90} className="object-contain" onError={(e) => e.currentTarget.style.display = 'none'}/>
+                                ) : (
+                                    <ImagePlus className="w-8 h-8 text-muted-foreground" />
+                                )}
+                            </div>
+                             <div className="absolute top-0 right-0 m-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                 <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => removeImage(index)}>
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                <Input 
+                                    value={image.url}
+                                    onChange={(e) => updateImage(index, 'url', e.target.value)}
+                                    placeholder="输入图片URL..."
+                                    className="col-span-2"
+                                />
+                                <Select value={image.view} onValueChange={(value) => updateImage(index, 'view', value)}>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {viewOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </CardContent>
-                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                             <Button variant="destructive" size="icon" onClick={() => removeImageUrl(index)}>
-                                <Trash2 className="h-4 w-4" />
-                            </Button>
-                        </div>
-                        <Input 
-                            value={url}
-                            onChange={(e) => updateImageUrl(index, e.target.value)}
-                            placeholder="输入图片URL..."
-                            className="mt-2"
-                        />
                     </Card>
                 ))}
-                 <Button variant="outline" onClick={addImageUrl} className="aspect-video flex-col h-auto">
+                 <Button variant="outline" onClick={addImage} className="aspect-video flex-col h-auto">
                     <ImagePlus className="w-8 h-8 text-muted-foreground mb-2" />
                     添加图片
                 </Button>
