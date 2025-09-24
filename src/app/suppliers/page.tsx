@@ -1,3 +1,4 @@
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -13,7 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { DataProcessor } from '@/components/features/data-processor';
 import { useAuthStore } from '@/store/auth';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -170,7 +171,7 @@ function ProductManagement() {
         };
         try {
             const docRef = await addDoc(collection(db, 'products'), newProductData);
-            setProducts(prev => [{ ...newProductData, id: docRef.id, createdAt: new Date() }, ...prev]);
+            setProducts(prev => [{ ...newProductData, id: docRef.id, createdAt: new Date() } as unknown as ProductService, ...prev]);
             toast({ title: "成功", description: "新产品已添加，请继续编辑。" });
         } catch (error) {
             toast({ title: "错误", description: "添加新产品失败。", variant: "destructive" });
