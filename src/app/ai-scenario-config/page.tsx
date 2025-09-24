@@ -474,20 +474,18 @@ export default function AIScenarioConfigPage() {
             
             setPrompts(promptsData.prompts);
 
-            // Combine predefined and DB scenarios, ensuring uniqueness
-            const combinedScenariosMap = new Map<string, FullScenario>();
+            // Robust merging logic: DB scenarios overwrite predefined ones.
+            const scenariosMap = new Map<string, FullScenario>();
 
-            // First, add all predefined scenarios
-            PREDEFINED_SCENARIOS.forEach(p => {
-                combinedScenariosMap.set(p.id, p);
-            });
+            // First, add all predefined scenarios.
+            PREDEFINED_SCENARIOS.forEach(p => scenariosMap.set(p.id, p));
 
-            // Then, merge/overwrite with scenarios from the database
+            // Then, merge/overwrite with scenarios from the database.
             dbScenarios.forEach(dbScenario => {
-                combinedScenariosMap.set(dbScenario.id, { ...combinedScenariosMap.get(dbScenario.id), ...dbScenario });
+                scenariosMap.set(dbScenario.id, { ...scenariosMap.get(dbScenario.id), ...dbScenario });
             });
-            
-            const combined = Array.from(combinedScenariosMap.values());
+
+            const combined = Array.from(scenariosMap.values());
 
             const mergedScenarios = combined.map(scenario => {
                 const prompt = promptsData.prompts.find(p => p.promptKey === scenario.configuredPromptKey);
@@ -663,4 +661,3 @@ export default function AIScenarioConfigPage() {
     );
 }
 
-    
