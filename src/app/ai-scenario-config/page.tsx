@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -476,16 +475,19 @@ export default function AIScenarioConfigPage() {
             setPrompts(promptsData.prompts);
 
             // Combine predefined and DB scenarios, ensuring uniqueness
-            const combined = [...PREDEFINED_SCENARIOS];
-            dbScenarios.forEach(dbScenario => {
-                if (!combined.some(p => p.id === dbScenario.id)) {
-                    combined.push(dbScenario);
-                } else {
-                    // Update existing predefined with DB config
-                    const index = combined.findIndex(p => p.id === dbScenario.id);
-                    combined[index] = { ...combined[index], ...dbScenario };
-                }
+            const combinedScenariosMap = new Map<string, FullScenario>();
+
+            // First, add all predefined scenarios
+            PREDEFINED_SCENARIOS.forEach(p => {
+                combinedScenariosMap.set(p.id, p);
             });
+
+            // Then, merge/overwrite with scenarios from the database
+            dbScenarios.forEach(dbScenario => {
+                combinedScenariosMap.set(dbScenario.id, { ...combinedScenariosMap.get(dbScenario.id), ...dbScenario });
+            });
+            
+            const combined = Array.from(combinedScenariosMap.values());
 
             const mergedScenarios = combined.map(scenario => {
                 const prompt = promptsData.prompts.find(p => p.promptKey === scenario.configuredPromptKey);
@@ -662,9 +664,3 @@ export default function AIScenarioConfigPage() {
 }
 
     
-
-
-
-
-
-
