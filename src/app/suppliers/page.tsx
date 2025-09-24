@@ -15,7 +15,7 @@ import { Separator } from '@/components/ui/separator';
 import { DataProcessor } from '@/components/features/data-processor';
 import { useAuthStore } from '@/store/auth';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -23,6 +23,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Label } from '@/components/ui/label';
 import { useRouter } from 'next/navigation';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import Image from 'next/image';
@@ -174,7 +175,6 @@ function ProductManagement() {
             category: '待分类',
             supplierId: user.uid, 
             supplierName: user.name, 
-            createdAt: new Date(),
             imageUrls: [],
             details: [],
         };
@@ -183,7 +183,7 @@ function ProductManagement() {
                 ...newProductData,
                 createdAt: serverTimestamp() // Use server-side timestamp for writing
             });
-            setProducts(prev => [{ ...newProductData, id: docRef.id } as ProductService, ...prev]);
+            setProducts(prev => [{ ...newProductData, id: docRef.id, createdAt: new Date() } as ProductService, ...prev]);
             toast({ title: "成功", description: "新产品已添加，请继续编辑。" });
         } catch (error) {
             toast({ title: "错误", description: "添加新产品失败。", variant: "destructive" });
@@ -289,23 +289,23 @@ function ProductServiceItem({ product, onUpdate, onRemove }: { product: ProductS
             <CollapsibleContent>
                 <div className="p-6 space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <FormItem>
-                            <FormLabel>价格 (元)</FormLabel>
-                            <Input name="price" type="number" placeholder="99.00" value={localProduct.price} onChange={(e) => handleFieldChange('price', parseFloat(e.target.value) || 0)} />
-                        </FormItem>
-                        <FormItem>
-                            <FormLabel>类别</FormLabel>
-                            <Input name="category" placeholder="产品类别" value={localProduct.category} onChange={(e) => handleFieldChange('category', e.target.value)} />
-                        </FormItem>
-                         <FormItem>
-                            <FormLabel>主图URL</FormLabel>
-                            <Input name="imageUrl" placeholder="主图链接" value={localProduct.imageUrl || ''} onChange={(e) => handleFieldChange('imageUrl', e.target.value)} />
-                        </FormItem>
+                        <div className="space-y-2">
+                            <Label htmlFor={`price-${product.id}`}>价格 (元)</Label>
+                            <Input id={`price-${product.id}`} name="price" type="number" placeholder="99.00" value={localProduct.price} onChange={(e) => handleFieldChange('price', parseFloat(e.target.value) || 0)} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor={`category-${product.id}`}>类别</Label>
+                            <Input id={`category-${product.id}`} name="category" placeholder="产品类别" value={localProduct.category} onChange={(e) => handleFieldChange('category', e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor={`imageUrl-${product.id}`}>主图URL</Label>
+                            <Input id={`imageUrl-${product.id}`} name="imageUrl" placeholder="主图链接" value={localProduct.imageUrl || ''} onChange={(e) => handleFieldChange('imageUrl', e.target.value)} />
+                        </div>
                     </div>
-                     <FormItem>
-                        <FormLabel>产品/服务描述</FormLabel>
-                        <Textarea name="description" placeholder="详细描述您的产品或服务..." value={localProduct.description} onChange={(e) => handleFieldChange('description', e.target.value)} rows={3} />
-                    </FormItem>
+                     <div className="space-y-2">
+                        <Label htmlFor={`description-${product.id}`}>产品/服务描述</Label>
+                        <Textarea id={`description-${product.id}`} name="description" placeholder="详细描述您的产品或服务..." value={localProduct.description} onChange={(e) => handleFieldChange('description', e.target.value)} rows={3} />
+                    </div>
                     
                     <Separator />
 
