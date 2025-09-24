@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Puzzle, Edit, Workflow, Loader2, Frown, Users, Clock, Settings2, Calendar as CalendarIcon, Repeat, Info, Star } from 'lucide-react';
+import { Puzzle, Edit, Workflow, Loader2, Frown, Users, Clock, Settings2, Calendar as CalendarIcon, Repeat, Info, Star, PlusCircle } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore, type Role } from '@/store/auth';
 import { useRouter } from 'next/navigation';
@@ -27,6 +27,8 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { TimePicker } from '@/components/ui/time-picker';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 
 // =================================================================
@@ -59,11 +61,10 @@ type ScenarioConfig = {
     ruleLogic?: RuleLogic;
 };
 
-type FullScenario = ScenarioDefinition & ScenarioConfig & {
-    configuredPromptName?: string;
-};
+type FullScenario = ScenarioDefinition & Partial<ScenarioConfig>;
 
-const ALL_SCENARIOS: ScenarioDefinition[] = [
+
+const PREDEFINED_SCENARIOS: ScenarioDefinition[] = [
     {
         id: 'chat-assistant',
         name: '聊天对话 - AI助理',
@@ -103,18 +104,25 @@ function ScenarioEditDialog({
     prompts,
     open, 
     onOpenChange,
-    onSaveSuccess
+    onSaveSuccess,
+    isCreating,
 }: { 
     scenario: FullScenario | null, 
     prompts: GetPromptsOutput['prompts'],
     open: boolean, 
     onOpenChange: (open: boolean) => void,
-    onSaveSuccess: () => void
+    onSaveSuccess: () => void,
+    isCreating: boolean,
 }) {
     const [selectedPromptKey, setSelectedPromptKey] = useState('default');
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
     
+    // Core scenario definition state (for creation)
+    const [scenarioId, setScenarioId] = useState('');
+    const [scenarioName, setScenarioName] = useState('');
+    const [scenarioDescription, setScenarioDescription] = useState('');
+
     // Time config state
     const [isRepetitionEnabled, setIsRepetitionEnabled] = useState(false);
     const [repetition, setRepetition] = useState<Repetition>('daily');
@@ -136,6 +144,10 @@ function ScenarioEditDialog({
             setTargetUserRoles(scenario.targetUserRoles || {});
             setRuleLogic(scenario.ruleLogic || 'and');
             
+            setScenarioId(scenario.id);
+            setScenarioName(scenario.name);
+            setScenarioDescription(scenario.description);
+
             // Repetition Config
             setRepetition(isRepEnabled ? scenario.repetition! : 'daily');
             setDaysOfWeek(scenario.daysOfWeek || []);
@@ -160,17 +172,32 @@ function ScenarioEditDialog({
             setExpiresAt(undefined);
             setTargetUserRoles({});
             setRuleLogic('and');
+            setScenarioId('');
+            setScenarioName('');
+            setScenarioDescription('');
         }
     }, [scenario]);
 
     const handleSave = async () => {
-        if (!scenario) return;
+        if (isCreating && (!scenarioId || !scenarioName || !scenarioDescription)) {
+            toast({
+                title: '验证失败',
+                description: '新增场景时，ID、名称和描述均为必填项。',
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        const finalScenarioId = isCreating ? scenarioId : scenario!.id;
+        if (!finalScenarioId) return;
+
         setIsSaving(true);
         try {
-            const scenarioRef = doc(db, 'ai_scenarios', scenario.id);
+            const scenarioRef = doc(db, 'ai_scenarios', finalScenarioId);
             const dataToSave: Partial<FullScenario> = {
-                name: scenario.name,
-                description: scenario.description,
+                id: finalScenarioId,
+                name: isCreating ? scenarioName : scenario!.name,
+                description: isCreating ? scenarioDescription : scenario!.description,
                 configuredPromptKey: selectedPromptKey === 'default' ? '' : selectedPromptKey,
                 targetUserRoles,
                 ruleLogic: ruleLogic,
@@ -190,7 +217,7 @@ function ScenarioEditDialog({
             
             toast({
                 title: '保存成功',
-                description: `场景“${scenario.name}”已成功配置。`,
+                description: `场景“${dataToSave.name}”已成功配置。`,
             });
             onSaveSuccess();
             onOpenChange(false);
@@ -237,14 +264,36 @@ function ScenarioEditDialog({
         );
     };
 
+    const dialogTitle = isCreating ? '新增功能场景' : `编辑场景: ${scenario?.name}`;
+    const dialogDescription = isCreating ? '定义一个新的AI业务场景及其默认配置。' : scenario?.description;
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle className="font-headline">编辑场景: {scenario?.name}</DialogTitle>
-                    <DialogDescription>{scenario?.description}</DialogDescription>
+                    <DialogTitle className="font-headline">{dialogTitle}</DialogTitle>
+                    <DialogDescription>{dialogDescription}</DialogDescription>
                 </DialogHeader>
                 <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                    {isCreating && (
+                        <div className="space-y-4 p-4 border rounded-md bg-muted/50">
+                            <h4 className="font-semibold text-sm">场景定义</h4>
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <Label htmlFor="scenario-id">场景 ID (唯一标识)</Label>
+                                    <Input id="scenario-id" value={scenarioId} onChange={(e) => setScenarioId(e.target.value.toLowerCase().replace(/\s+/g, '-'))} placeholder="e.g., product-description-generation"/>
+                                </div>
+                                <div>
+                                    <Label htmlFor="scenario-name">场景名称</Label>
+                                    <Input id="scenario-name" value={scenarioName} onChange={(e) => setScenarioName(e.target.value)} placeholder="e.g., 商品描述生成"/>
+                                </div>
+                             </div>
+                             <div>
+                                <Label htmlFor="scenario-desc">功能描述</Label>
+                                <Textarea id="scenario-desc" value={scenarioDescription} onChange={(e) => setScenarioDescription(e.target.value)} placeholder="描述这个场景是做什么的"/>
+                             </div>
+                        </div>
+                    )}
                     <div>
                         <Label htmlFor="prompt-select" className="text-sm font-medium">配置使用的提示词</Label>
                         <Select value={selectedPromptKey} onValueChange={setSelectedPromptKey}>
@@ -405,6 +454,7 @@ export default function AIScenarioConfigPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [selectedScenario, setSelectedScenario] = useState<FullScenario | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isCreating, setIsCreating] = useState(false);
 
     const { role, isLoading: isAuthLoading } = useAuthStore();
     const router = useRouter();
@@ -418,19 +468,29 @@ export default function AIScenarioConfigPage() {
                 getPrompts()
             ]);
 
-            const scenarioConfigs: Record<string, ScenarioConfig> = {};
+            const dbScenarios: FullScenario[] = [];
             scenarioConfigsSnapshot.forEach(doc => {
-                scenarioConfigs[doc.id] = doc.data() as ScenarioConfig;
+                dbScenarios.push(doc.data() as FullScenario);
             });
             
             setPrompts(promptsData.prompts);
 
-            const mergedScenarios = ALL_SCENARIOS.map(def => {
-                const config = scenarioConfigs[def.id] || {};
-                const prompt = promptsData.prompts.find(p => p.promptKey === config?.configuredPromptKey);
+            // Combine predefined and DB scenarios, ensuring uniqueness
+            const combined = [...PREDEFINED_SCENARIOS];
+            dbScenarios.forEach(dbScenario => {
+                if (!combined.some(p => p.id === dbScenario.id)) {
+                    combined.push(dbScenario);
+                } else {
+                    // Update existing predefined with DB config
+                    const index = combined.findIndex(p => p.id === dbScenario.id);
+                    combined[index] = { ...combined[index], ...dbScenario };
+                }
+            });
+
+            const mergedScenarios = combined.map(scenario => {
+                const prompt = promptsData.prompts.find(p => p.promptKey === scenario.configuredPromptKey);
                 return {
-                    ...def,
-                    ...config,
+                    ...scenario,
                     configuredPromptName: prompt?.name,
                 };
             });
@@ -457,6 +517,13 @@ export default function AIScenarioConfigPage() {
 
     const handleEditClick = (scenario: FullScenario) => {
         setSelectedScenario(scenario);
+        setIsCreating(false);
+        setIsDialogOpen(true);
+    };
+
+    const handleAddClick = () => {
+        setSelectedScenario(null);
+        setIsCreating(true);
         setIsDialogOpen(true);
     };
     
@@ -515,10 +582,18 @@ export default function AIScenarioConfigPage() {
 
                 <Card>
                 <CardHeader>
-                    <CardTitle className="font-headline">功能场景列表</CardTitle>
-                    <CardDescription>
-                    以下是平台中所有可配置的AI应用场景。您可以为每个场景指定一个默认的提示词，系统在执行相应功能时将优先使用此配置。
-                    </CardDescription>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle className="font-headline">功能场景列表</CardTitle>
+                            <CardDescription>
+                            以下是平台中所有可配置的AI应用场景。您可以为每个场景指定一个默认的提示词，系统在执行相应功能时将优先使用此配置。
+                            </CardDescription>
+                        </div>
+                        <Button onClick={handleAddClick}>
+                            <PlusCircle className="mr-2"/>
+                            新增场景
+                        </Button>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     <Table>
@@ -550,7 +625,7 @@ export default function AIScenarioConfigPage() {
                                             <div className="flex flex-col gap-1">
                                                 <Badge variant="secondary" className="w-fit">
                                                 <Workflow className="mr-1.5 h-3 w-3" />
-                                                {scenario.configuredPromptName || '未知提示词'}
+                                                { (prompts.find(p => p.promptKey === scenario.configuredPromptKey))?.name || '未知提示词'}
                                                 </Badge>
                                                 <p className="font-mono text-xs text-muted-foreground/80">{scenario.configuredPromptKey}</p>
                                             </div>
@@ -580,12 +655,14 @@ export default function AIScenarioConfigPage() {
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
                 onSaveSuccess={fetchData}
+                isCreating={isCreating}
             />
         </AppLayout>
     );
 }
 
     
+
 
 
 
