@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useState, useRef, useEffect, useTransition } from 'react';
@@ -87,13 +85,14 @@ export function ShoppingAssistant() {
                 });
                 const suppliersList = suppliersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Supplier));
                 
-                const scenariosList = scenariosSnapshot.docs
-                    .map(doc => doc.data() as AIScenario)
-                    .filter(s => s.tags?.includes('shopping-assistant'));
+                const allScenarios = scenariosSnapshot.docs.map(doc => ({id: doc.id, ...doc.data() } as AIScenario));
+
+                // Filter scenarios to only show those relevant to the shopping assistant
+                const shoppingScenarios = allScenarios.filter(s => s.scope === 'AI智能购物');
 
                 setProducts(productsList);
                 setSuppliers(suppliersList);
-                setScenarios(scenariosList);
+                setScenarios(shoppingScenarios);
 
             } catch (error) {
                 console.error("Failed to fetch initial data:", error);
@@ -325,3 +324,5 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
     
 
   
+
+    
