@@ -54,12 +54,12 @@ const generateTripo3dModelFlow = ai.defineFlow(
 
     const responseData = await response.json();
     
-    // Correctly parse the nested task_id from the 'data' object
+    // The official API returns the task_id within a 'data' object.
     if (responseData.data && responseData.data.task_id) {
-        return { task_id: responseData.data.task_id };
+        return responseData;
     }
 
     // Throw an error if the expected structure is not found
-    throw new Error('Tripo3D API did not return the expected task_id structure.');
+    throw new Error('Tripo3D API did not return the expected task_id structure in the `data` field.');
   }
 );

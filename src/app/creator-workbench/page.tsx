@@ -364,15 +364,16 @@ function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
         setTaskId('generating');
 
         try {
-            const data = await generateTripo3dModel({ prompt, apiKey: apiKeyToUse });
-            if (data.task_id) {
-                setTaskId(data.task_id);
+            const responseData = await generateTripo3dModel({ prompt, apiKey: apiKeyToUse });
+            if (responseData.data && responseData.data.task_id) {
+                const newTaskId = responseData.data.task_id;
+                setTaskId(newTaskId);
                 // Immediately start polling
-                const initialStatus = await getTripo3dModelStatus({ taskId: data.task_id, apiKey: apiKeyToUse });
+                const initialStatus = await getTripo3dModelStatus({ taskId: newTaskId, apiKey: apiKeyToUse });
                 setTaskStatus(initialStatus);
-                pollTaskStatus(data.task_id, apiKeyToUse);
+                pollTaskStatus(newTaskId, apiKeyToUse);
             } else {
-                throw new Error("API did not return a task_id.");
+                throw new Error("API did not return a task_id in the 'data' field.");
             }
         } catch (err: any) {
             setError(err.message || 'Failed to create generation task.');
@@ -539,7 +540,7 @@ function NanoBananaGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () 
                 </div>
             )}
             
-            {aiResult && <SubmissionForm imageUrl={aiResult} onSubmissionSuccess={handleSuccess} toolName="Gemini Nano-Banana" />}
+            {aiResult && <SubmissionForm imageUrl={aiResult} onSubmissionSuccess={handleSuccess} toolName="Gemini Image" />}
         </div>
     );
 }
@@ -733,8 +734,3 @@ export default function CreatorWorkbenchPage() {
     if (role !== 'creator') { return <AppLayout><RestrictedAccess /></AppLayout>; }
     return <AppLayout><CreatorWorkbench /></AppLayout>;
 }
-
-    
-
-    
-
