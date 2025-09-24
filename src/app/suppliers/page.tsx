@@ -83,8 +83,6 @@ function CompanyInfoForm() {
               establishedDate: supplierData.establishedDate ? (supplierData.establishedDate as Timestamp).toDate() : undefined,
           });
           setSupplementaryFields(supplierData.supplementaryFields || []);
-        } else {
-             form.reset({ name: user.name || "", email: user.email || "" });
         }
       } catch (error) {
         toast({ title: "加载失败", description: "无法加载您的公司信息。", variant: "destructive" });
@@ -170,6 +168,14 @@ function CompanyInfoForm() {
               </div>
             </div>
             
+            <Separator />
+
+            <SupplementaryFieldsManager 
+              fields={supplementaryFields}
+              onFieldsChange={setSupplementaryFields}
+              title="补充信息"
+            />
+            
             <div className="flex justify-end">
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="animate-spin mr-2"/>}
@@ -216,7 +222,6 @@ function ProductManagement() {
             price: 99, 
             category: '待分类',
             supplierId: user.uid, 
-            supplierName: user.name, 
             imageUrls: [],
             details: [],
         };
@@ -286,7 +291,8 @@ function ProductServiceItem({ product, onUpdate, onRemove }: { product: ProductS
   }, [onUpdate, product.id]);
 
   const handleFieldChange = (field: keyof ProductService, value: any) => {
-      setLocalProduct(prev => ({...prev, [field]: value}));
+      const updatedProduct = {...localProduct, [field]: value};
+      setLocalProduct(updatedProduct);
       triggerUpdate({ [field]: value });
   };
   
@@ -312,7 +318,9 @@ function ProductServiceItem({ product, onUpdate, onRemove }: { product: ProductS
                                 <span className="sr-only">Toggle</span>
                             </Button>
                         </CollapsibleTrigger>
+                        <Label htmlFor={`name-${product.id}`} className="sr-only">产品名称</Label>
                         <Input 
+                            id={`name-${product.id}`}
                             value={localProduct.name}
                             onChange={(e) => handleFieldChange('name', e.target.value)}
                             className="text-base font-semibold border-0 bg-transparent focus-visible:ring-1"

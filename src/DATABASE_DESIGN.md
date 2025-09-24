@@ -82,7 +82,7 @@
 | **contactPerson** | `string` | (可选) 主要联系人姓名。 |
 | **jobTitle** | `string` | (可选) 联系人职位。 |
 | **mobile** | `string` | (可选) 联系人手机。 |
-| **supplementaryFields** | `Array<Object>` | (可选) 补充信息字段。 |
+| **supplementaryFields** | `Array<Object>` | (可选) 补充信息字段，用于存储自定义的键值对信息。 |
 
 ### 1.5. `chats` 集合
 
