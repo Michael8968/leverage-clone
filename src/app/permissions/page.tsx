@@ -4,7 +4,7 @@
 
 import { AppLayout } from '@/components/app-layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ShieldCheck, MoreHorizontal, Star, UserX, Trash2, UserCog, UserCheck, CircleSlash, Users } from 'lucide-react';
+import { ShieldCheck, MoreHorizontal, Star, UserX, Trash2, UserCog, UserCheck, CircleSlash, Users, ArrowUp, ArrowDown } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -266,10 +266,37 @@ export default function PermissionsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [userToDelete, setUserToDelete] = useState<User | null>(null);
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+    const [sortConfig, setSortConfig] = useState<{ key: keyof User; direction: 'asc' | 'desc' } | null>(null);
     const { toast } = useToast();
 
     const activeUsers = useMemo(() => users.filter(u => u.role !== 'suspended'), [users]);
     const isAllSelected = activeUsers.length > 0 && selectedUserIds.length === activeUsers.length;
+    
+    const sortedUsers = useMemo(() => {
+        let sortableUsers = [...activeUsers];
+        if (sortConfig !== null) {
+            sortableUsers.sort((a, b) => {
+                const aValue = a[sortConfig.key] ?? '';
+                const bValue = b[sortConfig.key] ?? '';
+                if (aValue < bValue) {
+                    return sortConfig.direction === 'asc' ? -1 : 1;
+                }
+                if (aValue > bValue) {
+                    return sortConfig.direction === 'asc' ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+        return sortableUsers;
+    }, [activeUsers, sortConfig]);
+
+    const requestSort = (key: keyof User) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
 
 
     useEffect(() => {
@@ -331,6 +358,12 @@ export default function PermissionsPage() {
         checked ? [...prev, uid] : prev.filter(id => id !== uid)
       );
     };
+    
+    const renderSortArrow = (key: keyof User) => {
+        if (sortConfig?.key !== key) return null;
+        if (sortConfig.direction === 'asc') return <ArrowUp className="w-4 h-4 ml-2" />;
+        return <ArrowDown className="w-4 h-4 ml-2" />;
+    };
 
   return (
     <AppLayout>
@@ -365,10 +398,26 @@ export default function PermissionsPage() {
                                 aria-label="Select all"
                             />
                         </TableHead>
-                        <TableHead>用户</TableHead>
-                        <TableHead>邮箱</TableHead>
-                        <TableHead>角色</TableHead>
-                        <TableHead>星级 (1-10)</TableHead>
+                        <TableHead>
+                            <Button variant="ghost" onClick={() => requestSort('name')}>
+                                用户 {renderSortArrow('name')}
+                            </Button>
+                        </TableHead>
+                        <TableHead>
+                             <Button variant="ghost" onClick={() => requestSort('email')}>
+                                邮箱 {renderSortArrow('email')}
+                            </Button>
+                        </TableHead>
+                        <TableHead>
+                            <Button variant="ghost" onClick={() => requestSort('role')}>
+                                角色 {renderSortArrow('role')}
+                            </Button>
+                        </TableHead>
+                        <TableHead>
+                            <Button variant="ghost" onClick={() => requestSort('rating')}>
+                                星级 (1-10) {renderSortArrow('rating')}
+                            </Button>
+                        </TableHead>
                         <TableHead className="text-right">操作</TableHead>
                     </TableRow>
                 </TableHeader>
@@ -384,7 +433,7 @@ export default function PermissionsPage() {
                                 <TableCell className="text-right"><Skeleton className="h-8 w-8 rounded-md ml-auto" /></TableCell>
                             </TableRow>
                         ))
-                    ) : activeUsers.map(user => (
+                    ) : sortedUsers.map(user => (
                         <TableRow 
                             key={user.uid} 
                             className={cn(user.status === 'suspended' && 'opacity-50')}
