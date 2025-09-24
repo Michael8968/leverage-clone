@@ -411,7 +411,7 @@ function ImageManager({ images, onImagesChange }: { images: ProductImage[], onIm
                     <Card key={index} className="group relative">
                         <CardContent className="p-2 flex flex-col gap-2">
                             <div className="aspect-video flex items-center justify-center bg-muted/50 rounded-md overflow-hidden">
-                                {image.url && image.url !== '' ? (
+                                {image.url && image.url.trim() !== '' ? (
                                     <Image src={image.url} alt={`Product image ${index + 1}`} width={160} height={90} className="object-contain" onError={(e) => e.currentTarget.style.display = 'none'}/>
                                 ) : (
                                     <ImagePlus className="w-8 h-8 text-muted-foreground" />
@@ -424,7 +424,7 @@ function ImageManager({ images, onImagesChange }: { images: ProductImage[], onIm
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                                 <Input 
-                                    value={image.url}
+                                    value={image.url || ''}
                                     onChange={(e) => updateImage(index, 'url', e.target.value)}
                                     placeholder="输入图片URL..."
                                     className="col-span-2"
