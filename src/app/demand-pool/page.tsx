@@ -42,7 +42,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
-import { getPrompts, GetPromptsOutput } from '@/ai/flows/admin-management-flows';
+import { getPrompts, type GetPromptsOutput } from '@/ai/flows/admin-management-flows';
 import { executePrompt } from '@/ai/flows/prompt-execution-flow';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
