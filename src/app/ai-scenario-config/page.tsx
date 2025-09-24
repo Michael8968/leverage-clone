@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Puzzle, Edit, Workflow, Loader2, Frown, Users, Clock, Settings2, Calendar as CalendarIcon, Repeat, Info, Star, PlusCircle, ShoppingBag, BrainCircuit } from 'lucide-react';
+import { Puzzle, Edit, Workflow, Loader2, Frown, Users, Clock, Settings2, Calendar as CalendarIcon, Repeat, Info, Star, PlusCircle, ShoppingBag, BrainCircuit, MessageSquare } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore, type Role } from '@/store/auth';
 import { useRouter } from 'next/navigation';
@@ -31,6 +31,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import type { AIScenario } from '@/lib/types';
 import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import * as z from 'zod';
 
@@ -160,7 +161,7 @@ function ScenarioEditDialog({
             const dataToSave: Omit<Partial<FullScenario>, 'id'> = {
                 name: values.name,
                 description: values.description,
-                tags: values.tags?.split(',').map(t => t.trim().toLowerCase()).filter(Boolean),
+                tags: values.tags?.split(/,|，|\s+/).map(t => t.trim().toLowerCase()).filter(Boolean),
                 configuredPromptKey: selectedPromptKey === 'default' ? '' : selectedPromptKey,
                 targetUserRoles,
                 ruleLogic: ruleLogic,
@@ -255,14 +256,20 @@ function ScenarioEditDialog({
                                     <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>场景名称</FormLabel><FormControl><Input placeholder="e.g., 商品描述生成" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                                  </div>
                                  <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>功能描述</FormLabel><FormControl><Textarea placeholder="描述这个场景是做什么的" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                                 <FormField control={form.control} name="tags" render={({ field }) => (<FormItem>
-                                     <FormLabel>标签 (用逗号分隔)</FormLabel>
-                                     <FormControl><Input placeholder="e.g., shopping, chat" {...field} /></FormControl>
-                                     <FormDescription className="text-xs">
-                                        特殊系统标签：<Badge variant="outline" className="text-xs">chat</Badge> (用于聊天助理), <Badge variant="outline" className="text-xs">shopping</Badge> (用于AI购物助手)。
-                                     </FormDescription>
-                                     <FormMessage />
-                                 </FormItem>)}/>
+                                 <FormField
+                                    control={form.control}
+                                    name="tags"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>标签 (用逗号或空格分隔)</FormLabel>
+                                            <FormControl><Input placeholder="e.g., shopping, chat" {...field} /></FormControl>
+                                            <FormDescription className="text-xs">
+                                                特殊系统标签：<Badge variant="outline" className="text-xs">shopping</Badge> (用于AI购物助手), <Badge variant="outline" className="text-xs">chat</Badge> (用于聊天助理)。
+                                            </FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
                             </form>
                         </Form>
                     )}
