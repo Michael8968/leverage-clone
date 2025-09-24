@@ -13,7 +13,7 @@ import { Puzzle, Edit, Workflow, Loader2, Frown, Users, Clock, Settings2, Calend
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore, type Role } from '@/store/auth';
 import { useRouter } from 'next/navigation';
-import { collection, doc, getDocs, setDoc, Timestamp } from 'firebase/firestore';
+import { collection, doc, getDocs, setDoc, Timestamp, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { getPrompts, type GetPromptsOutput } from '@/ai/flows/admin-management-flows';
@@ -29,7 +29,7 @@ import { TimePicker } from '@/components/ui/time-picker';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import type { AIScenario, AIScenarioRules } from '@/lib/types';
+import type { AIScenario } from '@/lib/types';
 
 
 // =================================================================
@@ -159,9 +159,7 @@ function ScenarioEditDialog({
 
         setIsSaving(true);
         try {
-            const scenarioRef = doc(db, 'ai_scenarios', finalScenarioId);
-            const dataToSave: Partial<FullScenario> = {
-                id: finalScenarioId,
+            const dataToSave: Omit<Partial<FullScenario>, 'id'> = {
                 name: isCreating ? scenarioName : scenario!.name,
                 description: isCreating ? scenarioDescription : scenario!.description,
                 tags: scenarioTags.split(',').map(t => t.trim()).filter(Boolean),
@@ -179,8 +177,16 @@ function ScenarioEditDialog({
             const cleanedDataToSave = Object.fromEntries(
                 Object.entries(dataToSave).filter(([, value]) => value !== undefined)
             );
-
-            await setDoc(scenarioRef, cleanedDataToSave, { merge: true });
+            
+            if (isCreating) {
+                // For new documents, we explicitly set the ID
+                const scenarioRef = doc(db, 'ai_scenarios', finalScenarioId);
+                await setDoc(scenarioRef, cleanedDataToSave);
+            } else {
+                // For existing documents, we update
+                const scenarioRef = doc(db, 'ai_scenarios', finalScenarioId);
+                await setDoc(scenarioRef, cleanedDataToSave, { merge: true });
+            }
             
             toast({
                 title: '保存成功',
@@ -439,7 +445,10 @@ export default function AIScenarioConfigPage() {
                 getPrompts()
             ]);
 
-            const dbScenarios = scenarioConfigsSnapshot.docs.map(doc => doc.data() as FullScenario);
+            const dbScenarios = scenarioConfigsSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            } as FullScenario));
             
             setPrompts(promptsData.prompts);
             setFullScenarios(dbScenarios);
