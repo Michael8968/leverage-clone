@@ -9,14 +9,120 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, where, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Users, MessageSquare } from 'lucide-react';
+import { Users, MessageSquare, CalendarPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore, type User } from '@/store/auth';
 import { ChatDialog } from '@/components/features/chat-dialog';
-import type { Demand } from '@/lib/types';
+import type { Demand, Availability, Appointment } from '@/lib/types';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { format } from 'date-fns';
+import { zhCN } from 'date-fns/locale';
+
+function AppointmentDialog({ open, onOpenChange, creator, currentUser }: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    creator: User | null;
+    currentUser: User | null;
+}) {
+    const { toast } = useToast();
+    const [availability, setAvailability] = useState<Availability | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isBooking, setIsBooking] = useState(false);
+    const [selectedSlot, setSelectedSlot] = useState<any | null>(null);
+
+    useEffect(() => {
+        const fetchAvailability = async () => {
+            if (!creator || !open) return;
+            setIsLoading(true);
+            try {
+                const availRef = doc(db, 'availabilities', creator.uid);
+                const availSnap = await getDoc(availRef);
+                if (availSnap.exists()) {
+                    setAvailability(availSnap.data() as Availability);
+                } else {
+                    setAvailability({ creatorId: creator.uid, slots: [] });
+                }
+            } catch (error) {
+                toast({ title: "加载失败", description: "无法加载创意师的空闲时间。", variant: "destructive" });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchAvailability();
+    }, [creator, open, toast]);
+
+    const handleBookAppointment = async () => {
+        if (!selectedSlot || !currentUser || !creator) {
+            toast({ title: '错误', description: '请选择一个时间段进行预约。' });
+            return;
+        }
+        setIsBooking(true);
+        try {
+            await addDoc(collection(db, 'appointments'), {
+                creatorId: creator.uid,
+                requesterId: currentUser.uid,
+                requesterName: currentUser.name,
+                appointmentTime: selectedSlot,
+                status: 'pending',
+                createdAt: serverTimestamp(),
+            });
+             // Also, update the availability to remove the booked slot
+            const newSlots = availability?.slots.filter(s => s.seconds !== selectedSlot.seconds);
+            await setDoc(doc(db, 'availabilities', creator.uid), { slots: newSlots }, { merge: true });
+
+            toast({ title: '预约成功', description: '您的预约已发送给创意师，请等待对方确认。' });
+            onOpenChange(false);
+        } catch (error) {
+            toast({ title: '预约失败', description: '创建预约时发生错误。', variant: 'destructive' });
+        } finally {
+            setIsBooking(false);
+        }
+    };
+
+    const futureSlots = availability?.slots
+        ?.filter(slot => slot.toDate() > new Date())
+        .sort((a, b) => a.toDate() - b.toDate()) || [];
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle className="font-headline">预约 {creator?.name}</DialogTitle>
+                    <DialogDescription>请从下方选择一个该创意师的空闲时间段进行预约。</DialogDescription>
+                </DialogHeader>
+                <div className="py-4 max-h-64 overflow-y-auto">
+                    {isLoading ? (
+                        <Skeleton className="h-24 w-full" />
+                    ) : futureSlots.length === 0 ? (
+                        <p className="text-center text-muted-foreground">该创意师暂无开放的可预约时间。</p>
+                    ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {futureSlots.map((slot: any, index: number) => (
+                                <Button
+                                    key={index}
+                                    variant={selectedSlot?.seconds === slot.seconds ? 'default' : 'outline'}
+                                    onClick={() => setSelectedSlot(slot)}
+                                >
+                                    {format(slot.toDate(), 'M月d日 HH:mm', { locale: zhCN })}
+                                </Button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                <DialogFooter>
+                    <Button variant="ghost" onClick={() => onOpenChange(false)}>取消</Button>
+                    <Button onClick={handleBookAppointment} disabled={!selectedSlot || isBooking}>
+                        {isBooking ? <Loader2 className="animate-spin mr-2" /> : null}
+                        确认预约
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 
 export default function DesignersPage() {
@@ -24,6 +130,9 @@ export default function DesignersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isChatDialogOpen, setIsChatDialogOpen] = useState(false);
   const [selectedDemandForChat, setSelectedDemandForChat] = useState<Demand | null>(null);
+  const [selectedCreatorForBooking, setSelectedCreatorForBooking] = useState<User | null>(null);
+  const [isAppointmentDialogOpen, setIsAppointmentDialogOpen] = useState(false);
+
   const { toast } = useToast();
   const router = useRouter();
   const { user } = useAuthStore();
@@ -94,11 +203,14 @@ export default function DesignersPage() {
     }
   };
 
-  const handleBookAppointment = () => {
-    toast({
-      title: "功能开发中",
-      description: "在线预约功能即将上线，敬请期待！",
-    });
+  const handleBookAppointment = (creator: User) => {
+     if (!user) {
+      toast({ title: "请先登录", description: "您需要登录后才能预约。", variant: "destructive" });
+      router.push('/login');
+      return;
+    }
+    setSelectedCreatorForBooking(creator);
+    setIsAppointmentDialogOpen(true);
   };
 
 
@@ -150,7 +262,8 @@ export default function DesignersPage() {
                         <MessageSquare className="mr-2 h-4 w-4"/>
                         立即交流
                     </Button>
-                    <Button variant="outline" onClick={handleBookAppointment}>
+                    <Button variant="outline" onClick={() => handleBookAppointment(creator)}>
+                        <CalendarPlus className="mr-2 h-4 w-4"/>
                         立即预约
                     </Button>
                 </div>
@@ -171,8 +284,12 @@ export default function DesignersPage() {
                 currentUser={user}
             />
         )}
+        <AppointmentDialog
+            open={isAppointmentDialogOpen}
+            onOpenChange={setIsAppointmentDialogOpen}
+            creator={selectedCreatorForBooking}
+            currentUser={user}
+        />
     </AppLayout>
   );
 }
-
-
