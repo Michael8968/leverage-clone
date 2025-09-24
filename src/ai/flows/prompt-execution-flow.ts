@@ -132,14 +132,14 @@ async function findAvailableModels(promptDoc?: Prompt, allConnections?: LlmConne
 }
 
 // =================================================================
-// (NEW) API Adapter Layer
+// API Adapter Layer
 // =================================================================
 function getApiConfig(model: LlmConnection, messages: z.infer<typeof PromptMessageSchema>[], temperature?: number) {
     const provider = model.provider.toLowerCase();
 
     // Default to Google's format
-    let url = `https://generativelanguage.googleapis.com/v1beta/models/${model.modelName}:generateContent`;
-    let headers: Record<string, string> = { 'Content-Type': 'application/json', 'x-goog-api-key': model.apiKey };
+    let url = `https://generativelanguage.googleapis.com/v1beta/models/${model.modelName}:generateContent?key=${model.apiKey}`;
+    let headers: Record<string, string> = { 'Content-Type': 'application/json' };
     let body: Record<string, any> = {
         contents: messages.map(msg => ({
             role: msg.role === 'assistant' ? 'model' : msg.role,
@@ -161,7 +161,7 @@ function getApiConfig(model: LlmConnection, messages: z.infer<typeof PromptMessa
     // Add other providers like Anthropic, etc. here in the future
     // else if (provider.includes('anthropic')) { ... }
 
-    return { url, method: 'POST', headers, body };
+    return { url, method: 'POST', headers, body: JSON.stringify(body) };
 }
 
 function parseApiResponse(provider: string, response: any) {
@@ -172,7 +172,16 @@ function parseApiResponse(provider: string, response: any) {
     }
     
     // Default to Google's response format
-    return response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    if (response.candidates?.[0]?.content?.parts?.[0]?.text) {
+        return response.candidates[0].content.parts[0].text;
+    }
+
+    // Handle potential errors from Google API
+    if (response.error) {
+         throw new Error(`Google API Error: ${response.error.message}`);
+    }
+
+    return '';
 }
 
 
@@ -235,7 +244,7 @@ const executePromptFlow = ai.defineFlow(
     
     if (modelsToTry.length === 0) throw new Error("No active and suitable LLM connections available for the target.");
 
-    // 3. DYNAMIC CONTEXT INJECTION (NEW)
+    // 3. DYNAMIC CONTEXT INJECTION
     let dynamicContext = "";
     if (promptDocument?.querySources) {
         const contextParts: string[] = [];
@@ -276,23 +285,26 @@ const executePromptFlow = ai.defineFlow(
             
             const apiConfig = getApiConfig(model, finalMessages, temperature);
 
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || ''}/api/generate`, {
-                 method: 'POST',
-                 headers: { 'Content-Type': 'application/json' },
-                 body: JSON.stringify(apiConfig)
+            const response = await fetch(apiConfig.url, {
+                 method: apiConfig.method,
+                 headers: apiConfig.headers,
+                 body: apiConfig.body,
             });
 
             if (!response.ok) {
-                const errorBody = await response.json();
-                throw new Error(`Model API request failed with status ${response.status}: ${JSON.stringify(errorBody)}`);
+                const errorBody = await response.text();
+                throw new Error(`Model API request failed with status ${response.status}: ${errorBody}`);
             }
 
             const result = await response.json();
             const textResponse = parseApiResponse(model.provider, result);
-
-            if (!textResponse) {
-                throw new Error('Model returned an empty response.');
+            
+            if (!textResponse && !result.error) {
+                 // Check for cases where parsing might fail but there's no explicit error from the parsing function
+                 console.error("Parsed text is empty, but no error thrown. Full response:", result);
+                 throw new Error('Model returned a valid but empty or unparsable response.');
             }
+
 
             return { text: textResponse };
 
