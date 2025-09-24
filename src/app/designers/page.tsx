@@ -30,7 +30,7 @@ export default function DesignersPage() {
         const usersCollection = collection(db, 'users');
         const q = query(usersCollection, where("role", "==", "creator"));
         const snapshot = await getDocs(q);
-        const creatorsList = snapshot.docs.map(d => ({ ...d.data() } as User));
+        const creatorsList = snapshot.docs.map(d => ({ ...d.data(), uid: d.id } as User));
         setCreators(creatorsList);
       } catch (error) {
         console.error("Error fetching creators:", error);
