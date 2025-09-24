@@ -276,7 +276,7 @@ const executePromptFlow = ai.defineFlow(
             
             const apiConfig = getApiConfig(model, finalMessages, temperature);
 
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/generate`, {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || ''}/api/generate`, {
                  method: 'POST',
                  headers: { 'Content-Type': 'application/json' },
                  body: JSON.stringify(apiConfig)
