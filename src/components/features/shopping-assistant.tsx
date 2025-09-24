@@ -76,7 +76,14 @@ export function ShoppingAssistant() {
                     getPrompts()
                 ]);
 
-                const productsList = productsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ProductService));
+                const productsList = productsSnapshot.docs.map(doc => {
+                    const data = doc.data();
+                    // Ensure Firestore Timestamps are converted to serializable format
+                    if (data.createdAt && typeof data.createdAt.toDate === 'function') {
+                        data.createdAt = data.createdAt.toDate().toISOString();
+                    }
+                    return { ...data, id: doc.id } as ProductService;
+                });
                 const suppliersList = suppliersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Supplier));
 
                 setProducts(productsList);
@@ -239,4 +246,5 @@ const CustomServiceConnector = () => { const router = useRouter(); return (<Card
 const DemandPoolConnector = () => { const router = useRouter(); return (<Card className="bg-accent/10 border-accent"><CardHeader><CardTitle className="font-headline flex items-center gap-2"><FilePlus2/> 没找到满意的？</CardTitle><CardDescription>您可以将您的需求发布到需求池，让更多的供应商和创意者来帮助您。</CardDescription></CardHeader><CardContent><Button className="w-full" onClick={() => router.push('/demand-pool')}>发布到需求池</Button></CardContent></Card>); };
 const UserProfileDisplay = ({ profile }: { profile: UserProfile }) => ( <Card className="bg-background"><CardHeader className="p-3"><CardTitle className="text-base font-semibold flex items-center gap-2"><BrainCircuit className="w-5 h-5 text-accent"/> 用户画像分析</CardTitle></CardHeader><CardContent className="p-3 pt-0"><p className="text-sm text-muted-foreground mb-2">{profile.summary}</p><div className="flex flex-wrap gap-1">{profile.tags.map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}</div></CardContent></Card> );
 const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductService[] }) => ( <div><h4 className="font-semibold mb-2 flex items-center gap-2"><Sparkles className="w-5 h-5 text-amber-500" /> 首要推荐</h4><div className="space-y-3">{recommendations.map((rec) => ( <Card key={rec.id} className="overflow-hidden"><div className="aspect-video relative w-full"><Image src={rec.imageUrl || `https://picsum.photos/seed/${rec.id}/300/200`} alt={rec.name} fill style={{objectFit: "cover"}}/></div><div className="p-3"><div className='flex justify-between items-start gap-2'><div><h5 className="font-semibold truncate pr-2">{rec.name}</h5>{rec.supplierName && <p className="text-xs text-muted-foreground">由 {rec.supplierName} 提供</p>}</div><p className="font-bold text-right text-primary whitespace-nowrap">¥{rec.price.toLocaleString()}</p></div></div><CardFooter className="p-3 bg-muted/50 flex w-full justify-end gap-2"><Button size="sm" variant="secondary" disabled>查看详情</Button><Button size="sm" onClick={() => rec.purchaseUrl && window.open(rec.purchaseUrl, '_blank')} disabled={!rec.purchaseUrl}>立即购买 <ExternalLink className="ml-1.5"/></Button></CardFooter></Card>))}</div></div> );
+
 
