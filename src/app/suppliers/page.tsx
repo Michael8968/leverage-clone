@@ -15,7 +15,7 @@ import { Separator } from '@/components/ui/separator';
 import { DataProcessor } from '@/components/features/data-processor';
 import { useAuthStore } from '@/store/auth';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc, serverTimestamp, getDoc, Timestamp } from 'firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc, serverTimestamp, getDoc, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -81,10 +81,11 @@ function CompanyInfoForm() {
         if (docSnap.exists()) {
           const supplierData = docSnap.data() as Supplier;
           
-          // Convert null values to empty strings for form compatibility
-          const sanitizedData = Object.fromEntries(
-            Object.entries(supplierData).map(([key, value]) => [key, value === null ? '' : value])
-          );
+          // Sanitize null values to empty strings for form compatibility
+          const sanitizedData: { [key: string]: any } = {};
+          for (const key in supplierData) {
+              sanitizedData[key] = (supplierData as any)[key] === null ? '' : (supplierData as any)[key];
+          }
 
           form.reset({
               ...sanitizedData,
@@ -117,7 +118,7 @@ function CompanyInfoForm() {
       if ((dataToSave as any).establishedDate) {
           (dataToSave as any).establishedDate = Timestamp.fromDate((dataToSave as any).establishedDate);
       } else {
-          (dataToSave as any).establishedDate = null;
+          dataToSave.establishedDate = null;
       }
       
       dataToSave.registeredCapital = values.registeredCapital || null;
@@ -392,6 +393,7 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
     const { toast } = useToast();
     const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const activeImageIndex = useRef<number | null>(null);
 
     const addImage = () => {
         onImagesChange([...images, { url: '', view: '默认' }]);
@@ -407,13 +409,18 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
         onImagesChange(images.filter((_, i) => i !== index));
     };
 
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (file) {
-            handleUpload(file, index);
+        if (file && activeImageIndex.current !== null) {
+            handleUpload(file, activeImageIndex.current);
         }
     };
     
+    const triggerFileUpload = (index: number) => {
+        activeImageIndex.current = index;
+        fileInputRef.current?.click();
+    };
+
     const handleUpload = async (file: File, index: number) => {
         if (!user) {
             toast({ title: '错误', description: '请先登录', variant: 'destructive' });
@@ -421,21 +428,18 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
         }
         setUploadingIndex(index);
         try {
-            // 1. Get signed URL from our backend flow
             const { uploadUrl, mediaAssetId } = await getUploadUrlForMediaAsset({
                 userId: user.uid,
                 fileName: file.name,
                 contentType: file.type,
             });
 
-            // 2. Upload the file directly to Google Cloud Storage
             await fetch(uploadUrl, {
                 method: 'PUT',
                 body: file,
                 headers: { 'Content-Type': file.type },
             });
             
-            // 3. Construct the public URL and update the state
             const publicUrl = `https://storage.googleapis.com/${process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}/media_assets/${user.uid}/${mediaAssetId}-${file.name}`;
             updateImage(index, 'url', publicUrl);
             
@@ -446,81 +450,73 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
             toast({ title: '上传失败', description: '上传过程中发生错误，请重试。', variant: 'destructive' });
         } finally {
             setUploadingIndex(null);
-            // Reset file input
             if (fileInputRef.current) {
                 fileInputRef.current.value = "";
             }
+            activeImageIndex.current = null;
         }
     };
     
     const viewOptions: ProductImage['view'][] = ['默认', '前', '后', '左', '右', '上', '下', '整体'];
 
     return (
-        <div className="space-y-4">
-            <h4 className="font-semibold">产品图片集</h4>
-             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                {images.map((image, index) => (
-                    <Card key={index} className="group relative">
-                        <CardContent className="p-2 flex flex-col gap-2">
-                            <div className="aspect-video flex items-center justify-center bg-muted/50 rounded-md overflow-hidden">
-                                {image.url && image.url.trim() !== '' ? (
-                                    <Image src={image.url} alt={`Product image ${index + 1}`} width={160} height={90} className="object-contain" onError={(e) => e.currentTarget.style.display = 'none'}/>
-                                ) : (
-                                    <ImagePlus className="w-8 h-8 text-muted-foreground" />
-                                )}
-                            </div>
-                             <div className="absolute top-0 right-0 m-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                 <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => removeImage(index)}>
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                            </div>
-                             <Input 
-                                value={image.url || ''}
-                                onChange={(e) => updateImage(index, 'url', e.target.value)}
-                                placeholder="输入图片URL..."
-                                className="col-span-2"
-                            />
-                            <div className="grid grid-cols-2 gap-2">
-                               <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => fileInputRef.current?.setAttribute('onChange', `this.callback = (e) => { 
-                                        const file = e.target.files[0];
-                                        if (file) {
-                                            window.uploadImage(${index}, file);
-                                        }
-                                    }; this.callback(event)`); 
-                                    (window as any).uploadImage = (idx: number, file: File) => handleUpload(file, idx);
-                                    fileInputRef.current?.click()
-                                    }
-                                    disabled={uploadingIndex === index}
-                                >
-                                    {uploadingIndex === index ? (
-                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                    ) : (
-                                        <Upload className="w-4 h-4 mr-2" />
-                                    )}
-                                    上传
-                                </Button>
-                                <Select value={image.view} onValueChange={(value) => updateImage(index, 'view', value)}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {viewOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
-                 <Button variant="outline" onClick={addImage} className="aspect-video flex-col h-auto">
-                    <ImagePlus className="w-8 h-8 text-muted-foreground mb-2" />
-                    添加图片
-                </Button>
-            </div>
+      <div className="space-y-4">
+        <h4 className="font-semibold">产品图片集</h4>
+        <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          {(images || []).map((image, index) => (
+            <Card key={index} className="group relative">
+              <CardContent className="p-2 flex flex-col gap-2">
+                <div className="aspect-video flex items-center justify-center bg-muted/50 rounded-md overflow-hidden">
+                  {image.url && image.url.trim() !== '' ? (
+                    <Image src={image.url} alt={`Product image ${index + 1}`} width={160} height={90} className="object-contain" onError={(e) => e.currentTarget.style.display = 'none'}/>
+                  ) : (
+                    <ImagePlus className="w-8 h-8 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="absolute top-0 right-0 m-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => removeImage(index)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+                <Input 
+                  value={image.url || ''}
+                  onChange={(e) => updateImage(index, 'url', e.target.value)}
+                  placeholder="输入图片URL..."
+                  className="col-span-2"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => triggerFileUpload(index)}
+                    disabled={uploadingIndex === index}
+                  >
+                    {uploadingIndex === index ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Upload className="w-4 h-4 mr-2" />
+                    )}
+                    上传
+                  </Button>
+                  <Select value={image.view} onValueChange={(value) => updateImage(index, 'view', value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {viewOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          <Button variant="outline" onClick={addImage} className="aspect-video flex-col h-auto">
+            <ImagePlus className="w-8 h-8 text-muted-foreground mb-2" />
+            添加图片
+          </Button>
         </div>
+      </div>
     );
 }
 
