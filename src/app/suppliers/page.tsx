@@ -15,7 +15,7 @@ import { Separator } from '@/components/ui/separator';
 import { DataProcessor } from '@/components/features/data-processor';
 import { useAuthStore } from '@/store/auth';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc, serverTimestamp, getDoc, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc, serverTimestamp, getDoc, Timestamp } from 'firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -32,6 +32,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getUploadUrlForMediaAsset } from '@/ai/flows/multimodal-flows';
 
 // =================================================================
 // Form Schema for Company Info
@@ -119,7 +120,6 @@ function CompanyInfoForm() {
           (dataToSave as any).establishedDate = null;
       }
       
-      // Sanitize optional fields to be null instead of undefined before saving
       dataToSave.registeredCapital = values.registeredCapital || null;
       dataToSave.creditCode = values.creditCode || null;
       dataToSave.shortName = values.shortName || null;
@@ -152,9 +152,9 @@ function CompanyInfoForm() {
               <h3 className="text-lg font-medium mb-4">公司资料</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                 <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>供应商全称</FormLabel><FormControl><Input placeholder="例如: 创新科技(深圳)有限公司" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="shortName" render={({ field }) => (<FormItem><FormLabel>供应商简称</FormLabel><FormControl><Input placeholder="例如: 创新科技" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="region" render={({ field }) => (<FormItem><FormLabel>所在区域</FormLabel><FormControl><Input placeholder="例如: 广东省深圳市" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="address" render={({ field }) => (<FormItem><FormLabel>详细地址</FormLabel><FormControl><Input placeholder="例如: 南山区科技园" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="shortName" render={({ field }) => (<FormItem><FormLabel>供应商简称</FormLabel><FormControl><Input placeholder="例如: 创新科技" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="region" render={({ field }) => (<FormItem><FormLabel>所在区域</FormLabel><FormControl><Input placeholder="例如: 广东省深圳市" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="address" render={({ field }) => (<FormItem><FormLabel>详细地址</FormLabel><FormControl><Input placeholder="例如: 南山区科技园" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
                 <FormField
                     control={form.control}
                     name="establishedDate"
@@ -178,8 +178,8 @@ function CompanyInfoForm() {
                         </FormItem>
                     )}
                 />
-                <FormField control={form.control} name="registeredCapital" render={({ field }) => (<FormItem><FormLabel>注册资本</FormLabel><FormControl><Input placeholder="例如: 1000万元" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="creditCode" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>统一社会信用代码</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="registeredCapital" render={({ field }) => (<FormItem><FormLabel>注册资本</FormLabel><FormControl><Input placeholder="例如: 1000万元" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="creditCode" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>统一社会信用代码</FormLabel><FormControl><Input {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
               </div>
             </div>
             
@@ -374,7 +374,7 @@ function ProductServiceItem({ product, onUpdate, onRemove }: { product: ProductS
                     
                     <Separator />
 
-                    <ImageManager images={localProduct.images || []} onImagesChange={handleImagesChange} />
+                    <ImageManager product={product} onImagesChange={handleImagesChange} />
 
                     <Separator />
                     
@@ -386,7 +386,13 @@ function ProductServiceItem({ product, onUpdate, onRemove }: { product: ProductS
   );
 }
 
-function ImageManager({ images, onImagesChange }: { images: ProductImage[], onImagesChange: (images: ProductImage[]) => void }) {
+function ImageManager({ product, onImagesChange }: { product: ProductService, onImagesChange: (images: ProductImage[]) => void }) {
+    const images = product.images || [];
+    const { user } = useAuthStore();
+    const { toast } = useToast();
+    const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
     const addImage = () => {
         onImagesChange([...images, { url: '', view: '默认' }]);
     };
@@ -400,12 +406,59 @@ function ImageManager({ images, onImagesChange }: { images: ProductImage[], onIm
     const removeImage = (index: number) => {
         onImagesChange(images.filter((_, i) => i !== index));
     };
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            handleUpload(file, index);
+        }
+    };
+    
+    const handleUpload = async (file: File, index: number) => {
+        if (!user) {
+            toast({ title: '错误', description: '请先登录', variant: 'destructive' });
+            return;
+        }
+        setUploadingIndex(index);
+        try {
+            // 1. Get signed URL from our backend flow
+            const { uploadUrl, mediaAssetId } = await getUploadUrlForMediaAsset({
+                userId: user.uid,
+                fileName: file.name,
+                contentType: file.type,
+            });
+
+            // 2. Upload the file directly to Google Cloud Storage
+            await fetch(uploadUrl, {
+                method: 'PUT',
+                body: file,
+                headers: { 'Content-Type': file.type },
+            });
+            
+            // 3. Construct the public URL and update the state
+            const publicUrl = `https://storage.googleapis.com/${process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}/media_assets/${user.uid}/${mediaAssetId}-${file.name}`;
+            updateImage(index, 'url', publicUrl);
+            
+            toast({ title: '上传成功', description: '图片已成功上传并保存。' });
+
+        } catch (error) {
+            console.error("Upload failed", error);
+            toast({ title: '上传失败', description: '上传过程中发生错误，请重试。', variant: 'destructive' });
+        } finally {
+            setUploadingIndex(null);
+            // Reset file input
+            if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+            }
+        }
+    };
     
     const viewOptions: ProductImage['view'][] = ['默认', '前', '后', '左', '右', '上', '下', '整体'];
 
     return (
         <div className="space-y-4">
             <h4 className="font-semibold">产品图片集</h4>
+             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" />
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 {images.map((image, index) => (
                     <Card key={index} className="group relative">
@@ -422,13 +475,34 @@ function ImageManager({ images, onImagesChange }: { images: ProductImage[], onIm
                                     <Trash2 className="h-4 w-4" />
                                 </Button>
                             </div>
+                             <Input 
+                                value={image.url || ''}
+                                onChange={(e) => updateImage(index, 'url', e.target.value)}
+                                placeholder="输入图片URL..."
+                                className="col-span-2"
+                            />
                             <div className="grid grid-cols-2 gap-2">
-                                <Input 
-                                    value={image.url || ''}
-                                    onChange={(e) => updateImage(index, 'url', e.target.value)}
-                                    placeholder="输入图片URL..."
-                                    className="col-span-2"
-                                />
+                               <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => fileInputRef.current?.setAttribute('onChange', `this.callback = (e) => { 
+                                        const file = e.target.files[0];
+                                        if (file) {
+                                            window.uploadImage(${index}, file);
+                                        }
+                                    }; this.callback(event)`); 
+                                    (window as any).uploadImage = (idx: number, file: File) => handleUpload(file, idx);
+                                    fileInputRef.current?.click()
+                                    }
+                                    disabled={uploadingIndex === index}
+                                >
+                                    {uploadingIndex === index ? (
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    ) : (
+                                        <Upload className="w-4 h-4 mr-2" />
+                                    )}
+                                    上传
+                                </Button>
                                 <Select value={image.view} onValueChange={(value) => updateImage(index, 'view', value)}>
                                     <SelectTrigger>
                                         <SelectValue />
