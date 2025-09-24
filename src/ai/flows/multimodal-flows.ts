@@ -101,13 +101,19 @@ export const analyzeMediaAsset = ai.defineFlow(
         const asset = mediaAssetSnap.data() as MediaAsset;
         if (!asset.publicUrl) throw new Error("Media asset does not have a public URL.");
 
+        // Construct the prompt for the vision model
+        const visionPrompt = [
+            { media: { url: asset.publicUrl, contentType: asset.mimeType } },
+            { text: prompt }
+        ];
+
         const llmResponse = await ai.generate({
             model: googleAI('gemini-pro-vision'),
-            prompt: [{ media: { url: asset.publicUrl, contentType: asset.mimeType } }, { text: prompt }],
+            prompt: visionPrompt,
         });
         
         const analysis = llmResponse.text();
-        await updateDoc(mediaAssetRef, { status: 'ready' });
+        await updateDoc(mediaAssetRef, { status: 'ready', analysis: analysis });
 
         return { analysis };
     }
