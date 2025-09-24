@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -28,6 +29,7 @@ import { TimePicker } from '@/components/ui/time-picker';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import type { AIScenario, AIScenarioRules } from '@/lib/types';
 
 
 // =================================================================
@@ -39,54 +41,16 @@ type DayOfWeek = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 type RuleLogic = 'and' | 'or';
 type TargetUserRoles = { [key in Role]?: number[] };
 
+type FullScenario = AIScenario;
 
-type ScenarioDefinition = {
-    id: string;
-    name: string;
-    description: string;
-};
-
-type ScenarioConfig = {
-    configuredPromptKey: string;
-    // New, more detailed time configuration
-    repetition?: Repetition;
-    daysOfWeek?: DayOfWeek[];
-    startTime?: string; // HH:mm format
-    endTime?: string; // HH:mm format
-    // Absolute time is still supported
-    startsAt?: Timestamp;
-    expiresAt?: Timestamp;
-    targetUserRoles?: TargetUserRoles;
-    ruleLogic?: RuleLogic;
-};
-
-type FullScenario = ScenarioDefinition & Partial<ScenarioConfig>;
-
-
-const PREDEFINED_SCENARIOS: ScenarioDefinition[] = [
-    {
-        id: 'chat-assistant',
-        name: '聊天对话 - AI助理',
-        description: '在供需双方的聊天中，辅助创意者向用户提出澄清问题，挖掘更深层次的需求。',
-    },
-    {
-        id: 'shopping-assistant-recommendation',
-        name: 'AI购物助手 - 商品推荐',
-        description: '在用户输入模糊需求后，负责分析用户画像并从产品库中推荐相关商品的默认行为。',
-    },
-    {
-        id: 'demand-matching',
-        name: '需求池 - 创意匹配',
-        description: '在需求池中，为指定的需求匹配最合适的创意方（产品或供应商）。',
-    },
-];
 
 const ALL_ROLES: Role[] = ['admin', 'creator', 'supplier', 'user'];
 const ROLE_NAMES: Record<Role, string> = {
     admin: '管理员',
     creator: '创意者',
     supplier: '供应商',
-    user: '普通用户'
+    user: '普通用户',
+    suspended: '已禁用',
 };
 const DAYS_OF_WEEK: { id: DayOfWeek; label: string }[] = [
     { id: 'mon', label: '周一' }, { id: 'tue', label: '周二' }, { id: 'wed', label: '周三' },
@@ -121,6 +85,7 @@ function ScenarioEditDialog({
     const [scenarioId, setScenarioId] = useState('');
     const [scenarioName, setScenarioName] = useState('');
     const [scenarioDescription, setScenarioDescription] = useState('');
+    const [scenarioTags, setScenarioTags] = useState('');
 
     // Time config state
     const [isRepetitionEnabled, setIsRepetitionEnabled] = useState(false);
@@ -146,6 +111,7 @@ function ScenarioEditDialog({
             setScenarioId(scenario.id);
             setScenarioName(scenario.name);
             setScenarioDescription(scenario.description);
+            setScenarioTags((scenario.tags || []).join(', '));
 
             // Repetition Config
             setRepetition(isRepEnabled ? scenario.repetition! : 'daily');
@@ -174,6 +140,7 @@ function ScenarioEditDialog({
             setScenarioId('');
             setScenarioName('');
             setScenarioDescription('');
+            setScenarioTags('');
         }
     }, [scenario]);
 
@@ -197,6 +164,7 @@ function ScenarioEditDialog({
                 id: finalScenarioId,
                 name: isCreating ? scenarioName : scenario!.name,
                 description: isCreating ? scenarioDescription : scenario!.description,
+                tags: scenarioTags.split(',').map(t => t.trim()).filter(Boolean),
                 configuredPromptKey: selectedPromptKey === 'default' ? '' : selectedPromptKey,
                 targetUserRoles,
                 ruleLogic: ruleLogic,
@@ -290,6 +258,10 @@ function ScenarioEditDialog({
                              <div>
                                 <Label htmlFor="scenario-desc">功能描述</Label>
                                 <Textarea id="scenario-desc" value={scenarioDescription} onChange={(e) => setScenarioDescription(e.target.value)} placeholder="描述这个场景是做什么的"/>
+                             </div>
+                             <div>
+                                <Label htmlFor="scenario-tags">标签 (用逗号分隔)</Label>
+                                <Input id="scenario-tags" value={scenarioTags} onChange={(e) => setScenarioTags(e.target.value)} placeholder="e.g., shopping-assistant, chat"/>
                              </div>
                         </div>
                     )}
@@ -467,27 +439,10 @@ export default function AIScenarioConfigPage() {
                 getPrompts()
             ]);
 
-            const dbScenarios: FullScenario[] = [];
-            scenarioConfigsSnapshot.forEach(doc => {
-                dbScenarios.push(doc.data() as FullScenario);
-            });
+            const dbScenarios = scenarioConfigsSnapshot.docs.map(doc => doc.data() as FullScenario);
             
             setPrompts(promptsData.prompts);
-
-            // Correct Merging Logic
-            const scenariosMap = new Map<string, FullScenario>();
-            
-            // 1. Add all predefined scenarios to the map first.
-            PREDEFINED_SCENARIOS.forEach(p => scenariosMap.set(p.id, p));
-
-            // 2. Overwrite and add scenarios from the database.
-            dbScenarios.forEach(dbScenario => {
-                 scenariosMap.set(dbScenario.id, { ...scenariosMap.get(dbScenario.id), ...dbScenario });
-            });
-            
-            const combined = Array.from(scenariosMap.values());
-
-            setFullScenarios(combined);
+            setFullScenarios(dbScenarios);
 
         } catch (error) {
             console.error("Failed to fetch scenario configuration:", error);

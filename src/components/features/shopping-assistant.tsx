@@ -86,8 +86,10 @@ export function ShoppingAssistant() {
                     return { ...data, id: doc.id } as ProductService;
                 });
                 const suppliersList = suppliersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Supplier));
-                const scenariosList = scenariosSnapshot.docs.map(doc => doc.data() as AIScenario);
-
+                
+                const scenariosList = scenariosSnapshot.docs
+                    .map(doc => doc.data() as AIScenario)
+                    .filter(s => s.tags?.includes('shopping-assistant'));
 
                 setProducts(productsList);
                 setSuppliers(suppliersList);
