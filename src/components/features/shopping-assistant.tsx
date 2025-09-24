@@ -19,7 +19,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import type { ProductService, Supplier, UserProfile, MediaAsset, AIScenario } from '@/lib/types';
 import { getProductRecommendations } from '@/ai/flows/shopping-assistant';
 import { useAuthStore } from '@/store/auth';
@@ -67,15 +67,17 @@ export function ShoppingAssistant() {
     const router                        = useRouter();
     const form                          = useForm<FormValues>({ resolver: zodResolver(formSchema), defaultValues: { description: "", scenarioId: "default" } });
 
-     useEffect(() => {
-        // Fetch non-realtime data
-        const fetchStaticData = async () => {
+    useEffect(() => {
+        const fetchInitialData = async () => {
             try {
-                const [productsSnapshot, suppliersSnapshot] = await Promise.all([
+                // Fetch products, suppliers, and scenarios in parallel
+                const [productsSnapshot, suppliersSnapshot, scenariosSnapshot] = await Promise.all([
                     getDocs(collection(db, 'products')),
                     getDocs(collection(db, 'suppliers')),
+                    getDocs(query(collection(db, 'ai_scenarios'), where('tags', 'array-contains', 'shopping')))
                 ]);
 
+                // Process products
                 const productsList = productsSnapshot.docs.map(doc => {
                     const data = doc.data();
                     if (data.createdAt && typeof data.createdAt.toDate === 'function') {
@@ -83,41 +85,27 @@ export function ShoppingAssistant() {
                     }
                     return { ...data, id: doc.id } as ProductService;
                 });
-                const suppliersList = suppliersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Supplier));
-
                 setProducts(productsList);
+
+                // Process suppliers
+                const suppliersList = suppliersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Supplier));
                 setSuppliers(suppliersList);
 
+                // Process scenarios
+                const shoppingScenarios = scenariosSnapshot.docs.map(doc => ({id: doc.id, ...doc.data() } as AIScenario));
+                setScenarios(shoppingScenarios);
+
             } catch (error) {
-                console.error("Failed to fetch static data:", error);
+                console.error("Failed to fetch initial data:", error);
                 toast({
                     title: '数据加载失败',
-                    description: '无法加载产品或供应商目录，推荐功能可能受限。',
+                    description: '无法加载核心数据，部分功能可能受限。',
                     variant: 'destructive',
                 });
             }
         };
 
-        fetchStaticData();
-
-        // Set up realtime listener for scenarios
-        const scenariosQuery = query(collection(db, 'ai_scenarios'), where('tags', 'array-contains', 'shopping'));
-        
-        const unsubscribe = onSnapshot(scenariosQuery, (querySnapshot) => {
-            const shoppingScenarios = querySnapshot.docs.map(doc => ({id: doc.id, ...doc.data() } as AIScenario));
-            setScenarios(shoppingScenarios);
-        }, (error) => {
-            console.error("Failed to listen for scenario updates:", error);
-            toast({
-                title: 'AI场景加载失败',
-                description: '无法实时获取AI购物场景，请稍后重试。',
-                variant: 'destructive',
-            });
-        });
-
-        // Cleanup listener on component unmount
-        return () => unsubscribe();
-
+        fetchInitialData();
     }, [toast]);
     
     useEffect(() => { scrollAreaRef.current?.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' }); }, [messages]);
@@ -235,12 +223,12 @@ export function ShoppingAssistant() {
                                                 <SelectTrigger>
                                                   <div className="flex items-center gap-2">
                                                       <Puzzle className="w-4 h-4 text-muted-foreground"/>
-                                                      <SelectValue placeholder="使用默认推荐逻辑" />
+                                                      <SelectValue placeholder="-- 优先默认推荐逻辑 --" />
                                                   </div>
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
-                                                <SelectItem value="default">-- 使用默认推荐逻辑 --</SelectItem>
+                                                <SelectItem value="default">-- 优先默认推荐逻辑 --</SelectItem>
                                                 {scenarios.map(s => (
                                                     <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                                                 ))}
