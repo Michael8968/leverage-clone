@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useRef, useEffect, useTransition } from 'react';
@@ -279,5 +278,4 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
     </CardFooter>
 </Card>))}</div></div> );
 
-
-
+    
