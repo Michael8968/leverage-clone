@@ -9,11 +9,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Puzzle, Edit, Workflow, Loader2, Frown, Users, Clock, Settings2, Calendar as CalendarIcon, Repeat, Info, Star, PlusCircle, ShoppingBag, BrainCircuit, MessageSquare } from 'lucide-react';
+import { Puzzle, Edit, Workflow, Loader2, Frown, Users, Clock, Settings2, Calendar as CalendarIcon, Repeat, Info, Star, PlusCircle, ShoppingBag, BrainCircuit, MessageSquare, Trash2 } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore, type Role } from '@/store/auth';
 import { useRouter } from 'next/navigation';
-import { collection, doc, getDocs, setDoc, Timestamp, addDoc, query, orderBy, where } from 'firebase/firestore';
+import { collection, doc, getDocs, setDoc, Timestamp, addDoc, query, orderBy, where, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { getPrompts, type GetPromptsOutput } from '@/ai/flows/admin-management-flows';
@@ -34,6 +34,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import * as z from 'zod';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 
 // =================================================================
@@ -263,8 +264,10 @@ function ScenarioEditDialog({
                                         <FormItem>
                                             <FormLabel>标签 (用逗号或空格分隔)</FormLabel>
                                             <FormControl><Input placeholder="e.g., shopping, chat" {...field} /></FormControl>
-                                            <FormDescription className="text-xs">
-                                                特殊系统标签：<Badge variant="outline" className="text-xs">shopping</Badge> (用于AI购物助手), <Badge variant="outline" className="text-xs">chat</Badge> (用于聊天助理)。
+                                            <FormDescription className="text-xs flex flex-wrap gap-x-2">
+                                                <span>特殊系统标签:</span>
+                                                <Badge variant="outline" className="text-xs">chat</Badge> (用于聊天助理)
+                                                <Badge variant="outline" className="text-xs">shopping</Badge> (用于AI购物助手)
                                             </FormDescription>
                                             <FormMessage />
                                         </FormItem>
@@ -434,6 +437,7 @@ export default function AIScenarioConfigPage() {
     const [selectedScenario, setSelectedScenario] = useState<FullScenario | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState<FullScenario | null>(null);
 
     const { role, isLoading: isAuthLoading } = useAuthStore();
     const router = useRouter();
@@ -483,6 +487,24 @@ export default function AIScenarioConfigPage() {
         setSelectedScenario(null);
         setIsCreating(true);
         setIsDialogOpen(true);
+    };
+
+    const handleDeleteClick = (scenario: FullScenario) => {
+        setItemToDelete(scenario);
+    };
+
+    const confirmDelete = async () => {
+        if (!itemToDelete) return;
+        try {
+            await deleteDoc(doc(db, 'ai_scenarios', itemToDelete.id));
+            toast({ title: '成功', description: `场景 “${itemToDelete.name}” 已被删除。` });
+            fetchData(); // Refresh the list
+        } catch (error) {
+            console.error("Failed to delete scenario:", error);
+            toast({ title: '删除失败', description: '删除场景时发生错误，请重试。', variant: 'destructive' });
+        } finally {
+            setItemToDelete(null);
+        }
     };
     
     const renderConfigBadge = (scenario: FullScenario) => {
@@ -597,10 +619,16 @@ export default function AIScenarioConfigPage() {
                                         )}
                                     </TableCell>
                                     <TableCell className="text-right">
-                                    <Button variant="ghost" size="sm" onClick={() => handleEditClick(scenario)}>
-                                        <Edit className="mr-2 h-4 w-4" />
-                                        编辑
-                                    </Button>
+                                        <div className="flex gap-2 justify-end">
+                                            <Button variant="ghost" size="sm" onClick={() => handleEditClick(scenario)}>
+                                                <Edit className="mr-2 h-4 w-4" />
+                                                编辑
+                                            </Button>
+                                            <Button variant="destructive-outline" size="sm" onClick={() => handleDeleteClick(scenario)}>
+                                                <Trash2 className="mr-2 h-4 w-4" />
+                                                删除
+                                            </Button>
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             ))
@@ -620,6 +648,22 @@ export default function AIScenarioConfigPage() {
                 onSaveSuccess={fetchData}
                 isCreating={isCreating}
             />
+
+            <AlertDialog open={!!itemToDelete} onOpenChange={(isOpen) => !isOpen && setItemToDelete(null)}>
+                <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>确认删除</AlertDialogTitle>
+                    <AlertDialogDescription>
+                    您确定要删除场景 “{itemToDelete?.name}” 吗？此操作不可撤销。
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>取消</AlertDialogCancel>
+                    <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">确认删除</AlertDialogAction>
+                </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </AppLayout>
     );
 }
+
