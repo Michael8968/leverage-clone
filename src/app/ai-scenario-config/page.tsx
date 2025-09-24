@@ -30,6 +30,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import type { AIScenario } from '@/lib/types';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 
 
 // =================================================================
@@ -58,6 +59,13 @@ const DAYS_OF_WEEK: { id: DayOfWeek; label: string }[] = [
     { id: 'sun', label: '周日' }
 ];
 
+const scenarioCreationSchema = z.object({
+    id: z.string().min(3, "场景ID至少需要3个字符").regex(/^[a-z0-9-]+$/, "ID只能包含小写字母、数字和连字符"),
+    name: z.string().min(2, "场景名称至少需要2个字符"),
+    description: z.string().min(5, "功能描述至少需要5个字符"),
+    tags: z.string().optional(),
+});
+
 
 // =================================================================
 // EDIT DIALOG COMPONENT
@@ -81,12 +89,6 @@ function ScenarioEditDialog({
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
     
-    // Core scenario definition state (for creation)
-    const [scenarioId, setScenarioId] = useState('');
-    const [scenarioName, setScenarioName] = useState('');
-    const [scenarioDescription, setScenarioDescription] = useState('');
-    const [scenarioTags, setScenarioTags] = useState('');
-
     // Time config state
     const [isRepetitionEnabled, setIsRepetitionEnabled] = useState(false);
     const [repetition, setRepetition] = useState<Repetition>('daily');
@@ -99,20 +101,26 @@ function ScenarioEditDialog({
     const [targetUserRoles, setTargetUserRoles] = useState<TargetUserRoles>({});
     const [ruleLogic, setRuleLogic] = useState<RuleLogic>('and');
 
+    const form = useForm({
+        resolver: zodResolver(scenarioCreationSchema),
+        defaultValues: { id: '', name: '', description: '', tags: '' },
+    });
+
 
     useEffect(() => {
         if(scenario) {
+            form.reset({
+                id: scenario.id,
+                name: scenario.name,
+                description: scenario.description,
+                tags: (scenario.tags || []).join(', '),
+            });
             const isRepEnabled = scenario.repetition && scenario.repetition !== 'none';
             setIsRepetitionEnabled(isRepEnabled);
             setSelectedPromptKey(scenario.configuredPromptKey || 'default');
             setTargetUserRoles(scenario.targetUserRoles || {});
             setRuleLogic(scenario.ruleLogic || 'and');
             
-            setScenarioId(scenario.id);
-            setScenarioName(scenario.name);
-            setScenarioDescription(scenario.description);
-            setScenarioTags((scenario.tags || []).join(', '));
-
             // Repetition Config
             setRepetition(isRepEnabled ? scenario.repetition! : 'daily');
             setDaysOfWeek(scenario.daysOfWeek || []);
@@ -127,6 +135,7 @@ function ScenarioEditDialog({
             setExpiresAt(scenario.expiresAt ? scenario.expiresAt.toDate() : undefined);
 
         } else { // Reset for new
+            form.reset({ id: '', name: '', description: '', tags: '' });
             setSelectedPromptKey('default');
             setIsRepetitionEnabled(false);
             setRepetition('daily');
@@ -137,32 +146,19 @@ function ScenarioEditDialog({
             setExpiresAt(undefined);
             setTargetUserRoles({});
             setRuleLogic('and');
-            setScenarioId('');
-            setScenarioName('');
-            setScenarioDescription('');
-            setScenarioTags('');
         }
-    }, [scenario]);
+    }, [scenario, form]);
 
-    const handleSave = async () => {
-        if (isCreating && (!scenarioId || !scenarioName || !scenarioDescription)) {
-            toast({
-                title: '验证失败',
-                description: '新增场景时，ID、名称和描述均为必填项。',
-                variant: 'destructive',
-            });
-            return;
-        }
-
-        const finalScenarioId = isCreating ? scenarioId : scenario!.id;
+    const handleSave = async (values: z.infer<typeof scenarioCreationSchema>) => {
+        const finalScenarioId = isCreating ? values.id : scenario!.id;
         if (!finalScenarioId) return;
 
         setIsSaving(true);
         try {
             const dataToSave: Omit<Partial<FullScenario>, 'id'> = {
-                name: isCreating ? scenarioName : scenario!.name,
-                description: isCreating ? scenarioDescription : scenario!.description,
-                tags: scenarioTags.split(',').map(t => t.trim()).filter(Boolean),
+                name: values.name,
+                description: values.description,
+                tags: values.tags?.split(',').map(t => t.trim()).filter(Boolean),
                 configuredPromptKey: selectedPromptKey === 'default' ? '' : selectedPromptKey,
                 targetUserRoles,
                 ruleLogic: ruleLogic,
@@ -249,27 +245,22 @@ function ScenarioEditDialog({
                 </DialogHeader>
                 <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-2">
                     {isCreating && (
-                        <div className="space-y-4 p-4 border rounded-md bg-muted/50">
-                            <h4 className="font-semibold text-sm">场景定义</h4>
-                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <Label htmlFor="scenario-id">场景 ID (唯一标识)</Label>
-                                    <Input id="scenario-id" value={scenarioId} onChange={(e) => setScenarioId(e.target.value.toLowerCase().replace(/\s+/g, '-'))} placeholder="e.g., product-description-generation"/>
-                                </div>
-                                <div>
-                                    <Label htmlFor="scenario-name">场景名称</Label>
-                                    <Input id="scenario-name" value={scenarioName} onChange={(e) => setScenarioName(e.target.value)} placeholder="e.g., 商品描述生成"/>
-                                </div>
-                             </div>
-                             <div>
-                                <Label htmlFor="scenario-desc">功能描述</Label>
-                                <Textarea id="scenario-desc" value={scenarioDescription} onChange={(e) => setScenarioDescription(e.target.value)} placeholder="描述这个场景是做什么的"/>
-                             </div>
-                             <div>
-                                <Label htmlFor="scenario-tags">标签 (用逗号分隔)</Label>
-                                <Input id="scenario-tags" value={scenarioTags} onChange={(e) => setScenarioTags(e.target.value)} placeholder="e.g., shopping-assistant, chat"/>
-                             </div>
-                        </div>
+                         <Form {...form}>
+                            <form className="space-y-4 p-4 border rounded-md bg-muted/50">
+                                <h4 className="font-semibold text-sm">场景定义</h4>
+                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <FormField control={form.control} name="id" render={({ field }) => (<FormItem><FormLabel>场景 ID (唯一标识)</FormLabel><FormControl><Input placeholder="e.g., product-description-generation" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                                    <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>场景名称</FormLabel><FormControl><Input placeholder="e.g., 商品描述生成" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                                 </div>
+                                 <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>功能描述</FormLabel><FormControl><Textarea placeholder="描述这个场景是做什么的" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                                 <FormField control={form.control} name="tags" render={({ field }) => (<FormItem>
+                                     <FormLabel>标签 (用逗号分隔)</FormLabel>
+                                     <FormControl><Input placeholder="e.g., AI智能购物, chat" {...field} /></FormControl>
+                                     <FormDescription className="text-xs">系统当前识别的特殊标签：<Badge variant="outline" className="text-xs">AI智能购物</Badge> (会显示在AI购物助手中)。</FormDescription>
+                                     <FormMessage />
+                                 </FormItem>)}/>
+                            </form>
+                        </Form>
                     )}
                     <div>
                         <Label htmlFor="prompt-select" className="text-sm font-medium">配置使用的提示词</Label>
@@ -412,7 +403,7 @@ function ScenarioEditDialog({
                 </div>
                 <DialogFooter>
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>取消</Button>
-                    <Button onClick={handleSave} disabled={isSaving}>
+                    <Button onClick={form.handleSubmit(handleSave)} disabled={isSaving}>
                         {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         保存配置
                     </Button>
