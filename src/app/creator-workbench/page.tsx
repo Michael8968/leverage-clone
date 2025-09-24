@@ -13,8 +13,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { collection, getDocs, query, where, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Demand, ProductService } from '@/lib/types';
-import type { Resource } from '../public-resources/page';
+import type { Demand, ProductService, LlmConnection } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -290,7 +289,7 @@ function BuiltInGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
 // TRIPO3D AI TAB
 // =================================================================
 function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => void }) {
-    const [personalApiKey, setPersonalApiKey] = useState('tsk_xSDWi-Yord9VKHspB0VLxkvFkrcgK8ffrWw3Yj1CWBd');
+    const [personalApiKey, setPersonalApiKey] = useState('');
     const [globalApiKey, setGlobalApiKey] = useState('');
     const [prompt, setPrompt] = useState('');
     const [taskId, setTaskId] = useState<string | null>(null);
@@ -305,16 +304,16 @@ function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
 
         const fetchGlobalKey = async () => {
             try {
-                const q = query(collection(db, 'resources'), where("name", "==", "Tripo3D API"));
+                const q = query(collection(db, 'llm_connections'), where("provider", "==", "Tripo3D"), where("status", "==", "活跃"));
                 const snapshot = await getDocs(q);
                 if (!snapshot.empty) {
-                    const resource = snapshot.docs[0].data() as Resource;
-                    if (resource.apiKey) {
-                        setGlobalApiKey(resource.apiKey);
+                    const llmConnection = snapshot.docs[0].data() as LlmConnection;
+                    if (llmConnection.apiKey) {
+                        setGlobalApiKey(llmConnection.apiKey);
                     }
                 }
             } catch (err) {
-                console.error("Failed to fetch global Tripo3D API key:", err);
+                console.error("Failed to fetch global Tripo3D API key from llm_connections:", err);
             }
         };
         fetchGlobalKey();

@@ -217,44 +217,19 @@ function LlmConnectionForm({ llm, onSave, onCancel }: {
     };
 
     const handleTestAvailability = async () => {
-        await form.trigger();
-        const formState = form.formState;
-        if (!formState.isValid) {
-            toast({ title: "信息不完整", description: "请先完成所有必填项再进行测试。", variant: "destructive" });
+        if (!isEditing || !llm?.id) {
+            toast({ title: "请先保存", description: "只有已保存的连接才能进行可用性测试。", variant: "destructive" });
             return;
         }
 
-        const values = form.getValues();
         startTesting(async () => {
             try {
-                let modelId = isEditing ? llm!.id! : '';
-                let isTempDoc = false;
-                
-                if (!isEditing) {
-                    const tempDocRef = await addDoc(collection(db, 'llm_connections'), { ...values, status: '已禁用', createdAt: serverTimestamp() });
-                    modelId = tempDocRef.id;
-                    isTempDoc = true;
-                } else {
-                    await updateDoc(doc(db, 'llm_connections', modelId), values);
-                }
-
-                if (!modelId) {
-                    throw new Error("无法获取模型ID进行测试。请先保存。");
-                }
-                
-                const result = await testLlmConnection({ modelId });
+                const result = await testLlmConnection({ modelId: llm.id! });
                 toast({
                     title: result.success ? "测试成功" : "测试失败",
                     description: result.message,
                     variant: result.success ? "default" : "destructive",
                 });
-                
-                if (isTempDoc) { // If it was a temporary doc for a new connection
-                    await deleteDoc(doc(db, 'llm_connections', modelId));
-                    if (result.success) {
-                       toast({ title: "测试通过", description: "该配置可用，请点击保存以添加。", variant: "default" });
-                    }
-                }
             } catch (error: any) {
                 toast({ title: "测试出错", description: error.message || "执行测试时发生未知错误。", variant: "destructive" });
             }
@@ -331,7 +306,7 @@ function LlmConnectionForm({ llm, onSave, onCancel }: {
                              )}/>
                         </div>
                         <div className="flex justify-between items-center pt-4">
-                            <Button type="button" variant="outline" onClick={handleTestAvailability} disabled={isTesting}>
+                            <Button type="button" variant="outline" onClick={handleTestAvailability} disabled={isTesting || !isEditing}>
                                 {isTesting ? <Loader2 className="animate-spin mr-2"/> : <TestTube2 className="mr-2"/>}
                                 可用性测试
                             </Button>
@@ -473,9 +448,6 @@ export default function AdminDashboardPage() {
                                             <div className="col-span-4 md:col-span-2">{getStatusBadge(llm.status)}</div>
                                             <div className="col-span-12 md:col-span-2 text-right">
                                                 <div className="flex items-center justify-end gap-2">
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toast({title: "提示", description: "请在右侧面板进行可用性测试。"})}>
-                                                        <Link className="h-4 w-4" />
-                                                    </Button>
                                                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(llm)}>
                                                         <Edit className="h-4 w-4" />
                                                     </Button>
@@ -529,6 +501,4 @@ export default function AdminDashboardPage() {
         </AppLayout>
     );
 }
-
-
 
