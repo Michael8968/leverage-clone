@@ -45,7 +45,7 @@ export type ProductService = {
   supplementaryFields?: SupplementaryField[]; // Legacy, for general supplier info
   details?: SupplementaryField[]; // New, for product-specific specifications
   creatorId?: string;
-  createdAt?: Date; // Firestore Timestamps will be converted to Date objects
+  createdAt?: any; // Can be Date or Firestore Timestamp or string
   status?: '审核中' | '已入库' | '需要修改';
   imageUrl?: string; // Main image
   images?: ProductImage[]; // New, for multiple product images with views
@@ -188,4 +188,18 @@ export type MediaAsset = {
   status: 'uploading' | 'processing' | 'ready' | 'error';
   createdAt: any; // Firestore Timestamp
   analysis?: string; // Result from AI analysis
+}
+
+export interface Resource {
+    id: string;
+    name: string;
+    sourceUrl: string;
+    category: string;
+    tags: string[];
+    updateFrequency: '实时' | '每日' | '每周' | '每月';
+    status: '可用' | '已停用';
+    createdAt?: any; // Firestore Timestamp
+    matchScore?: number;
+    recommendation?: string;
+    apiKey?: string;
 }

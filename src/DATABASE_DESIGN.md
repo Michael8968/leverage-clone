@@ -161,9 +161,22 @@
 | **ruleLogic** | `string` | (可选) "时间"与"用户"两个维度规则的组合逻辑 (`and`, `or`)，默认为 `and`。 |
 
 
-### 1.9. 其他集合
+### 1.9. `resources` 集合 (重构)
 
-*   **`resources`**: 存储公共资源，如外部API链接。
+存储外部行业资讯的数据源配置。
+
+| 字段名 | 数据类型 | 描述 |
+| :--- | :--- | :--- |
+| **id** | `string` | 文档ID。 |
+| **name** | `string` | 数据源的业务名称 (例如: “前沿科技动态”)。 |
+| **sourceUrl** | `string` | 原始数据来源网址 (例如: API endpoint, RSS源)。 |
+| **apiKey** | `string` | (可选) 访问该数据源所需的API密钥。 |
+| **category** | `string` | 资讯类别 (例如: "人工智能", "元宇宙")。 |
+| **tags** | `Array<string>` | 相关标签数组。 |
+| **updateFrequency**| `string` | 更新频率 (`实时`, `每日`, `每周`, `每月`)。 |
+| **status** | `string` | 状态 (`可用`, `已停用`)。 |
+| **createdAt** | `Timestamp`| 创建时间。 |
+
 
 ---
 

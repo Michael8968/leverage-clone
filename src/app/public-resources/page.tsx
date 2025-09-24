@@ -367,11 +367,10 @@ function ApiDataFetcher() {
             setIsLoading(true);
             try {
                 const resourcesCollection = collection(db, 'resources');
-                // FIX: Temporarily remove the 'where' clause to avoid index error
-                const q = query(resourcesCollection);
+                const q = query(resourcesCollection, where("status", "==", "可用"));
                 const snapshot = await getDocs(q);
                 const resourcesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Resource));
-                setAvailableResources(resourcesList.filter(r => r.status === '可用')); // Filter client-side
+                setAvailableResources(resourcesList);
             } catch (error) {
                 toast({ title: '加载失败', description: '无法加载可用的数据源列表。', variant: 'destructive' });
             } finally {
