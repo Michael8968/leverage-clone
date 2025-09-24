@@ -13,7 +13,7 @@ export async function POST(request: Request) {
       headers: new Headers(headers || {}),
     };
 
-    if (body && method !== 'GET' && method !== 'HEAD') {
+    if (body && method.toUpperCase() !== 'GET' && method.toUpperCase() !== 'HEAD') {
       options.body = JSON.stringify(body);
     }
 
