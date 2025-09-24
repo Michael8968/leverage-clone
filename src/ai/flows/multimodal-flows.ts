@@ -7,22 +7,32 @@ import { doc, setDoc, getDoc, serverTimestamp, updateDoc, collection } from 'fir
 import { db } from '@/lib/firebase';
 import * as admin from 'firebase-admin';
 import type { MediaAsset } from '@/lib/types';
-import { geminiProVision, googleAI } from '@genkit-ai/googleai';
+import { googleAI } from '@genkit-ai/googleai';
 
 // =================================================================
-// Firebase Admin SDK Initialization
+// Firebase Admin SDK Initialization & Bucket Getter
 // =================================================================
-if (!admin.apps.length) {
-  try {
-    const bucketName = process.env.FIREBASE_STORAGE_BUCKET || "your-default-bucket-name.appspot.com";
-    admin.initializeApp({
-      credential: admin.credential.applicationDefault(),
-      storageBucket: bucketName,
-    });
-  } catch (e) { console.error('Firebase Admin initialization error', e); }
+
+function initializeAdmin() {
+    if (!admin.apps.length) {
+        try {
+            const bucketName = process.env.FIREBASE_STORAGE_BUCKET || "your-default-bucket-name.appspot.com";
+            admin.initializeApp({
+              credential: admin.credential.applicationDefault(),
+              storageBucket: bucketName,
+            });
+            console.log("Firebase Admin initialized successfully.");
+        } catch (e) { 
+            console.error('Firebase Admin initialization error', e); 
+        }
+    }
 }
 
-const bucket = admin.storage().bucket();
+function getBucket() {
+    initializeAdmin();
+    return admin.storage().bucket();
+}
+
 
 // =================================================================
 // Flow to get a signed URL for a new media asset
@@ -42,6 +52,7 @@ const GetUploadUrlOutputSchema = z.object({
 export const getUploadUrlForMediaAsset = ai.defineFlow(
     { name: 'getUploadUrlForMediaAsset', inputSchema: GetUploadUrlInputSchema, outputSchema: GetUploadUrlOutputSchema },
     async ({ userId, fileName, contentType }) => {
+        const bucket = getBucket();
         const mediaAssetRef = doc(collection(db, 'media_assets'));
         const mediaAssetId = mediaAssetRef.id;
         const filePath = `media_assets/${userId}/${mediaAssetId}-${fileName}`;
