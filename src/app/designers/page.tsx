@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -27,7 +28,7 @@ export default function DesignersPage() {
       setIsLoading(true);
       try {
         const usersCollection = collection(db, 'users');
-        const q = query(usersCollection, where("role", "==", "creator"), where("status", "==", "active"));
+        const q = query(usersCollection, where("role", "==", "creator"));
         const snapshot = await getDocs(q);
         const creatorsList = snapshot.docs.map(d => ({ ...d.data(), uid: d.id } as User));
         setCreators(creatorsList);
@@ -51,7 +52,7 @@ export default function DesignersPage() {
         <header className="text-center mb-8">
           <h1 className="text-3xl font-headline font-bold flex items-center justify-center gap-2"><Users /> 平台创意者</h1>
           <p className="text-muted-foreground mt-2">
-            系统将为您推荐在线的创意者。若没有找到合适的服务,可以将您的具体需求发布到需求池。
+            发现平台上的创意人才。若没有找到合适的服务,可以将您的具体需求发布到需求池。
           </p>
           <div className="flex justify-center gap-4 mt-4">
             <Button variant="default">系统推荐</Button>
@@ -104,3 +105,4 @@ export default function DesignersPage() {
     </AppLayout>
   );
 }
+
