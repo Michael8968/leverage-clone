@@ -71,12 +71,17 @@
 | 字段名 | 数据类型 | 描述 |
 | :--- | :--- | :--- |
 | **id** | `string` | 文档ID，与供应商用户的UID一致。 |
-| **name** | `string` | 公司名称。 |
+| **name** | `string` | 公司全称。 |
+| **shortName** | `string` | (可选) 公司简称。 |
+| **region** | `string` | (可选) 公司所在区域。 |
+| **address** | `string` | (可选) 公司详细地址。 |
+| **establishedDate** | `Timestamp` | (可选) 公司成立日期。 |
+| **registeredCapital**|`string` | (可选) 注册资本。 |
+| **creditCode** | `string` | (可选) 统一社会信用代码。 |
 | **email** | `string` | 公司联系邮箱。 |
-| **contactPerson** | `string` | 主要联系人姓名。 |
-| **jobTitle** | `string` | 联系人职位。 |
-| **mobile** | `string` | 联系人手机。 |
-| **...** | `...` | 其他在 `CompanyInfoForm` 中定义的联系方式字段。 |
+| **contactPerson** | `string` | (可选) 主要联系人姓名。 |
+| **jobTitle** | `string` | (可选) 联系人职位。 |
+| **mobile** | `string` | (可选) 联系人手机。 |
 | **supplementaryFields** | `Array<Object>` | (可选) 补充信息字段。 |
 
 ### 1.5. `chats` 集合

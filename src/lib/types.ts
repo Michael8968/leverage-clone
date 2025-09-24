@@ -48,6 +48,12 @@ export type ProductService = {
 export type Supplier = {
   id: string;
   name:string;
+  shortName?: string;
+  region?: string;
+  address?: string;
+  establishedDate?: Date;
+  registeredCapital?: string;
+  creditCode?: string;
   // Fields from form
   contactPerson?: string;
   jobTitle?: string;

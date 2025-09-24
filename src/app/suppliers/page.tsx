@@ -10,12 +10,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { PlusCircle, Trash2, Loader2, Building, Package, Upload, FileCog, Frown, ImagePlus, GripVertical, ChevronDown, ChevronUp } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Building, Package, Upload, FileCog, Frown, ImagePlus, GripVertical, ChevronDown, ChevronUp, CalendarIcon } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { DataProcessor } from '@/components/features/data-processor';
 import { useAuthStore } from '@/store/auth';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc, serverTimestamp, getDoc, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -27,18 +27,22 @@ import { Label } from '@/components/ui/label';
 import { useRouter } from 'next/navigation';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import Image from 'next/image';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 // =================================================================
 // Form Schema for Company Info
 // =================================================================
 const companyInfoSchema = z.object({
-  name: z.string().min(2, { message: "公司名称至少需要2个字符。" }),
-  contactPerson: z.string().optional(),
-  jobTitle: z.string().optional(),
-  mobile: z.string().optional(),
-  phone: z.string().optional(),
-  customerService: z.string().optional(),
-  email: z.string().email({ message: "请输入有效的邮箱地址。" }),
+  name: z.string().min(2, { message: "供应商全称至少需要2个字符。" }),
+  shortName: z.string().optional(),
+  region: z.string().optional(),
+  address: z.string().optional(),
+  establishedDate: z.date().optional(),
+  registeredCapital: z.string().optional(),
+  creditCode: z.string().optional(),
 });
 
 
@@ -55,13 +59,13 @@ function CompanyInfoForm() {
   const form = useForm<z.infer<typeof companyInfoSchema>>({
     resolver: zodResolver(companyInfoSchema),
     defaultValues: {
-      name: user?.name || "",
-      email: user?.email || "",
-      contactPerson: "",
-      jobTitle: "",
-      mobile: "",
-      phone: "",
-      customerService: "",
+      name: "",
+      shortName: "",
+      region: "",
+      address: "",
+      establishedDate: undefined,
+      registeredCapital: "",
+      creditCode: "",
     },
   });
 
@@ -74,8 +78,13 @@ function CompanyInfoForm() {
         const docSnap = await getDoc(supplierDocRef);
         if (docSnap.exists()) {
           const supplierData = docSnap.data() as Supplier;
-          form.reset(supplierData);
+          form.reset({
+              ...supplierData,
+              establishedDate: supplierData.establishedDate ? (supplierData.establishedDate as Timestamp).toDate() : undefined,
+          });
           setSupplementaryFields(supplierData.supplementaryFields || []);
+        } else {
+             form.reset({ name: user.name || "", email: user.email || "" });
         }
       } catch (error) {
         toast({ title: "加载失败", description: "无法加载您的公司信息。", variant: "destructive" });
@@ -91,43 +100,76 @@ function CompanyInfoForm() {
     setIsSubmitting(true);
     try {
       const supplierDocRef = doc(db, 'suppliers', user.uid);
-      const dataToSave = {
-        ...values,
+      const { email, ...restValues } = values as any; // email is not part of this form schema
+      
+      const dataToSave: Partial<Supplier> = {
+        ...restValues,
         id: user.uid,
+        email: user.email, // ensure email is saved from auth state
         supplementaryFields: supplementaryFields,
       };
+
+      if(dataToSave.establishedDate) {
+          dataToSave.establishedDate = Timestamp.fromDate(dataToSave.establishedDate as Date);
+      }
+
       await setDoc(supplierDocRef, dataToSave, { merge: true });
       toast({ title: "保存成功", description: "您的公司信息已更新。" });
     } catch (error) {
-      toast({ title: "保存失败", description: "更新公司信息时出错。", variant: "destructive" });
+      toast({ title: "保存失败", description: `更新公司信息时出错: ${(error as Error).message}`, variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   if (isLoading) {
-    return <Card><CardHeader><Skeleton className="h-6 w-1/3" /></CardHeader><CardContent><Skeleton className="h-40 w-full" /></CardContent></Card>;
+    return <Card><CardHeader><Skeleton className="h-8 w-1/3" /><Skeleton className="h-4 w-2/3 mt-2" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>;
   }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-headline">公司资料</CardTitle>
-        <CardDescription>请填写准确、完整的公司信息。此信息将用于平台与您的联系。</CardDescription>
+        <CardTitle className="font-headline">供应商基本信息</CardTitle>
+        <CardDescription>请填写准确、完整的公司信息。</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>公司名称</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>联系邮箱</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="contactPerson" render={({ field }) => (<FormItem><FormLabel>主要联系人</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="jobTitle" render={({ field }) => (<FormItem><FormLabel>职务</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="mobile" render={({ field }) => (<FormItem><FormLabel>手机</FormLabel><FormControl><Input type="tel" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="phone" render={({ field }) => (<FormItem><FormLabel>座机</FormLabel><FormControl><Input type="tel" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+            <div>
+              <h3 className="text-lg font-medium mb-4">公司资料</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>供应商全称</FormLabel><FormControl><Input placeholder="例如: 创新科技(深圳)有限公司" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="shortName" render={({ field }) => (<FormItem><FormLabel>供应商简称</FormLabel><FormControl><Input placeholder="例如: 创新科技" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="region" render={({ field }) => (<FormItem><FormLabel>所在区域</FormLabel><FormControl><Input placeholder="例如: 广东省深圳市" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="address" render={({ field }) => (<FormItem><FormLabel>详细地址</FormLabel><FormControl><Input placeholder="例如: 南山区科技园" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                <FormField
+                    control={form.control}
+                    name="establishedDate"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                            <FormLabel>成立日期</FormLabel>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <FormControl>
+                                        <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                                            {field.value ? format(field.value, "yyyy-MM-dd") : <span>年/月/日</span>}
+                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} initialFocus />
+                                </PopoverContent>
+                            </Popover>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                <FormField control={form.control} name="registeredCapital" render={({ field }) => (<FormItem><FormLabel>注册资本</FormLabel><FormControl><Input placeholder="例如: 1000万元" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="creditCode" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>统一社会信用代码</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
+              </div>
             </div>
-            <Separator />
-            <SupplementaryFieldsManager fields={supplementaryFields} onFieldsChange={setSupplementaryFields} title="补充内容" />
+            
             <div className="flex justify-end">
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="animate-spin mr-2"/>}
@@ -407,7 +449,7 @@ export default function SuppliersPage() {
           <h1 className="text-2xl font-headline font-bold">供应商中心</h1>
           <p className="text-muted-foreground">在此管理您的公司基本信息以及提供的商品与服务。</p>
         </header>
-        <Tabs defaultValue="products">
+        <Tabs defaultValue="info">
             <TabsList className="grid w-full grid-cols-3 max-w-lg">
                 <TabsTrigger value="info"><Building className="mr-2"/> 基本信息</TabsTrigger>
                 <TabsTrigger value="products"><Package className="mr-2"/> 商品/服务</TabsTrigger>
