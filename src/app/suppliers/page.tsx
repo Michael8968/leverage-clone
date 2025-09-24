@@ -107,15 +107,15 @@ function CompanyInfoForm() {
         supplementaryFields: supplementaryFields,
       };
 
-      if (dataToSave.establishedDate && dataToSave.establishedDate instanceof Date) {
+      if (dataToSave.establishedDate) {
           dataToSave.establishedDate = Timestamp.fromDate(dataToSave.establishedDate);
       } else {
           dataToSave.establishedDate = null;
       }
       
       // Sanitize optional fields to be null instead of undefined
-      dataToSave.registeredCapital = dataToSave.registeredCapital || null;
-      dataToSave.creditCode = dataToSave.creditCode || null;
+      dataToSave.registeredCapital = values.registeredCapital || null;
+      dataToSave.creditCode = values.creditCode || null;
 
 
       await setDoc(supplierDocRef, dataToSave, { merge: true });
@@ -403,7 +403,7 @@ function ImageManager({ images, onImagesChange }: { images: ProductImage[], onIm
                     <Card key={index} className="group relative">
                         <CardContent className="p-2 flex flex-col gap-2">
                             <div className="aspect-video flex items-center justify-center bg-muted/50 rounded-md overflow-hidden">
-                                {image.url ? (
+                                {image.url && image.url !== '' ? (
                                     <Image src={image.url} alt={`Product image ${index + 1}`} width={160} height={90} className="object-contain" onError={(e) => e.currentTarget.style.display = 'none'}/>
                                 ) : (
                                     <ImagePlus className="w-8 h-8 text-muted-foreground" />
