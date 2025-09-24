@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -28,7 +27,7 @@ export default function DesignersPage() {
       setIsLoading(true);
       try {
         const usersCollection = collection(db, 'users');
-        const q = query(usersCollection, where("role", "==", "creator"));
+        const q = query(usersCollection, where("role", "==", "creator"), where("status", "==", "active"));
         const snapshot = await getDocs(q);
         const creatorsList = snapshot.docs.map(d => ({ ...d.data(), uid: d.id } as User));
         setCreators(creatorsList);
@@ -55,7 +54,7 @@ export default function DesignersPage() {
             系统将为您推荐在线的创意者。若没有找到合适的服务,可以将您的具体需求发布到需求池。
           </p>
           <div className="flex justify-center gap-4 mt-4">
-            <Button variant="default" disabled>系统推荐</Button>
+            <Button variant="default">系统推荐</Button>
             <Button variant="outline" onClick={() => router.push('/demand-pool')}>去需求池发布</Button>
           </div>
         </header>
@@ -95,7 +94,7 @@ export default function DesignersPage() {
                   </div>
                 </CardContent>
                 <div className="p-6 pt-2">
-                    <Button className="w-full" disabled>立即预约</Button>
+                    <Button className="w-full" disabled={creator.status !== 'active'}>立即预约</Button>
                 </div>
               </Card>
             ))}
