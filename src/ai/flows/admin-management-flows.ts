@@ -177,29 +177,22 @@ export const getDefaultLlmConnection = ai.defineFlow(
     },
     async () => {
         const connectionsRef = collection(db, 'llm_connections');
-        // FIX: Removed where() clause to avoid needing a composite index immediately.
-        // The query now only orders by priority.
+        // This query is now efficient thanks to the composite index.
         const q = query(
             connectionsRef,
+            where('status', '==', '活跃'),
             orderBy('priority', 'asc'),
+            limit(1)
         );
 
         const snapshot = await getDocs(q);
 
         if (snapshot.empty) {
-            console.warn("No LLM connections found to serve as default.");
+            console.warn("No active LLM connections found to serve as default.");
             return undefined;
         }
 
-        // Manually filter for the first 'active' connection in the sorted list.
-        const allConnections = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LlmConnection));
-        const activeConnection = allConnections.find(c => c.status === '活跃');
-        
-        if (!activeConnection) {
-            console.warn("No *active* LLM connections found to serve as default.");
-            return undefined;
-        }
-
-        return activeConnection;
+        const defaultConnection = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as LlmConnection;
+        return defaultConnection;
     }
 );
