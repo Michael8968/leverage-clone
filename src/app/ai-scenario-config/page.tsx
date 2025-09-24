@@ -264,10 +264,8 @@ function ScenarioEditDialog({
                                         <FormItem>
                                             <FormLabel>标签 (用逗号或空格分隔)</FormLabel>
                                             <FormControl><Input placeholder="e.g., shopping, chat" {...field} /></FormControl>
-                                            <FormDescription className="text-xs flex flex-wrap gap-x-2">
-                                                <span>特殊系统标签:</span>
-                                                <Badge variant="outline" className="text-xs">chat</Badge> (用于聊天助理)
-                                                <Badge variant="outline" className="text-xs">shopping</Badge> (用于AI购物助手)
+                                            <FormDescription className="text-xs">
+                                                <span>特殊系统标签: `chat` (用于聊天助理), `shopping` (用于AI购物助手)。</span>
                                             </FormDescription>
                                             <FormMessage />
                                         </FormItem>
@@ -276,6 +274,26 @@ function ScenarioEditDialog({
                             </form>
                         </Form>
                     )}
+                     {!isCreating && (
+                         <Form {...form}>
+                             <form className="space-y-4">
+                                <FormField
+                                    control={form.control}
+                                    name="tags"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>标签 (用逗号或空格分隔)</FormLabel>
+                                            <FormControl><Input placeholder="e.g., shopping, chat" {...field} /></FormControl>
+                                            <FormDescription className="text-xs">
+                                                <span>特殊系统标签: `chat` (用于聊天助理), `shopping` (用于AI购物助手)。</span>
+                                            </FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                             </form>
+                         </Form>
+                     )}
                     <div>
                         <Label htmlFor="prompt-select" className="text-sm font-medium">配置使用的提示词</Label>
                         <Select value={selectedPromptKey} onValueChange={setSelectedPromptKey}>
@@ -666,4 +684,3 @@ export default function AIScenarioConfigPage() {
         </AppLayout>
     );
 }
-
