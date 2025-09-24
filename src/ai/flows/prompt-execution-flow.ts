@@ -3,10 +3,26 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { doc, getDoc, collection, query, where, getDocs, Timestamp, orderBy } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, Timestamp, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { LlmConnection, AIScenario, User, AIScenarioRules, Prompt } from '@/lib/types';
-import { getPlatformAssets, getDefaultLlmConnection } from './admin-management-flows';
+import type { LlmConnection, AIScenario, User, AIScenarioRules, Prompt, ProductService, Supplier, Resource } from '@/lib/types';
+import { getDefaultLlmConnection } from './admin-management-flows';
+
+// Helper function to convert a Firestore collection to a string format for the prompt
+async function getCollectionAsContext(collectionName: string, maxItems = 10): Promise<string> {
+    try {
+        const snapshot = await getDocs(query(collection(db, collectionName), limit(maxItems)));
+        if (snapshot.empty) {
+            return `[]`; // Return empty array string if no documents
+        }
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        return JSON.stringify(data, null, 2); // Pretty-print JSON
+    } catch (error) {
+        console.error(`Failed to fetch collection ${collectionName}:`, error);
+        return `[]`; // Return empty array on error
+    }
+}
+
 
 const PromptMessageSchema = z.object({
   role: z.enum(['system', 'user', 'assistant']),
@@ -116,7 +132,7 @@ async function findAvailableModels(promptDoc?: Prompt, allConnections?: LlmConne
 
 
 // =================================================================
-// Core Flow: executePrompt (Upgraded with Advanced Rule Validation)
+// Core Flow: executePrompt (Upgraded with Advanced Rule Validation & Context Injection)
 // =================================================================
 export async function executePrompt(input: z.infer<typeof PromptExecutionInputSchema>): Promise<z.infer<typeof PromptExecutionOutputSchema>> {
   return executePromptFlow(input);
@@ -133,6 +149,7 @@ const executePromptFlow = ai.defineFlow(
     let finalModelId = modelId;
     let finalPromptKey = promptKey;
     let systemPromptContent: string | undefined;
+    let promptDocument: Prompt | null = null;
 
     // 1. SCENARIO LOOKUP (HIGHEST PRIORITY)
     if (scenario) {
@@ -141,11 +158,10 @@ const executePromptFlow = ai.defineFlow(
         
         if (scenarioSnap.exists()) {
             const scenarioData = scenarioSnap.data() as AIScenario;
-            // Validate rules before applying
             if (await isRuleSetValid(scenarioData, userId)) {
                 console.log(`[Flow] Scenario "${scenario}" triggered and rules met. Using prompt key: ${scenarioData.configuredPromptKey}`);
                 finalPromptKey = scenarioData.configuredPromptKey;
-                finalModelId = undefined; // Scenario's prompt key takes precedence over any passed modelId
+                finalModelId = undefined; // Scenario's prompt key takes precedence
             }
         }
     }
@@ -155,20 +171,18 @@ const executePromptFlow = ai.defineFlow(
     const allConnections = allConnectionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LlmConnection));
     let modelsToTry: LlmConnection[] = [];
 
-    if (finalPromptKey) { // A prompt key was provided (either by scenario or direct input)
+    if (finalPromptKey) {
         const q = query(collection(db, 'prompts'), where("promptKey", "==", finalPromptKey));
         const snapshot = await getDocs(q);
         if (snapshot.empty) throw new Error(`Prompt with key "${finalPromptKey}" not found.`);
-        const promptDocument = snapshot.docs[0].data() as Prompt;
+        promptDocument = snapshot.docs[0].data() as Prompt;
         systemPromptContent = promptDocument.content;
         modelsToTry = await findAvailableModels(promptDocument, allConnections);
-
-    } else if (finalModelId) { // A specific modelId was provided
+    } else if (finalModelId) {
         const specificModel = allConnections.find(c => c.id === finalModelId);
         if (!specificModel) throw new Error(`Target LLM Connection with ID "${finalModelId}" not found or is not active.`);
         modelsToTry = [specificModel];
-
-    } else { // No target specified, use system default
+    } else {
         const defaultConnection = await getDefaultLlmConnection(null);
         if (!defaultConnection) throw new Error("No execution target specified and no default LLM connection is available.");
         modelsToTry = [defaultConnection];
@@ -176,9 +190,32 @@ const executePromptFlow = ai.defineFlow(
     
     if (modelsToTry.length === 0) throw new Error("No active and suitable LLM connections available for the target.");
 
-    // Prepare messages: Inject system prompt if one was found
+    // 3. DYNAMIC CONTEXT INJECTION (NEW)
+    let dynamicContext = "";
+    if (promptDocument?.querySources) {
+        const contextParts: string[] = [];
+        if (promptDocument.querySources.knowledgeBase) {
+            contextParts.push("## Knowledge Base (products):\n" + await getCollectionAsContext('products'));
+        }
+        if (promptDocument.querySources.suppliers) {
+            contextParts.push("## Suppliers:\n" + await getCollectionAsContext('suppliers'));
+        }
+        if (promptDocument.querySources.publicResources) {
+            contextParts.push("## Public Resources:\n" + await getCollectionAsContext('resources'));
+        }
+        dynamicContext = contextParts.join("\n\n");
+    }
+
+    // Prepare messages: Inject system prompt and dynamic context
     const finalMessages = [...messages];
     if (systemPromptContent) {
+        // Replace a {{context}} placeholder in the prompt content, or prepend it.
+        if (systemPromptContent.includes('{{{context}}}')) {
+            systemPromptContent = systemPromptContent.replace('{{{context}}}', dynamicContext);
+        } else {
+            systemPromptContent = dynamicContext + "\n\n" + systemPromptContent;
+        }
+
         const systemMessageIndex = finalMessages.findIndex(m => m.role === 'system');
         if (systemMessageIndex !== -1) {
             finalMessages[systemMessageIndex] = { role: 'system', content: systemPromptContent };
@@ -187,34 +224,38 @@ const executePromptFlow = ai.defineFlow(
         }
     }
 
-    // 3. LOOP & EXECUTE WITH FAILOVER
+    // 4. LOOP & EXECUTE WITH FAILOVER
     for (const model of modelsToTry) {
         try {
             console.log(`[Flow] Attempting to call model: ${model.provider} - ${model.modelName}`);
-
-            // This is a simplified fetch call. A real implementation would need an adapter
-            // to format the request body according to the provider's API specification.
-            // For now, we assume a standard format.
-            const response = await fetch('https://some-unified-api-gateway.com/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${model.apiKey}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    model: model.modelName,
-                    messages: finalMessages,
-                    temperature: temperature
-                }),
+            
+            // This is a proxy call to a generic API route that will then make the actual call
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/generate`, {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({
+                     url: `https://generativelanguage.googleapis.com/v1beta/models/${model.modelName}:generateContent`,
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': model.apiKey },
+                     body: {
+                         contents: finalMessages.map(msg => ({
+                             role: msg.role === 'assistant' ? 'model' : msg.role,
+                             parts: [{ text: msg.content }]
+                         })),
+                         generationConfig: {
+                             temperature: temperature,
+                         }
+                     }
+                 })
             });
 
             if (!response.ok) {
-                const errorBody = await response.text();
-                throw new Error(`Model API request failed with status ${response.status}: ${errorBody}`);
+                const errorBody = await response.json();
+                throw new Error(`Model API request failed with status ${response.status}: ${JSON.stringify(errorBody)}`);
             }
 
             const result = await response.json();
-            const textResponse = result.choices?.[0]?.message?.content || '';
+            const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
             return { text: textResponse };
 
@@ -228,3 +269,5 @@ const executePromptFlow = ai.defineFlow(
     throw new Error(`All available LLM models failed to respond.`);
   }
 );
+
+    

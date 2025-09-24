@@ -59,16 +59,17 @@
 
 **工作流程 (已升级)**:
 
-1.  **接收标准输入**: 函数接收`PromptExecutionInput`对象，该对象新增了一个可选的`scenario`字段和`userId`字段。
+1.  **接收标准输入**: 函数接收`PromptExecutionInput`对象，包含可选的`scenario`和`userId`字段。
 2.  **查询配置 (核心路由)**:
-    *   **第一优先级：场景查询**: 如果提供了 `scenario`，则**首先**从`ai_scenarios`集合中查找对应的文档。如果文档存在：
-        *   **规则校验**: 根据 `ruleLogic` 字段（默认为 'and'），组合判断当前时间和（如果提供了`userId`）用户角色/星级是否满足该配置文档中定义的所有规则（`repetition`, `daysOfWeek`, `startTime`, `endTime`, `startsAt`, `expiresAt`, `targetUserRoles`）。
-        *   **应用配置**: 如果所有规则都满足，则该文档中配置的`configuredPromptKey`将覆盖所有其他输入，成为本次调用的最终执行目标。
-    *   **第二优先级：提示词Key**: 如果没有场景覆盖，且提供了 `promptKey`，则从`prompts`集合中查找对应的提示词文档，获取其 `content` 和绑定的 `modelId`。
+    *   **第一优先级：场景查询**: 如果提供了 `scenario`，则**首先**从`ai_scenarios`集合中查找对应的文档，并根据`userId`和当前时间，严格校验文档中定义的所有高级规则（时间、用户、逻辑组合）。如果规则满足，则该文档配置的`configuredPromptKey`将覆盖所有其他输入，成为本次调用的最终执行目标。
+    *   **第二优先级：提示词Key**: 如果没有场景覆盖，且提供了 `promptKey`，则从`prompts`集合中查找对应的提示词文档，获取其 `content`、绑定的 `modelId`以及**查询范围配置(`querySources`)**。
     *   **第三优先级：模型ID**: 如果以上两者都未提供，则直接使用传入的 `modelId`进行调用。
-3.  **获取LLM连接**: 根据上一步确定的 `modelId`，从`llm_connections`集合中获取完整的连接配置。
-4.  **请求适配与发送**: 与之前版本相同，根据厂商适配请求体，并使用`fetch` API发送原生请求。
-5.  **结果解析与返回**: 解析不同厂商的响应，返回标准化的`PromptExecutionOutput`对象。
+3.  **动态上下文注入 (新增)**:
+    *   如果上一步获取的提示词文档中包含了 `querySources` 配置，流程将根据该配置，**动态地**从相应的数据库集合（`products`, `suppliers`, `resources`）中检索数据。
+    *   这些检索到的数据将被格式化为JSON字符串，并注入到系统提示词的 `{{{context}}}` 占位符中，从而为AI提供实时的、相关的背景信息。
+4.  **获取LLM连接**: 根据确定的 `modelId`或提示词的回退规则，从`llm_connections`集合中获取一个或多个可用的连接配置。
+5.  **请求适配与发送**: 根据厂商适配请求体，并使用`fetch` API发送原生请求。如果主模型失败，将自动尝试优先级较低的模型。
+6.  **结果解析与返回**: 解析不同厂商的响应，返回标准化的`PromptExecutionOutput`对象。
 
 ### 2.3. 前端交互
 
@@ -103,3 +104,5 @@ const result = await executePrompt({
 *   **高可维护性**: 模型支持列表集中在后端管理；所有配置均支持预设与自定义输入，兼顾易用性和扩展性。
 
 此方案为平台构建了一个极其稳固和灵活的AI能力底座，是整个项目能够稳定运行并轻松扩展的基石。
+
+    
