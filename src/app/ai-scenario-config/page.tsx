@@ -474,13 +474,13 @@ export default function AIScenarioConfigPage() {
             
             setPrompts(promptsData.prompts);
 
-            // Robust merging logic: DB scenarios overwrite predefined ones.
+            // Correct Merging Logic
             const scenariosMap = new Map<string, FullScenario>();
-
-            // First, add all predefined scenarios.
+            
+            // 1. Add all predefined scenarios to the map first.
             PREDEFINED_SCENARIOS.forEach(p => scenariosMap.set(p.id, p));
 
-            // Then, merge/overwrite with scenarios from the database.
+            // 2. Overwrite and add scenarios from the database.
             dbScenarios.forEach(dbScenario => {
                 scenariosMap.set(dbScenario.id, { ...scenariosMap.get(dbScenario.id), ...dbScenario });
             });
@@ -660,4 +660,3 @@ export default function AIScenarioConfigPage() {
         </AppLayout>
     );
 }
-
