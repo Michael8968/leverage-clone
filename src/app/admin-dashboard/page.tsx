@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -162,7 +161,7 @@ function LlmConnectionForm({ llm, onSave, onCancel }: {
     const [providers, setProviders] = useState<LlmProvider[]>([]);
 
     useEffect(() => {
-        getPlatformAssets().then(assets => {
+        getPlatformAssets(null).then(assets => {
             setProviders(assets.providers);
         });
     }, []);
@@ -500,5 +499,5 @@ export default function AdminDashboardPage() {
             </AlertDialog>
         </AppLayout>
     );
-}
 
+    
