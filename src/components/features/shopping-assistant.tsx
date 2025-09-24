@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormMessage, FormLabel } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Paperclip, Send, X, Bot, User, BrainCircuit, Sparkles, Building, Loader2, FilePlus2, ExternalLink, Workflow } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -158,18 +158,22 @@ export function ShoppingAssistant() {
         startAiSearch(async () => {
           let aiMessage: Message;
           try {
-            // Logic Branch 1: Multi-modal analysis
-            if (mediaAsset?.id) {
+            if (values.promptKey) {
+                const context = `User Query: ${values.description}\n\nAvailable Products: ${JSON.stringify(products)}\n\nAvailable Suppliers: ${JSON.stringify(suppliers)}`;
+                const result = await executePrompt({
+                    promptKey: values.promptKey,
+                    userId: user?.uid,
+                    messages: [{ role: 'user', content: context }],
+                });
+                aiMessage = { id: Date.now() + 2, type: 'ai', text: result.text, isRawText: true };
+            } else if (mediaAsset?.id) {
               const result = await analyzeMediaAsset({ mediaAssetId: mediaAsset.id, prompt: values.description });
               aiMessage = { id: Date.now() + 2, type: 'ai', text: result.analysis, isRawText: true };
-            
-            // Logic Branch 2: Product recommendation
             } else {
               const result = await getProductRecommendations({ description: values.description, products, suppliers });
               const recommendedProducts = products.filter(p => result.recommendations.includes(p.id));
               aiMessage = { id: Date.now() + 2, type: 'ai', profile: result.userProfile, recommendations: recommendedProducts, isRawText: false };
             }
-            // Update UI with the result from the correct branch
             setMessages(prev => prev.map(msg => (msg.id === loadingMessage.id ? aiMessage : msg)));
 
           } catch (error: any) {
@@ -202,10 +206,45 @@ export function ShoppingAssistant() {
                                 return null;
                             })}
                         </div></ScrollArea></CardContent>
-                        <CardFooter><Form {...form}><form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="w-full space-y-2">
+                        <CardFooter><Form {...form}><form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="w-full space-y-4">
                             {mediaAsset && ( <div className="relative w-24 h-24">{mediaAsset.mediaType === 'video' ? <video src={mediaAsset.previewUrl} className="w-full h-full rounded-md object-cover"/> : <Image src={mediaAsset.previewUrl!} alt="Preview" layout="fill" className="rounded-md object-cover"/>}<Button variant="ghost" size="icon" className="absolute top-0 right-0 h-6 w-6" onClick={() => setMediaAsset(null)}><X className="h-4 w-4" /></Button></div> )}
+                             <FormField
+                                control={form.control}
+                                name="promptKey"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                  <div className="flex items-center gap-2">
+                                                      <Workflow className="w-4 h-4 text-muted-foreground"/>
+                                                      <SelectValue placeholder="使用默认推荐逻辑" />
+                                                  </div>
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="">-- 使用默认推荐逻辑 --</SelectItem>
+                                                {prompts.map(p => (
+                                                    <SelectItem key={p.promptKey} value={p.promptKey}>{p.name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </FormItem>
+                                )}
+                            />
                             <div className="flex gap-2 items-end">
-                                <Textarea placeholder="描述您的需求..." {...form.register('description')} />
+                                <FormField
+                                  control={form.control}
+                                  name="description"
+                                  render={({ field }) => (
+                                    <FormItem className="flex-1">
+                                      <FormControl>
+                                        <Textarea placeholder="描述您的需求..." {...field} />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
                                 <Input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*" className="hidden" onChange={handleMediaUpload}/>
                                 <Button type="button" variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>{isUploading ? <Loader2 className="animate-spin" /> : <Paperclip />}</Button>
                                 <Button type="submit" disabled={isAiSearching || isUploading}>{isAiSearching ? <Loader2 className="animate-spin" /> : <Send />}</Button>
