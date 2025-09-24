@@ -150,6 +150,7 @@
 | **ID** | `string` | 文档ID，即**场景的唯一标识符** (例如: `chat-assistant`)。 |
 | **name** | `string` | 场景的业务名称 (例如: "聊天对话-AI助理")。 |
 | **description**| `string` | 场景的功能描述。 |
+| **tags** | `Array<string>` | (可选) 分类标签数组，用于前端按功能模块筛选场景。例如 `['chat', 'shopping']` |
 | **configuredPromptKey** | `string` | **(核心)** 绑定的 `prompts` 集合中的 `promptKey`。 |
 | **repetition** | `string` | (可选) 重复策略 (`none`, `daily`, `weekly`)。 |
 | **daysOfWeek** | `Array<string>` | (可选) 当`repetition`为`weekly`时，存储一周的日子（`mon`, `tue`...）。 |

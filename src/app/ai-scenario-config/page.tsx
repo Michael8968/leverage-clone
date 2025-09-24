@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -31,6 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import type { AIScenario } from '@/lib/types';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
+import * as z from 'zod';
 
 
 // =================================================================
@@ -255,8 +255,10 @@ function ScenarioEditDialog({
                                  <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>功能描述</FormLabel><FormControl><Textarea placeholder="描述这个场景是做什么的" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                                  <FormField control={form.control} name="tags" render={({ field }) => (<FormItem>
                                      <FormLabel>标签 (用逗号分隔)</FormLabel>
-                                     <FormControl><Input placeholder="e.g., AI智能购物, chat" {...field} /></FormControl>
-                                     <FormDescription className="text-xs">系统当前识别的特殊标签：<Badge variant="outline" className="text-xs">AI智能购物</Badge> (会显示在AI购物助手中)。</FormDescription>
+                                     <FormControl><Input placeholder="e.g., shopping, chat" {...field} /></FormControl>
+                                     <FormDescription className="text-xs">
+                                        特殊系统标签：<Badge variant="outline" className="text-xs">shopping</Badge> (用于AI购物助手), <Badge variant="outline" className="text-xs">chat</Badge> (用于聊天助理)。
+                                     </FormDescription>
                                      <FormMessage />
                                  </FormItem>)}/>
                             </form>

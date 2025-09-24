@@ -1,5 +1,4 @@
 
-
 import type { SupplementaryField } from "@/components/features/supplementary-fields-manager";
 import type { Role } from "@/store/auth";
 

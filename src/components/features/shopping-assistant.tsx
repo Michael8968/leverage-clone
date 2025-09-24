@@ -19,7 +19,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { db } from '@/lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import type { ProductService, Supplier, UserProfile, MediaAsset, AIScenario } from '@/lib/types';
 import { getProductRecommendations } from '@/ai/flows/shopping-assistant';
 import { useAuthStore } from '@/store/auth';
@@ -73,7 +73,7 @@ export function ShoppingAssistant() {
                 const [productsSnapshot, suppliersSnapshot, scenariosSnapshot] = await Promise.all([
                     getDocs(collection(db, 'products')),
                     getDocs(collection(db, 'suppliers')),
-                    getDocs(collection(db, 'ai_scenarios'))
+                    getDocs(query(collection(db, 'ai_scenarios'), where('tags', 'array-contains', 'shopping')))
                 ]);
 
                 const productsList = productsSnapshot.docs.map(doc => {
@@ -86,10 +86,7 @@ export function ShoppingAssistant() {
                 });
                 const suppliersList = suppliersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Supplier));
                 
-                const allScenarios = scenariosSnapshot.docs.map(doc => ({id: doc.id, ...doc.data() } as AIScenario));
-
-                // Filter scenarios to only show those relevant to the shopping assistant
-                const shoppingScenarios = allScenarios.filter(s => s.tags?.includes('AI智能购物'));
+                const shoppingScenarios = scenariosSnapshot.docs.map(doc => ({id: doc.id, ...doc.data() } as AIScenario));
 
                 setProducts(productsList);
                 setSuppliers(suppliersList);
@@ -321,9 +318,3 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
         </TooltipProvider>
     </CardFooter>
 </Card>))}</div></div> );
-
-    
-
-  
-
-    
