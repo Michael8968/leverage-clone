@@ -4,7 +4,7 @@
 
 import { AppLayout } from '@/components/app-layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ShieldCheck, MoreHorizontal, Star, UserX, Trash2, UserCog, UserCheck, CircleSlash } from 'lucide-react';
+import { ShieldCheck, MoreHorizontal, Star, UserX, Trash2, UserCog, UserCheck, CircleSlash, Users } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -23,7 +23,7 @@ import {
 import { useAuthStore, type User, type Role } from '@/store/auth';
 import { useEffect, useState, useTransition, useMemo } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, doc, updateDoc, writeBatch } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -37,6 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 // RoleBadge remains the same
@@ -175,13 +176,100 @@ function UserActionsCell({
     );
 }
 
+function BulkActionsBar({
+  selectedUserIds,
+  users,
+  onBulkUpdate,
+}: {
+  selectedUserIds: string[];
+  users: User[];
+  onBulkUpdate: (updatedUsers: User[]) => void;
+}) {
+  const { toast } = useToast();
+
+  const handleBulkUpdate = async (updateData: Partial<User>) => {
+    try {
+      const batch = writeBatch(db);
+      selectedUserIds.forEach((uid) => {
+        const userRef = doc(db, 'users', uid);
+        batch.update(userRef, updateData);
+      });
+      await batch.commit();
+
+      const updatedUsers = users.map(user => 
+        selectedUserIds.includes(user.uid) ? { ...user, ...updateData } : user
+      );
+      onBulkUpdate(updatedUsers);
+
+      toast({
+        title: "批量操作成功",
+        description: `已成功更新 ${selectedUserIds.length} 个用户。`,
+      });
+    } catch (error) {
+      console.error("Bulk update failed:", error);
+      toast({
+        title: "批量操作失败",
+        description: "更新用户信息时发生错误。",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleChangeRole = (role: Role) => handleBulkUpdate({ role });
+  const handleSetRating = (rating: number) => handleBulkUpdate({ rating });
+  const handleSuspend = () => handleBulkUpdate({ status: "suspended" });
+
+  return (
+    <div className="flex h-12 items-center justify-between rounded-md border bg-muted px-4">
+      <p className="text-sm font-medium">已选中 {selectedUserIds.length} 个用户</p>
+      <div className="flex items-center gap-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm"><UserCog className="mr-2"/>更改角色</Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            {(['admin', 'supplier', 'creator', 'user'] as Role[]).map(role => (
+                <DropdownMenuItem key={role} onClick={() => handleChangeRole(role)}>
+                    <RoleBadge role={role} />
+                </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm"><Star className="mr-2"/>评定星级</Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+             {Array.from({ length: 10 }).map((_, i) => (
+                <DropdownMenuItem key={i} onClick={() => handleSetRating(i + 1)}>
+                    <StarRating rating={i + 1}/>
+                </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => handleSetRating(0)}>
+                清除星级
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Button variant="destructive-outline" size="sm" onClick={handleSuspend}>
+          <UserX className="mr-2"/>
+          禁用
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+
 export default function PermissionsPage() {
     const [users, setUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [userToDelete, setUserToDelete] = useState<User | null>(null);
+    const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
     const { toast } = useToast();
 
     const activeUsers = useMemo(() => users.filter(u => u.role !== 'suspended'), [users]);
+    const isAllSelected = activeUsers.length > 0 && selectedUserIds.length === activeUsers.length;
 
 
     useEffect(() => {
@@ -209,6 +297,11 @@ export default function PermissionsPage() {
         );
     };
 
+    const handleBulkUpdate = (updatedUsers: User[]) => {
+      setUsers(updatedUsers);
+      setSelectedUserIds([]); // Clear selection after bulk action
+    };
+
     const handleConfirmDelete = (user: User) => {
         setUserToDelete(user);
     };
@@ -228,6 +321,16 @@ export default function PermissionsPage() {
             setUserToDelete(null);
         }
     };
+    
+    const handleSelectAll = (checked: boolean) => {
+      setSelectedUserIds(checked ? activeUsers.map(u => u.uid) : []);
+    };
+
+    const handleRowSelect = (uid: string, checked: boolean) => {
+      setSelectedUserIds(prev => 
+        checked ? [...prev, uid] : prev.filter(id => id !== uid)
+      );
+    };
 
   return (
     <AppLayout>
@@ -243,11 +346,25 @@ export default function PermissionsPage() {
           <CardHeader>
             <CardTitle className="font-headline">用户列表</CardTitle>
             <CardDescription>查看和编辑平台所有用户的角色和状态。</CardDescription>
+             {selectedUserIds.length > 0 && (
+                <BulkActionsBar 
+                  selectedUserIds={selectedUserIds} 
+                  users={users} 
+                  onBulkUpdate={handleBulkUpdate}
+                />
+            )}
           </CardHeader>
           <CardContent>
             <Table>
                 <TableHeader>
                     <TableRow>
+                        <TableHead className="w-[50px]">
+                            <Checkbox 
+                                onCheckedChange={handleSelectAll}
+                                checked={isAllSelected}
+                                aria-label="Select all"
+                            />
+                        </TableHead>
                         <TableHead>用户</TableHead>
                         <TableHead>邮箱</TableHead>
                         <TableHead>角色</TableHead>
@@ -259,6 +376,7 @@ export default function PermissionsPage() {
                     {isLoading ? (
                          Array.from({ length: 4 }).map((_, i) => (
                             <TableRow key={i}>
+                                <TableCell><Skeleton className="h-4 w-4" /></TableCell>
                                 <TableCell><div className="flex items-center gap-3"><Skeleton className="h-8 w-8 rounded-full" /><Skeleton className="h-4 w-24" /></div></TableCell>
                                 <TableCell><Skeleton className="h-4 w-40" /></TableCell>
                                 <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
@@ -267,7 +385,18 @@ export default function PermissionsPage() {
                             </TableRow>
                         ))
                     ) : activeUsers.map(user => (
-                        <TableRow key={user.uid} className={cn(user.status === 'suspended' && 'opacity-50')}>
+                        <TableRow 
+                            key={user.uid} 
+                            className={cn(user.status === 'suspended' && 'opacity-50')}
+                            data-state={selectedUserIds.includes(user.uid) && "selected"}
+                        >
+                             <TableCell>
+                                <Checkbox
+                                    checked={selectedUserIds.includes(user.uid)}
+                                    onCheckedChange={(checked) => handleRowSelect(user.uid, !!checked)}
+                                    aria-label={`Select user ${user.name}`}
+                                />
+                            </TableCell>
                             <TableCell>
                                 <div className="flex items-center gap-3">
                                     <Avatar className="w-8 h-8">
