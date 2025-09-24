@@ -19,7 +19,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where, onSnapshot } from 'firebase/firestore';
 import type { ProductService, Supplier, UserProfile, MediaAsset, AIScenario } from '@/lib/types';
 import { getProductRecommendations } from '@/ai/flows/shopping-assistant';
 import { useAuthStore } from '@/store/auth';
@@ -68,41 +68,56 @@ export function ShoppingAssistant() {
     const form                          = useForm<FormValues>({ resolver: zodResolver(formSchema), defaultValues: { description: "", scenarioId: "default" } });
 
      useEffect(() => {
-        const fetchInitialData = async () => {
+        // Fetch non-realtime data
+        const fetchStaticData = async () => {
             try {
-                const [productsSnapshot, suppliersSnapshot, scenariosSnapshot] = await Promise.all([
+                const [productsSnapshot, suppliersSnapshot] = await Promise.all([
                     getDocs(collection(db, 'products')),
                     getDocs(collection(db, 'suppliers')),
-                    getDocs(query(collection(db, 'ai_scenarios'), where('tags', 'array-contains', 'shopping')))
                 ]);
 
                 const productsList = productsSnapshot.docs.map(doc => {
                     const data = doc.data();
-                    // Ensure Firestore Timestamps are converted to serializable format
                     if (data.createdAt && typeof data.createdAt.toDate === 'function') {
                         data.createdAt = data.createdAt.toDate().toISOString();
                     }
                     return { ...data, id: doc.id } as ProductService;
                 });
                 const suppliersList = suppliersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Supplier));
-                
-                const shoppingScenarios = scenariosSnapshot.docs.map(doc => ({id: doc.id, ...doc.data() } as AIScenario));
 
                 setProducts(productsList);
                 setSuppliers(suppliersList);
-                setScenarios(shoppingScenarios);
 
             } catch (error) {
-                console.error("Failed to fetch initial data:", error);
+                console.error("Failed to fetch static data:", error);
                 toast({
                     title: '数据加载失败',
-                    description: '无法加载产品、供应商或AI场景目录，推荐功能可能受限。',
+                    description: '无法加载产品或供应商目录，推荐功能可能受限。',
                     variant: 'destructive',
                 });
             }
         };
 
-        fetchInitialData();
+        fetchStaticData();
+
+        // Set up realtime listener for scenarios
+        const scenariosQuery = query(collection(db, 'ai_scenarios'), where('tags', 'array-contains', 'shopping'));
+        
+        const unsubscribe = onSnapshot(scenariosQuery, (querySnapshot) => {
+            const shoppingScenarios = querySnapshot.docs.map(doc => ({id: doc.id, ...doc.data() } as AIScenario));
+            setScenarios(shoppingScenarios);
+        }, (error) => {
+            console.error("Failed to listen for scenario updates:", error);
+            toast({
+                title: 'AI场景加载失败',
+                description: '无法实时获取AI购物场景，请稍后重试。',
+                variant: 'destructive',
+            });
+        });
+
+        // Cleanup listener on component unmount
+        return () => unsubscribe();
+
     }, [toast]);
     
     useEffect(() => { scrollAreaRef.current?.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' }); }, [messages]);
@@ -318,3 +333,5 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
         </TooltipProvider>
     </CardFooter>
 </Card>))}</div></div> );
+
+    
