@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect } from 'react';
@@ -31,15 +32,21 @@ function InitialLoader() {
  */
 export default function RootPage() {
   const router = useRouter();
-  const { role, isLoading } = useAuthStore();
+  const { role, isLoading, user } = useAuthStore();
 
   useEffect(() => {
     // Only perform redirection after the initial authentication check is complete.
     if (!isLoading) {
+      // Add an extra check for user status
+      if (user?.status === 'suspended') {
+        auth.signOut(); // Force sign out if suspended
+        router.replace('/login');
+        return;
+      }
       const path = getRedirectPath(role);
       router.replace(path);
     }
-  }, [isLoading, role, router]);
+  }, [isLoading, role, user, router]);
 
   // While the auth state is being determined by AuthProvider, show a loader.
   return <InitialLoader />;

@@ -33,6 +33,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             avatar: userDataFromDb.avatar || firebaseUser.photoURL || `https://i.pravatar.cc/150?u=${firebaseUser.uid}`,
             role: userDataFromDb.role || 'user',
             rating: userDataFromDb.rating, // Include rating if it exists
+            status: userDataFromDb.status, // Include status if it exists
           };
           setUser(user, user.role);
         } else {
