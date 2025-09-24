@@ -468,6 +468,11 @@ type BatchResult = {
     error?: string;
 }
 
+const recDialogFormSchema = z.object({
+  promptKey: z.string().optional(),
+});
+
+
 function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -479,8 +484,14 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
     const [creatives, setCreatives] = useState<Creative[]>([]);
     const [creativesLoading, setCreativesLoading] = useState(true);
     const [prompts, setPrompts] = useState<GetPromptsOutput['prompts']>([]);
-    const [selectedPromptKey, setSelectedPromptKey] = useState<string>('');
     const { toast } = useToast();
+
+    const form = useForm<z.infer<typeof recDialogFormSchema>>({
+      resolver: zodResolver(recDialogFormSchema),
+      defaultValues: {
+        promptKey: '',
+      },
+    });
 
     useEffect(() => {
       const fetchDialogData = async () => {
@@ -520,11 +531,11 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
       if (open) {
         fetchDialogData();
         setAiResults(null);
-        setSelectedPromptKey('');
+        form.reset({ promptKey: '' });
       }
-    }, [open, toast]);
+    }, [open, toast, form]);
 
-    const handleAiRecommend = async () => {
+    const handleAiRecommend = async (values: z.infer<typeof recDialogFormSchema>) => {
         const demandsToProcess = demand ? [demand] : selectedDemands;
         if (!demandsToProcess || demandsToProcess.length === 0) return;
         
@@ -535,10 +546,10 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
             const results = await Promise.all(
               demandsToProcess.map(async (d): Promise<BatchResult> => {
                     try {
-                        if (selectedPromptKey) {
+                        if (values.promptKey) {
                             const context = `Demand: ${JSON.stringify(d)}\n\nCreatives: ${JSON.stringify(creatives)}`;
                             const result = await executePrompt({
-                                promptKey: selectedPromptKey,
+                                promptKey: values.promptKey,
                                 messages: [{ role: 'user', content: context }],
                             });
                             return { demand: d, rawText: result.text };
@@ -574,29 +585,41 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
                 </DialogHeader>
                 <div className="py-4 max-h-[60vh] overflow-y-auto pr-2">
                     {!aiResults && !isLoading && (
-                        <div className="text-center space-y-4">
-                             <div className="w-full max-w-sm mx-auto">
-                                <FormLabel>选择提示词 (可选)</FormLabel>
-                                <Select onValueChange={setSelectedPromptKey} value={selectedPromptKey}>
-                                    <SelectTrigger>
-                                        <div className="flex items-center gap-2">
-                                            <Workflow className="w-4 h-4 text-muted-foreground"/>
-                                            <SelectValue placeholder="使用默认推荐逻辑" />
-                                        </div>
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="">-- 使用默认推荐逻辑 --</SelectItem>
-                                        {prompts.map(p => (
-                                            <SelectItem key={p.promptKey} value={p.promptKey}>{p.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <Button variant="accent" onClick={handleAiRecommend} disabled={!targetDemands?.length || creativesLoading}>
-                                {creativesLoading ? <Loader2 className="animate-spin mr-2"/> : <BrainCircuit className="mr-2"/>}
-                                {creativesLoading ? '加载依赖数据...' : '启动AI推荐'}
-                            </Button>
-                        </div>
+                        <Form {...form}>
+                            <form onSubmit={form.handleSubmit(handleAiRecommend)} className="text-center space-y-4">
+                                <div className="w-full max-w-sm mx-auto">
+                                    <FormField
+                                        control={form.control}
+                                        name="promptKey"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>选择提示词 (可选)</FormLabel>
+                                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                    <FormControl>
+                                                        <SelectTrigger>
+                                                          <div className="flex items-center gap-2">
+                                                              <Workflow className="w-4 h-4 text-muted-foreground"/>
+                                                              <SelectValue placeholder="使用默认推荐逻辑" />
+                                                          </div>
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        <SelectItem value="">-- 使用默认推荐逻辑 --</SelectItem>
+                                                        {prompts.map(p => (
+                                                            <SelectItem key={p.promptKey} value={p.promptKey}>{p.name}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+                                <Button type="submit" variant="accent" disabled={!targetDemands?.length || creativesLoading}>
+                                    {creativesLoading ? <Loader2 className="animate-spin mr-2"/> : <BrainCircuit className="mr-2"/>}
+                                    {creativesLoading ? '加载依赖数据...' : '启动AI推荐'}
+                                </Button>
+                            </form>
+                        </Form>
                     )}
                     {isLoading && (
                        <div className="space-y-4">
