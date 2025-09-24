@@ -81,6 +81,8 @@ const clarifyDemandDetailsFlow = ai.defineFlow(
         .map(m => `${m.isAIMessage ? 'AI Assistant' : 'Client'}: ${m.text}`)
         .join('\n');
     
+    // Constructing a user message that can be templated if needed.
+    // The prompt in the `prompts` collection can use Handlebars to format this.
     const userContent = `
         Demand Title: ${input.demandTitle}
         Demand Description: ${input.demandDescription}
@@ -102,6 +104,7 @@ const clarifyDemandDetailsFlow = ai.defineFlow(
       throw new Error("AI failed to generate a clarification question.");
     }
     
+    // The output schema expects a 'clarification' field.
     return { clarification: result.text };
   }
 );

@@ -1,6 +1,7 @@
 
 
 import type { SupplementaryField } from "@/components/features/supplementary-fields-manager";
+import type { Role } from "@/store/auth";
 
 export type Demand = {
   id: string;
@@ -44,25 +45,34 @@ export type ProductService = {
 
 export type Supplier = {
   id: string;
-  name: string;
-  category: string;
-  matchScore: number;
-  recommendation: string;
-  // Detailed fields for Company Info
-  logoUrl?: string;
-  licenseUrl?: string;
+  name:string;
+  // Fields from form
   contactPerson?: string;
   jobTitle?: string;
   mobile?: string;
   phone?: string;
   customerService?: string;
   email?: string;
+  // Fields from data processing
+  category?: string;
+  matchScore?: number;
+  recommendation?: string;
   supplementaryFields?: SupplementaryField[];
 }
 
 export type UserProfile = {
   summary: string;
   tags: string[];
+};
+
+export type User = {
+  uid: string;
+  name: string;
+  email: string;
+  role: Role;
+  avatar: string;
+  rating?: number;
+  status?: 'active' | 'suspended';
 };
 
 // Chat-related types
@@ -133,7 +143,7 @@ export type AIScenarioRules = {
   endTime?: string; // HH:mm format
   startsAt?: any; // Firestore Timestamp
   expiresAt?: any; // Firestore Timestamp
-  targetUserRoles?: { [key in 'admin' | 'creator' | 'supplier' | 'user']?: number[] };
+  targetUserRoles?: { [key in Role]?: number[] };
   ruleLogic?: 'and' | 'or';
 };
 
@@ -142,8 +152,16 @@ export type AIScenario = {
   id: string;
   name: string;
   description: string;
-  promptKey: string;
-  rules: AIScenarioRules;
+  configuredPromptKey: string;
+  // The rules are now nested in a property
+  repetition: AIScenarioRules['repetition'];
+  daysOfWeek: AIScenarioRules['daysOfWeek'];
+  startTime: AIScenarioRules['startTime'];
+  endTime: AIScenarioRules['endTime'];
+  startsAt: AIScenarioRules['startsAt'];
+  expiresAt: AIScenarioRules['expiresAt'];
+  targetUserRoles: AIScenarioRules['targetUserRoles'];
+  ruleLogic: AIScenarioRules['ruleLogic'];
 };
 
 export type MediaAsset = {
