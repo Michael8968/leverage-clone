@@ -520,7 +520,7 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
                  <div className="relative aspect-video flex items-center justify-center bg-muted/50 rounded-md overflow-hidden">
                   {image.url && image.url.trim() !== '' ? (
                      <div className="w-full h-full">
-                        {image.url.includes('.mp4') || image.url.includes('.webm') ? (
+                        {(image.url.includes('.mp4') || image.url.includes('.webm')) ? (
                            <video src={image.url} className="w-full h-full object-contain" muted loop playsInline />
                         ) : (
                            <Image src={image.url} alt={`Product image ${index + 1}`} layout="fill" className="object-contain" onError={(e) => e.currentTarget.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'}/>
