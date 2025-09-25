@@ -487,7 +487,6 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
                 // As a workaround, we'll pass the public URL to a flow that can handle it.
                 // Let's create a temporary flow or modify one.
                 // The analyzeMediaAsset requires an ID. This is a problem.
-                // Let's modify the flow to accept a URL if ID is not present. This is not ideal but works for a demo.
                 
                 // Let's assume a simplified flow for now for the purpose of the demo.
                 const prompt = `为这张商品图片提供展示建议。分析其构图、光照和背景，给出优化意见，比如推荐的图片尺寸（如1080x1080像素）、文件大小（如小于500KB）和视觉风格。`;
