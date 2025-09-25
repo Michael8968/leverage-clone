@@ -20,6 +20,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, Timestamp } from 'firebase/firestore';
 import { batchUpdateUsers } from '@/ai/flows/user-management-flows';
+import { Input } from '@/components/ui/input';
+
 
 type SortConfig = { key: keyof User; direction: 'ascending' | 'descending'; };
 
@@ -80,6 +82,7 @@ export default function PermissionsPage() {
     const handleSelect = (userId: string, checked: boolean) => { setSelectedUserIds(prev => checked ? [...prev, userId] : prev.filter(id => id !== userId)); };
 
     const openActionModal = (action: 'role' | 'starLevel' | 'status') => {
+        setActionValue(''); // Reset action value when opening modal
         setModalAction(action);
         setIsActionModalOpen(true);
     };
@@ -88,10 +91,9 @@ export default function PermissionsPage() {
         if (!modalAction || !actionValue || !currentUser) return;
         try {
             const updates = modalAction === 'role' ? { role: actionValue }
-                          : modalAction === 'starLevel' ? { rating: Number(actionValue) } // Corrected field to 'rating'
+                          : modalAction === 'starLevel' ? { rating: Number(actionValue) }
                           : { status: actionValue as User['status'] };
                           
-            // The flow expects 'starLevel' and 'disabled'. Let's adapt.
             const flowUpdates: any = {};
             if (updates.role) flowUpdates.role = updates.role;
             if (updates.rating) flowUpdates.starLevel = updates.rating;
@@ -157,7 +159,15 @@ export default function PermissionsPage() {
                     <DialogHeader><DialogTitle>批量更新 {selectedUserIds.length} 位用户</DialogTitle><DialogDescription>请选择要应用的新值。</DialogDescription></DialogHeader>
                     <div className="py-4">
                         {modalAction === 'role' && <Select onValueChange={(v) => setActionValue(v)}><SelectTrigger><SelectValue placeholder="选择新角色..."/></SelectTrigger><SelectContent><SelectItem value="user">普通用户</SelectItem><SelectItem value="creator">创意者</SelectItem><SelectItem value="supplier">供应商</SelectItem><SelectItem value="admin">管理员</SelectItem></SelectContent></Select>}
-                        {modalAction === 'starLevel' && <Select onValueChange={(v) => setActionValue(v)}><SelectTrigger><SelectValue placeholder="选择新星级..."/></SelectTrigger><SelectContent>{Array.from({length:10},(_,i)=>i+1).map(s=><SelectItem key={s} value={String(s)}>{s} 星</SelectItem>)}</SelectContent></Select>}
+                        {modalAction === 'starLevel' && (
+                             <Input 
+                                type="number" 
+                                placeholder="输入新的星级 (1-10)" 
+                                onChange={(e) => setActionValue(e.target.value)}
+                                min="1"
+                                max="10"
+                            />
+                        )}
                         {modalAction === 'status' && <Select onValueChange={(v) => setActionValue(v)}><SelectTrigger><SelectValue placeholder="选择新状态..."/></SelectTrigger><SelectContent><SelectItem value="active">启用</SelectItem><SelectItem value="suspended">禁用</SelectItem></SelectContent></Select>}
                     </div>
                     <DialogFooter><Button variant="ghost" onClick={() => setIsActionModalOpen(false)}>取消</Button><Button onClick={handleBatchUpdate}>确认更新</Button></DialogFooter>
