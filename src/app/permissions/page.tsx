@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -17,7 +18,7 @@ import { Frown, Loader2, ChevronsUpDown, UserCog, ShieldCheck, Star, Ban } from 
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query } from 'firebase/firestore';
+import { collection, getDocs, query, Timestamp } from 'firebase/firestore';
 import { batchUpdateUsers } from '@/ai/flows/user-management-flows';
 
 type SortConfig = { key: keyof User; direction: 'ascending' | 'descending'; };
@@ -38,7 +39,15 @@ export default function PermissionsPage() {
         setIsLoading(true);
         try {
             const usersSnapshot = await getDocs(query(collection(db, 'users')));
-            setUsers(usersSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id }) as User));
+            const usersData = usersSnapshot.docs.map(doc => {
+                const data = doc.data();
+                // FIX: Convert Firestore Timestamp to Date object to avoid serialization error.
+                if (data.createdAt && data.createdAt instanceof Timestamp) {
+                    data.createdAt = data.createdAt.toDate();
+                }
+                return { ...data, uid: doc.id } as User
+            });
+            setUsers(usersData);
         } catch (error) { toast({ title: '加载失败', variant: 'destructive' }); }
         finally { setIsLoading(false); }
     }, [toast]);
@@ -49,8 +58,10 @@ export default function PermissionsPage() {
         let sortableUsers = [...users];
         if (sortConfig !== null) {
             sortableUsers.sort((a, b) => {
-                if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'ascending' ? -1 : 1;
-                if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'ascending' ? 1 : -1;
+                const aVal = a[sortConfig.key] || '';
+                const bVal = b[sortConfig.key] || '';
+                if (aVal < bVal) return sortConfig.direction === 'ascending' ? -1 : 1;
+                if (aVal > bVal) return sortConfig.direction === 'ascending' ? 1 : -1;
                 return 0;
             });
         }
@@ -77,10 +88,16 @@ export default function PermissionsPage() {
         if (!modalAction || !actionValue || !currentUser) return;
         try {
             const updates = modalAction === 'role' ? { role: actionValue }
-                          : modalAction === 'starLevel' ? { starLevel: Number(actionValue) }
-                          : { disabled: actionValue === 'disable' };
+                          : modalAction === 'starLevel' ? { rating: Number(actionValue) } // Corrected field to 'rating'
+                          : { status: actionValue as User['status'] };
                           
-            await batchUpdateUsers({ userIds: selectedUserIds, updates, currentUserId: currentUser.uid });
+            // The flow expects 'starLevel' and 'disabled'. Let's adapt.
+            const flowUpdates: any = {};
+            if (updates.role) flowUpdates.role = updates.role;
+            if (updates.rating) flowUpdates.starLevel = updates.rating;
+            if (updates.status) flowUpdates.disabled = updates.status === 'suspended';
+
+            await batchUpdateUsers({ userIds: selectedUserIds, updates: flowUpdates, currentUserId: currentUser.uid });
             toast({ title: '批量更新成功！' });
             fetchUsers();
             setSelectedUserIds([]);
@@ -116,7 +133,7 @@ export default function PermissionsPage() {
                         <TableHead className="w-[50px]"><Checkbox checked={selectedUserIds.length > 0 && selectedUserIds.length === users.length} onCheckedChange={handleSelectAll} /></TableHead>
                         <TableHead>用户</TableHead>
                         <TableHead><Button variant="ghost" onClick={() => handleSort('role')}>角色<ChevronsUpDown className="ml-2 h-4 w-4 inline"/></Button></TableHead>
-                        <TableHead><Button variant="ghost" onClick={() => handleSort('starLevel')}>星级<ChevronsUpDown className="ml-2 h-4 w-4 inline"/></Button></TableHead>
+                        <TableHead><Button variant="ghost" onClick={() => handleSort('rating')}>星级<ChevronsUpDown className="ml-2 h-4 w-4 inline"/></Button></TableHead>
                         <TableHead>状态</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
@@ -126,8 +143,8 @@ export default function PermissionsPage() {
                                 <TableCell><Checkbox checked={selectedUserIds.includes(user.uid)} onCheckedChange={(c) => handleSelect(user.uid, !!c)}/></TableCell>
                                 <TableCell className="font-medium">{user.name} <span className="text-muted-foreground text-xs">{user.email}</span></TableCell>
                                 <TableCell><Badge variant="secondary">{user.role}</Badge></TableCell>
-                                <TableCell>{user.starLevel ? `${user.starLevel} 星` : '未评级'}</TableCell>
-                                <TableCell><Badge variant={user.disabled ? 'destructive' : 'default'}>{user.disabled ? '已禁用' : '活跃'}</Badge></TableCell>
+                                <TableCell>{user.rating ? `${user.rating} 星` : '未评级'}</TableCell>
+                                <TableCell><Badge variant={user.status === 'suspended' ? 'destructive' : 'default'}>{user.status === 'suspended' ? '已禁用' : '活跃'}</Badge></TableCell>
                             </TableRow>
                         ))}
                     </TableBody>
@@ -141,7 +158,7 @@ export default function PermissionsPage() {
                     <div className="py-4">
                         {modalAction === 'role' && <Select onValueChange={(v) => setActionValue(v)}><SelectTrigger><SelectValue placeholder="选择新角色..."/></SelectTrigger><SelectContent><SelectItem value="user">普通用户</SelectItem><SelectItem value="creator">创意者</SelectItem><SelectItem value="supplier">供应商</SelectItem><SelectItem value="admin">管理员</SelectItem></SelectContent></Select>}
                         {modalAction === 'starLevel' && <Select onValueChange={(v) => setActionValue(v)}><SelectTrigger><SelectValue placeholder="选择新星级..."/></SelectTrigger><SelectContent>{Array.from({length:10},(_,i)=>i+1).map(s=><SelectItem key={s} value={String(s)}>{s} 星</SelectItem>)}</SelectContent></Select>}
-                        {modalAction === 'status' && <Select onValueChange={(v) => setActionValue(v)}><SelectTrigger><SelectValue placeholder="选择新状态..."/></SelectTrigger><SelectContent><SelectItem value="enable">启用</SelectItem><SelectItem value="disable">禁用</SelectItem></SelectContent></Select>}
+                        {modalAction === 'status' && <Select onValueChange={(v) => setActionValue(v)}><SelectTrigger><SelectValue placeholder="选择新状态..."/></SelectTrigger><SelectContent><SelectItem value="active">启用</SelectItem><SelectItem value="suspended">禁用</SelectItem></SelectContent></Select>}
                     </div>
                     <DialogFooter><Button variant="ghost" onClick={() => setIsActionModalOpen(false)}>取消</Button><Button onClick={handleBatchUpdate}>确认更新</Button></DialogFooter>
                 </DialogContent>
@@ -149,4 +166,3 @@ export default function PermissionsPage() {
         </AppLayout>
     );
 }
-
