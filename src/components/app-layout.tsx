@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
@@ -50,6 +48,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
+import { ThemeToggle } from './theme-toggle';
 
 interface NavItem {
   href: string;
@@ -144,6 +143,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter>
+           <div className="flex items-center justify-between group-data-[collapsible=icon]:justify-center">
+              <ThemeToggle />
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="w-full justify-start h-14 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:p-0">
@@ -186,7 +188,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <Logo />
                 <span className="font-headline text-lg font-semibold">Leverage</span>
             </div>
-            <SidebarTrigger/>
+            <div className="flex items-center gap-2">
+                <ThemeToggle />
+                <SidebarTrigger/>
+            </div>
         </header>
         {children}
       </SidebarInset>
