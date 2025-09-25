@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { Loader2 } from 'lucide-react';
+import { auth } from '@/lib/firebase'; // Import auth
 
 const getRedirectPath = (role: string | null): string => {
     if (role === 'admin') {
