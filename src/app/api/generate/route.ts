@@ -25,7 +25,17 @@ export async function POST(req: NextRequest) {
         };
         
         // This assumes the LITELLM_PROXY_URL points to a LiteLLM instance.
-        const proxyUrl = process.env.LITELLM_PROXY_URL || 'http://localhost:4000';
+        const proxyUrl = process.env.LITELLM_PROXY_URL;
+
+        if (!proxyUrl) {
+             return new NextResponse(
+                JSON.stringify({ 
+                    message: 'Proxy URL is not configured.', 
+                    details: 'The LITELLM_PROXY_URL environment variable is not set.'
+                }), 
+                { status: 500, headers: { 'Content-Type': 'application/json' } }
+            );
+        }
 
         const response = await fetch(`${proxyUrl}/chat/completions`, {
             method: 'POST',
@@ -48,10 +58,15 @@ export async function POST(req: NextRequest) {
 
     } catch (error: any) {
         console.error("Error in AI Gateway Proxy (/api/generate):", error);
+        // This will now catch the "fetch failed" error if the proxyUrl is unreachable.
+        const errorMessage = (error.cause as any)?.code === 'UND_ERR_CONNECT_FAILED'
+            ? 'Failed to connect to the configured proxy URL. Please ensure the proxy service is running and accessible.'
+            : error.message;
+
         return new NextResponse(
             JSON.stringify({ 
                 message: 'Error processing AI request via proxy.', 
-                details: error.message 
+                details: errorMessage
             }), 
             { 
                 status: 500,
@@ -60,5 +75,3 @@ export async function POST(req: NextRequest) {
         );
     }
 }
-
-    
