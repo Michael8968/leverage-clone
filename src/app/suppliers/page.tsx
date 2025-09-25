@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { PlusCircle, Trash2, Loader2, Building, Package, Upload, FileCog, Frown, ImagePlus, GripVertical, ChevronDown, ChevronUp, CalendarIcon, Search, BrainCircuit, ZoomIn } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Building, Package, Upload, FileCog, Frown, ImagePlus, GripVertical, ChevronDown, ChevronUp, CalendarIcon, Search, BrainCircuit, ZoomIn, Download } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { DataProcessor } from '@/components/features/data-processor';
 import { useAuthStore } from '@/store/auth';
@@ -35,6 +35,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { getUploadUrlForMediaAsset, analyzeMediaAsset } from '@/ai/flows/multimodal-flows';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import Papa from 'papaparse';
 
 
 // =================================================================
@@ -664,6 +665,110 @@ const Lightbox = ({ image, onClose }: { image: ProductImage; onClose: () => void
 };
 
 // =================================================================
+// BATCH PROCESSING TAB - ADMIN TOOLS
+// =================================================================
+function AdminDataTools() {
+    const { role } = useAuthStore();
+    const { toast } = useToast();
+    const [isExporting, setIsExporting] = useState<string | null>(null);
+
+    const handleDownloadTemplate = (type: 'suppliers' | 'products') => {
+        let headers, filename;
+        if (type === 'suppliers') {
+            headers = ['name', 'shortName', 'region', 'address', 'establishedDate', 'registeredCapital', 'creditCode', 'email'];
+            filename = '供应商信息导入模板.csv';
+        } else {
+            headers = ['name', 'description', 'price', 'category', 'purchaseUrl', 'sku'];
+            filename = '商品服务导入模板.csv';
+        }
+        
+        const csv = Papa.unparse([headers]);
+        const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+    
+    const handleExportData = async (type: 'suppliers' | 'products') => {
+        setIsExporting(type);
+        try {
+            const querySnapshot = await getDocs(collection(db, type));
+            const data = querySnapshot.docs.map(doc => {
+                const docData = doc.data();
+                // Convert Timestamps to ISO strings
+                Object.keys(docData).forEach(key => {
+                    if (docData[key] instanceof Timestamp) {
+                        docData[key] = docData[key].toDate().toISOString();
+                    }
+                });
+                return docData;
+            });
+
+            if (data.length === 0) {
+                toast({ title: '无数据可导出', variant: 'default' });
+                return;
+            }
+            
+            const csv = Papa.unparse(data);
+            const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute('download', `${type}_export_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+        } catch (error) {
+            console.error(`Error exporting ${type}:`, error);
+            toast({ title: '导出失败', description: '无法从数据库导出数据。', variant: 'destructive' });
+        } finally {
+            setIsExporting(null);
+        }
+    };
+
+
+    if (role !== 'admin') {
+        return null;
+    }
+
+    return (
+        <Card className="mt-6">
+            <CardHeader>
+                <CardTitle className="font-headline">数据模板与导出 (仅管理员)</CardTitle>
+                <CardDescription>下载CSV模板以准备批量导入，或导出系统中的现有数据。</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Card className="p-4">
+                        <h4 className="font-semibold mb-2">供应商数据</h4>
+                        <div className="flex gap-2">
+                             <Button variant="outline" className="w-full" onClick={() => handleDownloadTemplate('suppliers')}><Download className="mr-2"/>下载模板</Button>
+                             <Button className="w-full" onClick={() => handleExportData('suppliers')} disabled={isExporting === 'suppliers'}>
+                                {isExporting === 'suppliers' ? <Loader2 className="animate-spin mr-2"/> : <Download className="mr-2"/>}
+                                导出数据
+                            </Button>
+                        </div>
+                    </Card>
+                    <Card className="p-4">
+                        <h4 className="font-semibold mb-2">商品/服务数据</h4>
+                        <div className="flex gap-2">
+                            <Button variant="outline" className="w-full" onClick={() => handleDownloadTemplate('products')}><Download className="mr-2"/>下载模板</Button>
+                             <Button className="w-full" onClick={() => handleExportData('products')} disabled={isExporting === 'products'}>
+                                {isExporting === 'products' ? <Loader2 className="animate-spin mr-2"/> : <Download className="mr-2"/>}
+                                导出数据
+                             </Button>
+                        </div>
+                    </Card>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+// =================================================================
 // PAGE ENTRYPOINT
 // =================================================================
 export default function SuppliersPage() {
@@ -707,7 +812,10 @@ export default function SuppliersPage() {
             </TabsList>
             <TabsContent value="info" className="mt-6"><CompanyInfoForm /></TabsContent>
             <TabsContent value="products" className="mt-6"><ProductManagement /></TabsContent>
-            <TabsContent value="batch" className="mt-6"><DataProcessor destination="suppliers" /></TabsContent>
+            <TabsContent value="batch" className="mt-6">
+                <DataProcessor destination="suppliers" />
+                <AdminDataTools />
+            </TabsContent>
         </Tabs>
       </div>
     </AppLayout>
@@ -717,4 +825,3 @@ export default function SuppliersPage() {
     
 
     
-
