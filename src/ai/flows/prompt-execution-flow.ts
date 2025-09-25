@@ -5,10 +5,13 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { doc, getDoc, collection, query, where, getDocs, Timestamp, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { LlmConnection, AIScenario, User, AIScenarioRules, Prompt, ProductService, Supplier, Resource } from '@/lib/types';
+import type { LlmConnection, AIScenario, User, Prompt } from '@/lib/types';
 import { getDefaultLlmConnection } from './admin-management-flows';
-import { googleAI } from '@genkit-ai/googleai';
-import { genkit } from 'genkit';
+
+// Define native Genkit providers here.
+// If a provider from the DB is in this list, we'll use `ai.generate()`.
+// Otherwise, we'll use the HTTP proxy fallback.
+const NATIVE_GENKIT_PROVIDERS = ['google', 'openai', 'anthropic']; // Add more as Genkit supports them
 
 // Helper function to convert a Firestore collection to a string format for the prompt
 async function getCollectionAsContext(collectionName: string, maxItems = 10): Promise<string> {
@@ -24,7 +27,6 @@ async function getCollectionAsContext(collectionName: string, maxItems = 10): Pr
         return `[]`; // Return empty array on error
     }
 }
-
 
 const PromptMessageSchema = z.object({
   role: z.enum(['system', 'user', 'assistant']),
@@ -109,31 +111,8 @@ async function isRuleSetValid(rules: AIScenario, userId?: string): Promise<boole
     return isTimeValid && isUserValid; // Default is 'and'
 }
 
-
-async function findAvailableModels(promptDoc?: Prompt, allConnections?: LlmConnection[]): Promise<LlmConnection[]> {
-    if (!promptDoc && !allConnections) {
-        throw new Error("Must provide either a prompt document or a list of all connections.");
-    }
-    
-    const activeConnections = allConnections || (await getDocs(query(collection(db, 'llm_connections'), where('status', '==', '活跃'), orderBy('priority')))).docs.map(doc => ({ id: doc.id, ...doc.data() } as LlmConnection));
-
-    if (!promptDoc || !promptDoc.modelId) {
-        // Return all active connections sorted by priority
-        return activeConnections;
-    }
-
-    // If a specific model is pinned to the prompt, try that first.
-    const pinnedModel = activeConnections.find(c => c.id === promptDoc.modelId);
-    if (pinnedModel) {
-        return [pinnedModel];
-    }
-    
-    // Fallback: If pinned model is not active/found, return all active models.
-    return activeConnections;
-}
-
 // =================================================================
-// Core Flow: executePrompt (Upgraded to use native Genkit models)
+// Core Flow: executePrompt (Handles dual-path execution)
 // =================================================================
 export async function executePrompt(input: z.infer<typeof PromptExecutionInputSchema>): Promise<z.infer<typeof PromptExecutionOutputSchema>> {
   return executePromptFlow(input);
@@ -152,124 +131,126 @@ const executePromptFlow = ai.defineFlow(
     let systemPromptContent: string | undefined;
     let promptDocument: Prompt | null = null;
     let targetModelIdentifier: string | undefined;
+    let llmConnection: LlmConnection | null = null;
 
-    // 1. SCENARIO LOOKUP (HIGHEST PRIORITY)
+    // 1. SCENARIO LOOKUP
     if (scenario) {
-        const scenarioRef = doc(db, 'ai_scenarios', scenario);
-        const scenarioSnap = await getDoc(scenarioRef);
-        
+        const scenarioSnap = await getDoc(doc(db, 'ai_scenarios', scenario));
         if (scenarioSnap.exists()) {
             const scenarioData = scenarioSnap.data() as AIScenario;
             if (await isRuleSetValid(scenarioData, userId)) {
-                console.log(`[Flow] Scenario "${scenario}" triggered. Using prompt key: ${scenarioData.configuredPromptKey}`);
                 finalPromptKey = scenarioData.configuredPromptKey;
-                finalModelId = undefined; // Scenario's prompt key takes absolute precedence.
+                finalModelId = undefined;
             }
         }
     }
     
-    // 2. DETERMINE EXECUTION TARGET (PROMPT OR MODEL)
+    // 2. DETERMINE PROMPT DOCUMENT
     if (finalPromptKey) {
-        const q = query(collection(db, 'prompts'), where("promptKey", "==", finalPromptKey));
-        const snapshot = await getDocs(q);
-        if (snapshot.empty) throw new Error(`Prompt with key "${finalPromptKey}" not found.`);
-        
-        promptDocument = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Prompt;
-        systemPromptContent = promptDocument.content;
-        
-        if (promptDocument.modelId) {
-            finalModelId = promptDocument.modelId;
+        const snapshot = await getDocs(query(collection(db, 'prompts'), where("promptKey", "==", finalPromptKey)));
+        if (!snapshot.empty) {
+            promptDocument = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Prompt;
+            systemPromptContent = promptDocument.content;
+            if (promptDocument.modelId) {
+                finalModelId = promptDocument.modelId;
+            }
         }
     }
 
-    // 3. GET THE MODEL IDENTIFIER FOR GENKIT
-    let targetLlmConnection: LlmConnection | undefined;
+    // 3. GET LLM CONNECTION
     if (finalModelId) {
         const modelDoc = await getDoc(doc(db, 'llm_connections', finalModelId));
-        if (!modelDoc.exists() || modelDoc.data()?.status !== '活跃') {
-            throw new Error(`Target LLM Connection with ID "${finalModelId}" not found or is not active.`);
-        }
-        targetLlmConnection = { id: modelDoc.id, ...modelDoc.data() } as LlmConnection;
-    } else {
-        targetLlmConnection = await getDefaultLlmConnection(null);
-        if (!targetLlmConnection) {
-            throw new Error("No execution target specified and no default LLM connection is available.");
+        if (modelDoc.exists() && modelDoc.data()?.status === '活跃') {
+            llmConnection = { id: modelDoc.id, ...modelDoc.data() } as LlmConnection;
         }
     }
+    if (!llmConnection) {
+        llmConnection = (await getDefaultLlmConnection(null)) || null;
+    }
+    if (!llmConnection) {
+        throw new Error("No active LLM connection could be found or determined.");
+    }
     
-    // Construct the model string for Genkit, e.g., "googleai/gemini-1.5-pro-latest"
-    // Assuming the provider name in the DB matches the Genkit plugin name (e.g., 'Google' -> 'googleai')
-    const providerName = targetLlmConnection.provider.toLowerCase();
-    let genkitProviderName = providerName;
-    if (providerName === 'google') genkitProviderName = 'googleai';
-    // Other mappings can be added here if needed, e.g., 'openai', 'anthropic'
-
-    targetModelIdentifier = `${genkitProviderName}/${targetLlmConnection.modelName}`;
-    console.log(`[Flow] Routing to Genkit model: ${targetModelIdentifier}`);
-
-    // 4. DYNAMIC CONTEXT INJECTION (No changes here)
+    // 4. DYNAMIC CONTEXT INJECTION (as before)
     let dynamicContext = "";
     if (promptDocument?.querySources) {
         const contextParts: string[] = [];
-        if (promptDocument.querySources.knowledgeBase) {
-            contextParts.push("## Knowledge Base (products):\n" + await getCollectionAsContext('products'));
-        }
-        if (promptDocument.querySources.suppliers) {
-            contextParts.push("## Suppliers:\n" + await getCollectionAsContext('suppliers'));
-        }
-        if (promptDocument.querySources.publicResources) {
-            contextParts.push("## Public Resources:\n" + await getCollectionAsContext('resources'));
-        }
+        if (promptDocument.querySources.knowledgeBase) contextParts.push("## Knowledge Base (products):\n" + await getCollectionAsContext('products'));
+        if (promptDocument.querySources.suppliers) contextParts.push("## Suppliers:\n" + await getCollectionAsContext('suppliers'));
+        if (promptDocument.querySources.publicResources) contextParts.push("## Public Resources:\n" + await getCollectionAsContext('resources'));
         dynamicContext = contextParts.join("\n\n");
     }
 
-    // Prepare messages: Inject system prompt and dynamic context
+    // 5. PREPARE MESSAGES
     const finalMessages = [...messages];
     if (systemPromptContent) {
+        let finalSystemContent = systemPromptContent;
         if (systemPromptContent.includes('{{{context}}}')) {
-            systemPromptContent = systemPromptContent.replace('{{{context}}}', dynamicContext);
-        } else {
-            systemPromptContent = dynamicContext + "\n\n" + systemPromptContent;
+            finalSystemContent = systemPromptContent.replace('{{{context}}}', dynamicContext);
+        } else if (dynamicContext) {
+            finalSystemContent = `${dynamicContext}\n\n${systemPromptContent}`;
         }
-
         const systemMessageIndex = finalMessages.findIndex(m => m.role === 'system');
         if (systemMessageIndex !== -1) {
-            finalMessages[systemMessageIndex] = { role: 'system', content: systemPromptContent };
+            finalMessages[systemMessageIndex] = { role: 'system', content: finalSystemContent };
         } else {
-            finalMessages.unshift({ role: 'system', content: systemPromptContent });
+            finalMessages.unshift({ role: 'system', content: finalSystemContent });
         }
     }
 
-    // 5. EXECUTE CALL USING GENKIT
-    try {
-        console.log(`[Flow] Calling ai.generate() with model: ${targetModelIdentifier}`);
-
-        const llmResponse = await ai.generate({
-            model: targetModelIdentifier,
-            prompt: finalMessages,
-            config: {
-              temperature: temperature,
-            },
-          });
-
-        const textResponse = llmResponse.text();
-
-        if (!textResponse) {
-             console.error("[Flow] Genkit returned a valid but empty response:", llmResponse);
-             throw new Error('Model returned an empty response.');
+    // 6. EXECUTE: DUAL PATH (NATIVE GENKIT OR HTTP PROXY)
+    const provider = llmConnection.provider.toLowerCase();
+    
+    if (NATIVE_GENKIT_PROVIDERS.includes(provider)) {
+        // PATH A: Native Genkit Execution
+        console.log(`[Flow] Using Native Genkit path for provider: ${provider}`);
+        targetModelIdentifier = `${provider}/${llmConnection.modelName}`;
+        try {
+            const llmResponse = await ai.generate({
+                model: targetModelIdentifier,
+                prompt: finalMessages,
+                config: { temperature },
+            });
+            const textResponse = llmResponse.text();
+            if (textResponse === undefined) throw new Error('Model returned an empty response.');
+            return { text: textResponse };
+        } catch (error: any) {
+            console.error(`[Flow] Native Genkit call failed for ${targetModelIdentifier}: ${error.message}`);
+            throw error;
+        }
+    } else {
+        // PATH B: HTTP Proxy Fallback (e.g., for LiteLLM)
+        console.log(`[Flow] Using HTTP Proxy path for provider: ${llmConnection.provider}`);
+        const proxyUrl = process.env.LITELLM_PROXY_URL;
+        if (!proxyUrl) {
+            throw new Error("The specified LLM provider requires a proxy, but LITELLM_PROXY_URL is not set.");
+        }
+        
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (process.env.LITELLM_API_KEY) {
+            headers['Authorization'] = `Bearer ${process.env.LITELLM_API_KEY}`;
         }
 
-        return { text: textResponse };
+        const body = JSON.stringify({
+            model: llmConnection.modelName,
+            messages: finalMessages,
+            temperature,
+        });
 
-    } catch (error: any) {
-        console.error(`[Flow] Failed to call Genkit. Error: ${error.message}`);
-        if (error.message.includes('API key not found')) {
-            throw new Error(`API key for provider '${targetLlmConnection.provider}' is either missing or invalid. Please check the configuration.`);
+        try {
+            const response = await fetch(`${proxyUrl}/chat/completions`, { method: 'POST', headers, body });
+            if (!response.ok) {
+                const errorBody = await response.text();
+                throw new Error(`Proxy request failed with status ${response.status}: ${errorBody}`);
+            }
+            const result = await response.json();
+            const textResponse = result.choices[0]?.message?.content;
+            if (!textResponse) throw new Error('Proxy returned an invalid or empty response structure.');
+            return { text: textResponse };
+        } catch (error: any) {
+            console.error(`[Flow] HTTP Proxy call failed for ${llmConnection.modelName}: ${error.message}`);
+            throw error; // Re-throw the specific error
         }
-        if (error.message.includes('404')) {
-            throw new Error(`Model '${targetLlmConnection.modelName}' not found for provider '${targetLlmConnection.provider}'. Please check the model name.`);
-        }
-        throw error;
     }
   }
 );

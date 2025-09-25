@@ -6,6 +6,7 @@ import { z } from 'genkit';
 import { collection, query, where, getDocs, orderBy, limit, doc, updateDoc, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { LlmConnection, LlmProvider as LlmProviderType } from '@/lib/types';
+import { executePrompt } from './prompt-execution-flow';
 
 
 const LlmProviderSchema = z.object({
@@ -90,39 +91,35 @@ export const getPlatformAssets = ai.defineFlow(
 
 // This flow now calls the internal /api/generate proxy route.
 export const testLlmConnection = ai.defineFlow(
-    { 
-        name: 'testLlmConnection', 
-        inputSchema: z.object({ modelId: z.string() }), 
-        outputSchema: z.object({ success: z.boolean(), message: z.string() }) 
-    }, 
+    {
+        name: 'testLlmConnection',
+        inputSchema: z.object({ modelId: z.string() }),
+        outputSchema: z.object({ success: z.boolean(), message: z.string() })
+    },
     async ({ modelId }) => {
         try {
-            const response = await fetch('/api/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    modelId: modelId,
-                    messages: [{ role: 'user', content: 'Hello!' }],
-                    temperature: 0.1,
-                }),
+            // The unified executePrompt flow handles the logic of whether to call Genkit or a proxy.
+            // For a simple availability test, we send a minimal "Hello" prompt.
+            const result = await executePrompt({
+                modelId: modelId,
+                messages: [{ role: 'user', content: 'Hello!' }],
+                temperature: 0.1,
             });
 
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.details || 'API request failed');
-            }
-
             if (result && result.text) {
-                return { success: true, message: `模型响应: ${result.text.substring(0, 50)}...` };
+                // Limit the response text to avoid showing too much data.
+                const responseSnippet = result.text.substring(0, 50);
+                return { success: true, message: `模型响应: ${responseSnippet}...` };
             } else {
-                return { success: false, message: '模型返回了空响应。' };
+                return { success: false, message: '连接成功，但模型返回了空响应。' };
             }
         } catch (error: any) {
+            console.error(`[testLlmConnection] Error testing model ${modelId}:`, error);
             return { success: false, message: error.message || '发生未知错误。' };
         }
     }
 );
+
 
 
 // =================================================================
