@@ -12,8 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { Bot, Loader2, Send, Sparkles, Settings, Trash2 } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { doc, onSnapshot, updateDoc, arrayUnion, setDoc } from 'firebase/firestore';
-import type { Demand } from '@/lib/types';
-import type { User } from '@/store/auth';
+import type { Demand, User, ChatMessage } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { clarifyDemandDetails } from '@/ai/flows/clarify-demand-details';
@@ -33,16 +32,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-type ChatMessage = {
-  id: string;
-  text: string;
-  senderId: string;
-  senderName: string;
-  senderAvatar: string;
-  timestamp: Date;
-  isAIMessage?: boolean;
-};
 
 type ChatDocument = {
   messages: ChatMessage[];
