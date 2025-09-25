@@ -82,9 +82,10 @@ export const testLlmConnection = ai.defineFlow(
             const testPayload = {
                 model: modelConfig.modelName,
                 messages: [{ role: 'user', content: 'Hello' }],
-                max_tokens: 5,
+                max_tokens: 5, // Keep it minimal
             };
 
+            // This fetch call directly targets the LiteLLM-compatible endpoint.
             const response = await fetch(`${proxyUrl}/chat/completions`, {
                 method: 'POST',
                 headers: {
@@ -97,9 +98,11 @@ export const testLlmConnection = ai.defineFlow(
             if (!response.ok) {
                 const errorBody = await response.text();
                 try {
+                    // Try to parse a structured error message first
                     const errorJson = JSON.parse(errorBody);
                     throw new Error(errorJson.message || `API 返回错误 (状态 ${response.status}): ${errorBody}`);
                 } catch {
+                     // If it's not JSON, use the raw text
                      throw new Error(`API 返回错误 (状态 ${response.status}): ${errorBody}`);
                 }
             }
@@ -114,6 +117,7 @@ export const testLlmConnection = ai.defineFlow(
 
         } catch (error: any) {
             console.error(`[testLlmConnection] Error testing model ${modelId}:`, error);
+            // Capture fetch errors (e.g., connection refused) and API errors.
             resultMessage = error.message || '发生未知错误。';
             if (error.cause) {
                 resultMessage += `\n根本原因: ${error.cause}`;

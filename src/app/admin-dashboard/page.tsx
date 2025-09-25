@@ -28,7 +28,7 @@ import { useAuthStore } from '@/store/auth';
 import { useRouter } from 'next/navigation';
 
 import { getPlatformAssets, testLlmConnection, type LlmProvider } from '@/ai/flows/admin-management-flows';
-import type { LlmConnection, TestResultStatus } from '@/lib/types';
+import type { LlmConnection } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 
