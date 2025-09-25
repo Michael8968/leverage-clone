@@ -145,9 +145,11 @@ export const getPrompts = ai.defineFlow(
   },
   async () => {
     const promptsCollection = collection(db, 'prompts');
-    const q = query(promptsCollection, where('status', '==', '生效中'), orderBy('name'));
+    const q = query(promptsCollection, where('status', '==', '生效中'));
     const snapshot = await getDocs(q);
-    const prompts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Prompt));
+    const prompts = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Prompt))
+        .sort((a, b) => a.name.localeCompare(b.name));
     return { prompts };
   }
 );
