@@ -177,7 +177,7 @@ function SubmissionForm({
     onSubmissionSuccess, 
     toolName 
 }: { 
-    imageUrl: string; 
+    imageUrl: string | null; 
     onSubmissionSuccess: () => void;
     toolName: string;
 }) {
@@ -240,7 +240,13 @@ function SubmissionForm({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start mt-6">
             <div className="space-y-4">
                 <h3 className="font-semibold flex items-center gap-2"><Bot/> {toolName} 生成结果</h3>
-                <Image src={imageUrl} alt="AI generated model" width={512} height={512} className="rounded-lg border aspect-square object-cover" />
+                <div className="rounded-lg border aspect-square bg-muted/50 flex items-center justify-center">
+                    {imageUrl ? (
+                        <Image src={imageUrl} alt="AI generated model" width={512} height={512} className="rounded-lg object-cover" />
+                    ) : (
+                        <p className="text-muted-foreground text-sm">图片加载失败</p>
+                    )}
+                </div>
             </div>
             <Form {...form}>
                 <form onSubmit={form.handleSubmit(handleSubmission)} className="space-y-4 border p-4 rounded-lg h-full flex flex-col">

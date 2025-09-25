@@ -412,7 +412,7 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
     const [isTransitioning, startTransition] = useTransition();
 
     const addImage = () => {
-        onImagesChange([...images, { url: '', view: '默认' }]);
+        onImagesChange([...images, { url: undefined as any, view: '默认' }]);
     };
 
     const updateImage = (index: number, field: 'url' | 'view', value: string) => {
@@ -717,3 +717,4 @@ export default function SuppliersPage() {
     
 
     
+
