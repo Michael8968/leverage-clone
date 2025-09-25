@@ -549,7 +549,7 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
                         const context = `Demand: ${JSON.stringify(d)}\n\nCreatives: ${JSON.stringify(creatives)}`;
                         const result = await executePrompt({
                             promptKey: values.promptKey || undefined, // Pass promptKey if selected
-                            messages: [{ role: 'user', content: [{ text: context }] }],
+                            messages: [{ role: 'user', content: context }],
                         });
                         return { demand: d, rawText: result.text };
                     } catch (error: any) {

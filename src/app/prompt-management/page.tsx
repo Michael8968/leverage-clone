@@ -28,39 +28,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuthStore, type Role } from '@/store/auth';
 import { useRouter } from 'next/navigation';
-import { LlmConnection } from '@/lib/types';
-
-
-// =================================================================
-// TYPE DEFINITIONS
-// =================================================================
-type QuerySources = {
-    suppliers: boolean;
-    knowledgeBase: boolean;
-    publicResources: boolean;
-};
-
-type SourceTemperatures = {
-    suppliers: number;
-    knowledgeBase: number;
-    publicResources: number;
-};
-
-type Prompt = {
-    id: string;
-    name: string;
-    promptKey: string;
-    description: string;
-    content: string;
-    scope: '通用' | '专属';
-    status: '生效中' | '已停用';
-    ownerId?: string;
-    ownerType?: 'platform' | 'creator';
-    modelId?: string;
-    priority?: number;
-    querySources?: QuerySources;
-    sourceTemperatures?: SourceTemperatures;
-};
+import { LlmConnection, Prompt, QuerySources, SourceTemperatures } from '@/lib/types';
+import { getPrompts } from '@/ai/flows/admin-management-flows';
 
 
 // =================================================================

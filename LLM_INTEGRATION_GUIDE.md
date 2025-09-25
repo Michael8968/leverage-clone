@@ -1,96 +1,98 @@
-# LLM 对接功能技术方案 (V2.1 Final)
+# **自研模型无关API网关 - 技术实现方案 (V2.2 Final)**
 
-**日期**: 2025-08-27
-
-## 1. 概述与目标
-
-### 1.1. 功能目标
-
-本方案为 "AI 任务流平台" 构建一个统一、稳定、可扩展的大语言模型（LLM）对接层。其核心目标是让平台能够：
-
-*   **支持多厂商**: 无缝对接全球主流的LLM提供商。
-*   **动态可配置**: 管理员可通过后台 (`/admin-dashboard`)，动态地添加、编辑、删除和测试模型API连接，无需修改代码。
-*   **稳定可靠**: 放弃所有可能带来兼容性问题的第三方SDK，回归`fetch` API进行原生调用。
-*   **统一调用接口**: 为所有上层AI业务提供统一、简洁的调用入口 (`executePrompt`)。
-*   **提示词与模型绑定**: 允许在提示词库中为每个提示词指定执行模型和调用优先级。
-*   **场景化配置 (新增)**: 允许将业务场景（如“聊天助理”）与特定的提示词（`promptKey`）进行绑定，实现AI行为的最高优先级配置。
-
-### 1.2. 核心策略：解耦与分层
-
-我们采取了“模型解耦、场景优先、原生调用”的核心技术策略。
-
-*   **模型解耦**: 上层业务只关心“调用哪个模型ID或提示词Key”，而不关心其具体实现。
-*   **场景优先**: 在所有调用逻辑的最顶层，增加一个“场景”判断。如果一个业务场景（如 `chat-assistant`）被预先配置了一个提示词，则系统将强制使用该配置，忽略其他所有传入参数。
-*   **原生API调用**: 自建轻量级API网关 (`executePrompt` flow)，负责将平台内部的标准请求，动态翻译成目标厂商指定的原生API请求格式。
+**日期**: 2024年8月19日
+**作者**: AI 任务流平台开发团队
 
 ---
 
-## 2. 架构设计
+## 1. 概述
 
-### 2.1. 数据模型与来源
+本文档详细阐述了在“AI织网平台”项目中应用的、用于管理和调用多个大型语言模型（LLM）API的**自研、模型无关的API网关**技术方案。此方案的核心策略是**“原生调用为主，代理回退为辅”**，以获得最高的灵活性和稳定性。
 
-#### a. `llm_connections` 集合 (Firestore)
-所有LLM连接配置的核心存储。
+### 1.1. 设计目标
 
-#### b. `prompts` 集合 (Firestore)
-`prompts`集合通过`modelId`字段与`llm_connections`集合建立关联。
+- **模型无关 (Model-Agnostic)**: 通过数据库配置，动态支持任何提供原生API或与OpenAI API兼容的LLM。
+- **稳定可靠**: 核心逻辑不引入额外的第三方AI SDK，减少潜在冲突。
+- **易于扩展**: 添加新LLM仅需在数据库和后端配置中进行少量修改。
+- **配置驱动**: 所有模型信息（API Key, Provider, Base URL）均由数据库和后端配置集中管理。
 
-#### c. `ai_scenarios` 集合 (Firestore, 新增)
-这是实现“场景化配置”的核心。它建立了业务场景和提示词之间的映射关系。
-*   **集合路径**: `firestore_root/ai_scenarios/{scenario_id}`
-*   **文档ID (`scenario_id`)**: 一个代表业务场景的、硬编码在代码中的唯一字符串（例如: `chat-assistant`）。
-*   **关键字段**:
-    *   `name` (string): 场景的业务名称。
-    *   `description` (string): 场景的功能描述。
-    *   `configuredPromptKey` (string): 绑定的 `prompts` 集合中的 `promptKey`。
+---
 
-#### d. `SUPPORTED_PROVIDERS` (后端硬编码)
-平台唯一权威的、支持的厂商及其模型列表，用于前端`Combobox`的预设选项。
+## 2. 核心技术架构
 
-### 2.2. 核心流程：统一API网关 (`executePrompt`)
+架构由三部分组成：
+1.  **数据模型 (Firestore)**: `llm_connections` 集合存储LLM连接配置。
+2.  **后端配置 (`admin-management-flows.ts`)**: 一个硬编码的 `PLATFORM_ASSETS` 常量，用于定义每个`provider`的`apiBaseUrl`。
+3.  **API网关 (`executePrompt` Flow)**: 一个统一的后端流程，负责将标准化请求转换为特定厂商的API调用，并支持代理模式。
 
-这是整个LLM对接功能的心脏，位于`src/ai/flows/prompt-execution-flow.ts`。
+---
 
-**工作流程 (已升级)**:
+## 3. 数据与配置
 
-1.  **接收标准输入**: 函数接收`PromptExecutionInput`对象，该对象新增了一个可选的`scenario`字段。
-2.  **查询配置 (核心路由)**:
-    *   **第一优先级：场景查询**: 如果提供了 `scenario`，则**首先**从`ai_scenarios`集合中查找对应的文档。如果文档存在且配置了`configuredPromptKey`，则该`promptKey`将覆盖所有其他输入，成为本次调用的最终执行目标。
-    *   **第二优先级：提示词Key**: 如果没有场景覆盖，且提供了 `promptKey`，则从`prompts`集合中查找对应的提示词文档，获取其 `content` 和绑定的 `modelId`。
-    *   **第三优先级：模型ID**: 如果以上两者都未提供，则直接使用传入的 `modelId`进行调用。
-3.  **获取LLM连接**: 根据上一步确定的 `modelId`，从`llm_connections`集合中获取完整的连接配置。
-4.  **请求适配与发送**: 与之前版本相同，根据厂商适配请求体，并使用`fetch` API发送原生请求。
-5.  **结果解析与返回**: 解析不同厂商的响应，返回标准化的`PromptExecutionOutput`对象。
+### 3.1. `llm_connections` 集合 (Firestore)
+- **`provider`**: 关键字段。必须是后端`PLATFORM_ASSETS`中已定义的厂商标识（如 `Google`, `OpenAI`, `LiteLLM`）。
 
-### 2.3. 前端交互
+### 3.2. `PLATFORM_ASSETS` (后端配置)
+这是在 `src/ai/flows/admin-management-flows.ts` 中定义的一个常量，是实现动态调用的核心。
 
-#### a. 业务流程调用 (例如: `clarify-demand-details.ts`)
-现在，像`clarifyDemandDetailsFlow`这样的上层业务流程，其实现被**极大简化**。它不再需要关心任何提示词内容，只需调用`executePrompt`并传入一个代表自己业务的`scenario`即可。
 ```typescript
-// 示例：clarifyDemandDetailsFlow 的新实现
-const result = await executePrompt({
-    scenario: 'chat-assistant', // 这是唯一的场景标识
-    messages: [/* ... */],
-});
-```
-这种方式极大地增强了系统的灵活性。运营人员可以通过修改后台`ai_scenarios`集合中的配置，随时更换“聊天助理”所使用的提示词，而**无需对业务代码进行任何修改**。
+// src/ai/flows/admin-management-flows.ts
 
-#### b. AI场景配置页面 (`/ai-scenario-config`)
-这是一个专为`admin`角色设计的新页面，用于管理`ai_scenarios`集合。
-*   **功能**: 列出平台所有可配置的AI场景，并允许管理员为每个场景选择并绑定一个已存在的提示词（`promptKey`）。
-*   **数据流**: 页面加载时，会同时获取所有“场景”和所有“提示词”，为管理员提供一个下拉菜单来进行配置和保存。
+const PLATFORM_ASSETS = {
+    providers: [
+        { providerName: "Google", ..., apiBaseUrl: "https://generativelanguage.googleapis.com/v1beta/models" },
+        { providerName: "OpenAI", ..., apiBaseUrl: "https://api.openai.com/v1" },
+        { providerName: "DeepSeek", ..., apiBaseUrl: "https://api.deepseek.com/v1" },
+        { 
+            providerName: "LiteLLM", // 代理提供商
+            models: ["groq/llama3-70b-8192", ...], 
+            apiBaseUrl: process.env.LITELLM_PROXY_URL || "http://localhost:4000/v1" 
+        },
+    ]
+};
+```
 
 ---
 
-## 3. 功能总结
+## 4. API网关实现 (`executePrompt`)
 
-*   **多厂商LLM支持**: 可通过后台配置，无代码修改地接入任何提供原生API的LLM厂商。
-*   **配置即服务**: 管理员可在独立的UI界面完成模型的添加、编辑、删除和状态切换。
-*   **连接健康检查**: 提供一键“测试连接”功能，实时验证API Key和网络配置的有效性。
-*   **统一调用接口**: 平台所有AI能力都通过调用`executePrompt`这一个函数来完成。
-*   **场景化配置 (新)**: 实现了业务逻辑与AI实现的终极解耦。管理员可以在`ai-scenario-config`页面为特定业务场景（如聊天助理、商品推荐）绑定一个提示词，实现最高优先级的行为覆盖。
-*   **提示词与模型绑定**: 允许在创建或编辑提示词时，为其指定一个执行模型和调用优先级。
-*   **提示词知识产权保护**: 通过`promptKey`调用机制，保护了提示词内容不被非授权用户查看。
-*   **高可维护性**: 模型支持列表集中在后端管理；所有配置均支持预设与自定义输入，兼顾易用性和扩展性。
+`executePrompt` 流程的核心逻辑是根据 `provider` 字段智能选择调用路径。
 
-此方案为平台构建了一个极其稳固和灵活的AI能力底座，是整个项目能够稳定运行并轻松扩展的基石。
+### 4.1. 关键代码 (`src/ai/flows/prompt-execution-flow.ts`)
+
+```typescript
+// ... (获取connection和providerInfo的逻辑)
+
+// (核心) 根据provider，动态构建特定厂商的请求
+switch (provider.toLowerCase()) {
+    case 'google':
+        // ... (处理原生Google API的请求体和URL)
+        break;
+    
+    // 默认分支处理所有与OpenAI API格式兼容的厂商及代理
+    case 'openai':
+    case 'deepseek':
+    case 'litellm':
+    default: 
+         requestUrl = `${apiBaseUrl}/chat/completions`;
+         requestHeaders['Authorization'] = `Bearer ${apiKey}`;
+         // ... (构建OpenAI兼容的请求体)
+         break;
+}
+
+// ... (使用原生fetch发送请求并处理响应)
+```
+
+### 4.2. 可用性连通性测试方案
+
+管理员后台的 `testLlmConnection` 流程无需任何修改。它通过直接调用 `executePrompt`，自动覆盖了所有调用路径：
+- 如果测试的连接 `provider` 是 `Google`，`executePrompt` 会走原生调用路径。
+- 如果测试的连接 `provider` 是 `LiteLLM` 或任何其他未明确定义的厂商，`executePrompt` 会自动走 `default` 的代理调用路径。
+
+这确保了“可用性测试”能够端到端地验证任何一种类型的模型连接。
+
+---
+
+## 5. 总结
+
+本方案通过将原生调用和代理调用相结合，提供了一个极其灵活和健壮的多LLM管理和路由系统。管理员只需在数据库中正确配置 `provider` 字段，系统即可自动选择最高效、最合适的调用方式，实现了真正的“模型无关”架构。

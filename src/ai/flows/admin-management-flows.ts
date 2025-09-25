@@ -1,229 +1,141 @@
 
+
 'use server';
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { collection, query, where, getDocs, orderBy, limit, doc, updateDoc, addDoc, serverTimestamp, deleteDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { LlmConnection, LlmProvider as LlmProviderType } from '@/lib/types';
+import type { LlmConnection, Prompt } from '@/lib/types';
 
 
-const LlmProviderSchema = z.object({
-    providerName: z.string(),
-    models: z.array(z.string()),
-});
+// Hardcoded platform assets. In a real-world scenario, this might come from a configuration file or a database.
+const PLATFORM_ASSETS = {
+    providers: [
+        { providerName: "Google", models: ["gemini-1.5-pro-latest", "gemini-1.5-flash-latest"], apiBaseUrl: "https://generativelanguage.googleapis.com/v1beta/models" },
+        { providerName: "OpenAI", models: ["gpt-4", "gpt-4-turbo", "gpt-3.5-turbo"], apiBaseUrl: "https://api.openai.com/v1" },
+        { providerName: "DeepSeek", models: ["deepseek-chat"], apiBaseUrl: "https://api.deepseek.com/v1" },
+        { 
+            providerName: "LiteLLM", 
+            models: ["groq/llama3-70b-8192", "ollama/llama3", "anthropic/claude-3-haiku-20240307"], 
+            apiBaseUrl: process.env.LITELLM_PROXY_URL || "http://localhost:4000" 
+        },
+    ]
+};
 
 export const getPlatformAssets = ai.defineFlow(
-    { 
-        name: 'getPlatformAssets', 
-        inputSchema: z.null(), 
-        outputSchema: z.object({ providers: z.array(LlmProviderSchema) }) 
-    }, 
-    async () => {
-        // In a real-world scenario, this might be fetched from a database
-        // or a configuration file. For now, it's hardcoded as per the design.
-        const SUPPORTED_PROVIDERS: LlmProviderType[] = [
-            {
-                providerName: "OpenAI",
-                models: ["gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"]
-            },
-            {
-                providerName: "Google",
-                models: ["gemini-1.5-pro-latest", "gemini-1.5-flash-latest", "gemini-1.0-pro"]
-            },
-            {
-                providerName: "Anthropic",
-                models: ["claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"]
-            },
-            {
-                providerName: "DeepSeek",
-                models: ["deepseek-chat", "deepseek-coder"]
-            },
-            {
-                providerName: "Tripo3D",
-                models: ["text_to_model"]
-            },
-            // Add a generic proxy option
-            {
-                providerName: "LiteLLM-Proxy",
-                models: [] // Allow user to input any model
-            }
-        ];
-        return { providers: SUPPORTED_PROVIDERS };
-    }
+    { name: 'getPlatformAssets', inputSchema: z.null(), outputSchema: z.any() },
+    async () => PLATFORM_ASSETS
 );
 
-
 export const testLlmConnection = ai.defineFlow(
-    {
-        name: 'testLlmConnection',
-        inputSchema: z.object({ modelId: z.string() }),
-        outputSchema: z.object({ success: z.boolean(), message: z.string() })
-    },
+    { name: 'testLlmConnection', inputSchema: z.any(), outputSchema: z.any() },
     async ({ modelId }) => {
-        const modelRef = doc(db, 'llm_connections', modelId);
-        const modelSnap = await getDoc(modelRef);
-        if (!modelSnap.exists()) {
-            return { success: false, message: "未找到指定的模型连接配置。" };
-        }
-        const modelConfig = modelSnap.data() as LlmConnection;
-
-        let resultStatus: 'success' | 'failed' = 'failed';
-        let resultMessage = '';
-
         try {
-            // This logic now directly calls the external service via our proxy,
-            // but with a very simple, clean payload, ONLY for testing.
-            const proxyUrl = process.env.LITELLM_PROXY_URL;
-            if (!proxyUrl) {
-                throw new Error('代理URL (LITELLM_PROXY_URL) 未在环境变量中配置。');
+            const llmDocRef = doc(db, 'llm_connections', modelId);
+            const llmDocSnap = await getDoc(llmDocRef);
+            if (!llmDocSnap.exists()) {
+                 throw new Error("Could not find the specified LLM connection.");
+            }
+            const llmConnection = llmDocSnap.data() as LlmConnection;
+            const { provider, modelName, apiKey } = llmConnection;
+            
+            const assets = await getPlatformAssets(null);
+            const providerInfo = assets.providers.find(p => p.providerName.toLowerCase() === provider.toLowerCase());
+            
+            if (!providerInfo || !providerInfo.apiBaseUrl) {
+                throw new Error(`API base URL for provider "${provider}" is not configured.`);
             }
             
-            const testPayload = {
-                model: modelConfig.modelName,
-                messages: [{ role: 'user', content: 'Hello' }],
-                max_tokens: 5, // Keep it minimal
-            };
+            // Construct request based on provider type (Native vs Proxy/OpenAI-compatible)
+            let requestUrl: string;
+            let requestHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+            let requestBody: any;
+            let responsePath: (string | number)[];
 
-            // This fetch call directly targets the LiteLLM-compatible endpoint.
-            const response = await fetch(`${proxyUrl}/chat/completions`, {
+            switch (provider.toLowerCase()) {
+                case 'google':
+                    requestUrl = `${providerInfo.apiBaseUrl}/${modelName}:generateContent?key=${apiKey}`;
+                    requestBody = {
+                        contents: [{
+                            role: 'user',
+                            parts: [{ text: 'This is a connection test. Please respond with just the word "OK".' }]
+                        }],
+                        generationConfig: { maxOutputTokens: 5, temperature: 0.1 }
+                    };
+                    responsePath = ['candidates', 0, 'content', 'parts', 0, 'text'];
+                    break;
+                
+                // All other providers (including LiteLLM proxies) are assumed to be OpenAI-compatible.
+                default:
+                    requestUrl = `${providerInfo.apiBaseUrl}/chat/completions`;
+                    requestHeaders['Authorization'] = `Bearer ${apiKey}`;
+                    requestBody = {
+                        model: modelName,
+                        messages: [{ role: 'user', content: 'This is a connection test. Please respond with just the word "OK".' }],
+                        temperature: 0.1,
+                        max_tokens: 5,
+                    };
+                    responsePath = ['choices', 0, 'message', 'content'];
+                    break;
+            }
+
+            const response = await fetch(requestUrl, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${modelConfig.apiKey}`,
-                },
-                body: JSON.stringify(testPayload),
+                headers: requestHeaders,
+                body: JSON.stringify(requestBody),
             });
 
             if (!response.ok) {
-                const errorBody = await response.text();
-                try {
-                    // Try to parse a structured error message first
-                    const errorJson = JSON.parse(errorBody);
-                    throw new Error(errorJson.message || `API 返回错误 (状态 ${response.status}): ${errorBody}`);
-                } catch {
-                     // If it's not JSON, use the raw text
-                     throw new Error(`API 返回错误 (状态 ${response.status}): ${errorBody}`);
-                }
+                 const errorBody = await response.text();
+                 throw new Error(`API request failed with status ${response.status}: ${errorBody}`);
             }
 
             const responseData = await response.json();
-            if (responseData.choices && responseData.choices.length > 0) {
-                resultStatus = 'success';
-                resultMessage = `连接成功，模型返回了有效响应。`;
+            const reply = responsePath.reduce((acc, key) => (acc as any)?.[key], responseData) as string | undefined;
+
+            if (reply && reply.trim().toLowerCase().includes('ok')) {
+                 await updateDoc(llmDocRef, { lastTestStatus: 'success', lastTestTimestamp: serverTimestamp() });
+                return { success: true, message: `连接成功，模型返回: "${reply}"` };
             } else {
-                throw new Error(`连接成功但模型未返回有效响应。`);
+                 await updateDoc(llmDocRef, { lastTestStatus: 'failed', lastTestTimestamp: serverTimestamp() });
+                return { success: false, message: `连接成功但模型未按预期返回"OK"。收到的回复: ${reply}` };
             }
 
         } catch (error: any) {
-            console.error(`[testLlmConnection] Error testing model ${modelId}:`, error);
-            // Capture fetch errors (e.g., connection refused) and API errors.
-            resultMessage = error.message || '发生未知错误。';
-            if (error.cause) {
-                resultMessage += `\n根本原因: ${error.cause}`;
+             if (modelId) {
+                try {
+                    await updateDoc(doc(db, 'llm_connections', modelId), { lastTestStatus: 'failed', lastTestTimestamp: serverTimestamp() });
+                } catch (dbError) {
+                    console.error("Failed to update test status in DB:", dbError);
+                }
             }
+            return { success: false, message: `连接失败: ${error.message}` };
         }
-
-        // Persist the test result to Firestore regardless of outcome
-        try {
-             await updateDoc(modelRef, {
-                lastTestStatus: resultStatus,
-                lastTestTimestamp: serverTimestamp()
-            });
-        } catch (dbError) {
-             console.error(`[testLlmConnection] Failed to persist test result for model ${modelId}:`, dbError);
-             // Don't overwrite the original error message, but log this persistence failure.
-        }
-
-        return { success: resultStatus === 'success', message: resultMessage };
     }
 );
 
 
-
-// =================================================================
-// Flow to get Prompts
-// =================================================================
-
+// Get Prompts Flow
 const PromptSchema = z.object({
   id: z.string(),
   name: z.string(),
   promptKey: z.string(),
-  description: z.string(),
 });
-
-const GetPromptsOutputSchema = z.object({
-  prompts: z.array(PromptSchema),
-});
+const GetPromptsOutputSchema = z.object({ prompts: z.array(PromptSchema) });
 export type GetPromptsOutput = z.infer<typeof GetPromptsOutputSchema>;
 
-export async function getPrompts(): Promise<GetPromptsOutput> {
-    return getPromptsFlow();
-}
-
-const getPromptsFlow = ai.defineFlow(
-    {
-        name: 'getPromptsFlow',
-        outputSchema: GetPromptsOutputSchema,
-    },
-    async () => {
-        const promptsCollection = collection(db, 'prompts');
-        const q = query(promptsCollection, orderBy('name'));
-        const snapshot = await getDocs(q);
-        const prompts = snapshot.docs.map(doc => ({
-            id: doc.id,
-            name: doc.data().name,
-            promptKey: doc.data().promptKey,
-            description: doc.data().description,
-        }));
-        return { prompts };
-    }
+export const getPrompts = ai.defineFlow(
+  {
+    name: 'getPrompts',
+    inputSchema: z.null().optional(),
+    outputSchema: GetPromptsOutputSchema,
+  },
+  async () => {
+    const promptsCollection = collection(db, 'prompts');
+    const q = query(promptsCollection, where('status', '==', '生效中'), orderBy('name'));
+    const snapshot = await getDocs(q);
+    const prompts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Prompt));
+    return { prompts };
+  }
 );
-
-
-// =================================================================
-// Flow to get the System's Default LLM Connection
-// =================================================================
-
-const LlmConnectionSchema = z.object({
-    id: z.string(),
-    provider: z.string(),
-    modelName: z.string(),
-    apiKey: z.string(),
-    priority: z.number(),
-    status: z.string(),
-    scope: z.string().optional(),
-    category: z.string().optional(),
-});
-
-export const getDefaultLlmConnection = ai.defineFlow(
-    {
-        name: 'getDefaultLlmConnection',
-        inputSchema: z.null(),
-        outputSchema: LlmConnectionSchema.optional(), // It might not find any
-    },
-    async () => {
-        const connectionsRef = collection(db, 'llm_connections');
-        // This query is now efficient thanks to the composite index.
-        const q = query(
-            connectionsRef,
-            where('status', '==', '活跃'),
-            orderBy('priority', 'asc'),
-            limit(1)
-        );
-
-        const snapshot = await getDocs(q);
-
-        if (snapshot.empty) {
-            console.warn("No active LLM connections found to serve as default.");
-            return undefined;
-        }
-
-        const defaultConnection = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as LlmConnection;
-        return defaultConnection;
-    }
-);
-    
-    
-
-    
