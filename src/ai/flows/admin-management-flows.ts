@@ -63,28 +63,52 @@ export const testLlmConnection = ai.defineFlow(
     },
     async ({ modelId }) => {
         const modelRef = doc(db, 'llm_connections', modelId);
+        const modelSnap = await getDoc(modelRef);
+        if (!modelSnap.exists()) {
+            return { success: false, message: "未找到指定的模型连接配置。" };
+        }
+        const modelConfig = modelSnap.data() as LlmConnection;
+
         let resultStatus: 'success' | 'failed' = 'failed';
         let resultMessage = '';
 
         try {
-            // The executePrompt flow now handles the logic of whether to call natively or via proxy.
-            // This makes the test flow much simpler and more robust.
-            const result = await executePrompt({
-                modelId: modelId,
-                messages: [{ role: 'user', content: [{ text: 'Hello!' }] }],
+            const proxyUrl = "/api/generate";
+            const body = {
+                model: modelConfig.modelName,
+                messages: [{ role: 'user', content: 'Hello' }],
                 temperature: 0.1,
-            });
+                apiKey: modelConfig.apiKey, // Pass the key for the proxy to use
+            };
 
-            if (result && result.text) {
-                const responseSnippet = result.text.substring(0, 50);
-                resultStatus = 'success';
-                resultMessage = `模型响应: ${responseSnippet}...`;
-            } else {
-                resultMessage = '连接成功，但模型返回了空响应。';
+            const baseUrl = process.env.NODE_ENV === 'development'
+                ? `http://localhost:${process.env.PORT || 9002}`
+                : process.env.NEXT_PUBLIC_APP_URL || '';
+
+            const response = await fetch(`${baseUrl}${proxyUrl}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            
+            const responseData = await response.json();
+
+            if (!response.ok) {
+                 // Try to extract a meaningful error from LiteLLM's response
+                const errorMessage = responseData?.message || JSON.stringify(responseData);
+                throw new Error(`代理服务器返回错误 (状态 ${response.status}): ${errorMessage}`);
             }
+
+            // A successful response from the proxy is enough to confirm availability
+            resultStatus = 'success';
+            resultMessage = `连接成功。模型代理返回了有效响应。`;
+
         } catch (error: any) {
             console.error(`[testLlmConnection] Error testing model ${modelId}:`, error);
             resultMessage = error.message || '发生未知错误。';
+            if (error.cause) {
+                resultMessage += `\n根本原因: ${error.cause}`;
+            }
         }
 
         // Persist the test result to Firestore regardless of outcome
@@ -186,5 +210,6 @@ export const getDefaultLlmConnection = ai.defineFlow(
         return defaultConnection;
     }
 );
+    
 
     
