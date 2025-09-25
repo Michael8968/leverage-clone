@@ -239,6 +239,7 @@ function ProductManagement() {
             description: '请填写详细描述', 
             price: 99, 
             category: '待分类',
+            purchaseUrl: 'https://example.com/product/your-product-id',
             supplierId: user.uid, 
             images: [],
             details: [],
@@ -375,8 +376,8 @@ function ProductServiceItem({ product, onUpdate, onRemove }: { product: ProductS
                             <Input id={`category-${product.id}`} name="category" placeholder="产品类别" value={localProduct.category} onChange={(e) => handleFieldChange('category', e.target.value)} />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor={`imageUrl-${product.id}`}>主图URL</Label>
-                            <Input id={`imageUrl-${product.id}`} name="imageUrl" placeholder="主图链接" value={localProduct.imageUrl || ''} onChange={(e) => handleFieldChange('imageUrl', e.target.value)} />
+                            <Label htmlFor={`purchaseUrl-${product.id}`}>购买链接</Label>
+                            <Input id={`purchaseUrl-${product.id}`} name="purchaseUrl" placeholder="https://example.com" value={localProduct.purchaseUrl || ''} onChange={(e) => handleFieldChange('purchaseUrl', e.target.value)} />
                         </div>
                     </div>
                      <div className="space-y-2">
