@@ -510,7 +510,7 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
             <Card key={index} className="group relative flex flex-col">
               <CardContent className="p-2 flex flex-col gap-2 flex-1">
                  <div className="relative aspect-video flex items-center justify-center bg-muted/50 rounded-md overflow-hidden">
-                   {image.url && image.url.trim() !== '' ? (
+                   {image.url ? (
                      <div className="w-full h-full">
                         {(image.url.includes('.mp4') || image.url.includes('.webm')) ? (
                            <video src={image.url} className="w-full h-full object-contain" muted loop playsInline />

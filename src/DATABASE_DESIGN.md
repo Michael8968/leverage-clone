@@ -138,7 +138,7 @@
 
 | 字段名 | 数据类型 | 描述 |
 | :--- | :--- | :--- |
-| **ID** | `string` | 文档ID，即**场景的唯一标识符** (例如: `chat-assistant`)。 |
+| **id** | `string` | 文档ID，即**场景的唯一标识符** (例如: `chat-assistant`)。 |
 | **name** | `string` | 场景的业务名称 (例如: "聊天对话-AI助理")。 |
 | **description**| `string` | 场景的功能描述。 |
 | **tags** | `Array<string>` | (可选) 分类标签数组，用于前端按功能模块筛选场景。 |
@@ -185,7 +185,7 @@
 | 字段名 | 数据类型 | 描述 |
 | :--- | :--- | :--- |
 | **id** | `string` | 文档ID。 |
-| **creatorId** | `string` | 被预约的创意者ID。 |
+| **creatorId** | `string` | 被预约的创作者ID。 |
 | **requesterId**| `string` | 发起预约的用户ID。 |
 | **requesterName**| `string` | 预约者姓名。 |
 | **appointmentTime**| `Timestamp` | 预约的具体时间点。 |
