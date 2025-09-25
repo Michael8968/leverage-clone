@@ -8,6 +8,8 @@ import { doc, getDoc, collection, query, where, getDocs, Timestamp, orderBy, lim
 import { db } from '@/lib/firebase';
 import type { LlmConnection, AIScenario, User, AIScenarioRules, Prompt, ProductService, Supplier, Resource } from '@/lib/types';
 import { getDefaultLlmConnection } from './admin-management-flows';
+import { googleAI } from '@genkit-ai/googleai';
+import { genkit } from 'genkit';
 
 // Helper function to convert a Firestore collection to a string format for the prompt
 async function getCollectionAsContext(collectionName: string, maxItems = 10): Promise<string> {
@@ -132,7 +134,7 @@ async function findAvailableModels(promptDoc?: Prompt, allConnections?: LlmConne
 }
 
 // =================================================================
-// Core Flow: executePrompt (Upgraded with LiteLLM Integration)
+// Core Flow: executePrompt (Upgraded to use native Genkit models)
 // =================================================================
 export async function executePrompt(input: z.infer<typeof PromptExecutionInputSchema>): Promise<z.infer<typeof PromptExecutionOutputSchema>> {
   return executePromptFlow(input);
@@ -150,7 +152,7 @@ const executePromptFlow = ai.defineFlow(
     let finalPromptKey = promptKey;
     let systemPromptContent: string | undefined;
     let promptDocument: Prompt | null = null;
-    let targetModelIdentifier: string | undefined; // This will hold the LiteLLM-compatible model string
+    let targetModelIdentifier: string | undefined;
 
     // 1. SCENARIO LOOKUP (HIGHEST PRIORITY)
     if (scenario) {
@@ -176,13 +178,12 @@ const executePromptFlow = ai.defineFlow(
         promptDocument = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Prompt;
         systemPromptContent = promptDocument.content;
         
-        // If prompt has a model bound, use that.
         if (promptDocument.modelId) {
             finalModelId = promptDocument.modelId;
         }
     }
 
-    // 3. GET THE LITELLM MODEL IDENTIFIER
+    // 3. GET THE MODEL IDENTIFIER FOR GENKIT
     let targetLlmConnection: LlmConnection | undefined;
     if (finalModelId) {
         const modelDoc = await getDoc(doc(db, 'llm_connections', finalModelId));
@@ -191,17 +192,21 @@ const executePromptFlow = ai.defineFlow(
         }
         targetLlmConnection = { id: modelDoc.id, ...modelDoc.data() } as LlmConnection;
     } else {
-        // Fallback to default if no model was determined
         targetLlmConnection = await getDefaultLlmConnection(null);
         if (!targetLlmConnection) {
             throw new Error("No execution target specified and no default LLM connection is available.");
         }
     }
     
-    // The key change: construct the model string for LiteLLM
-    // Example: "gemini/gemini-1.5-pro-latest" or "openai/gpt-4o"
-    targetModelIdentifier = `${targetLlmConnection.provider.toLowerCase()}/${targetLlmConnection.modelName}`;
-    console.log(`[Flow] Routing to LiteLLM with model identifier: ${targetModelIdentifier}`);
+    // Construct the model string for Genkit, e.g., "googleai/gemini-1.5-pro-latest"
+    // Assuming the provider name in the DB matches the Genkit plugin name (e.g., 'Google' -> 'googleai')
+    const providerName = targetLlmConnection.provider.toLowerCase();
+    let genkitProviderName = providerName;
+    if (providerName === 'google') genkitProviderName = 'googleai';
+    // Other mappings can be added here if needed, e.g., 'openai', 'anthropic'
+
+    targetModelIdentifier = `${genkitProviderName}/${targetLlmConnection.modelName}`;
+    console.log(`[Flow] Routing to Genkit model: ${targetModelIdentifier}`);
 
     // 4. DYNAMIC CONTEXT INJECTION (No changes here)
     let dynamicContext = "";
@@ -236,49 +241,56 @@ const executePromptFlow = ai.defineFlow(
         }
     }
 
-    // 5. EXECUTE CALL TO LITELLM PROXY
-    const liteLLMProxyUrl = process.env.LITELLM_PROXY_URL;
-    if (!liteLLMProxyUrl) {
-        throw new Error("LITELLM_PROXY_URL environment variable is not set.");
-    }
-    
-    // Construct the request body in OpenAI format, which LiteLLM understands
-    const requestBody = {
-        model: targetModelIdentifier,
-        messages: finalMessages,
-        temperature: temperature,
-    };
-    
+    // 5. EXECUTE CALL USING GENKIT
     try {
-        console.log(`[Flow] Calling LiteLLM proxy at ${liteLLMProxyUrl}`);
+        console.log(`[Flow] Calling ai.generate() with model: ${targetModelIdentifier}`);
+
+        // Dynamically get the model from the provider
+        const model = genkit({plugins: [googleAI()]}).model(targetModelIdentifier);
         
-        const response = await fetch(liteLLMProxyUrl, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${process.env.LITELLM_API_KEY}`
+        // Convert messages to Genkit's format if needed (role is already compatible)
+        const generateRequest = {
+            model: model,
+            prompt: finalMessages.map(m => m.content), // Simplified for this example, could be more complex
+            config: {
+                temperature: temperature,
             },
-            body: JSON.stringify(requestBody),
-        });
+            // For OpenAI or other providers, you might need to pass API keys
+            // This assumes the keys are configured in the Genkit plugin initialization
+        };
+        
+        // This is a simplified representation. For a true multi-provider setup,
+        // you would need to dynamically instantiate plugins or have a more robust way
+        // of handling API keys per call if not globally configured.
+        // For Google AI, the key is often handled via Application Default Credentials.
+        // For others, we might need to pass it.
+        const llmResponse = await ai.generate({
+            model: targetModelIdentifier,
+            prompt: finalMessages,
+            config: {
+              temperature: temperature,
+            },
+          });
 
-        if (!response.ok) {
-            const errorBody = await response.text();
-            throw new Error(`LiteLLM proxy request failed with status ${response.status}: ${errorBody}`);
-        }
-
-        const result = await response.json();
-        const textResponse = result.choices?.[0]?.message?.content || '';
+        const textResponse = llmResponse.text();
 
         if (!textResponse) {
-             console.error("[Flow] LiteLLM returned a valid but empty or unparsable response:", result);
+             console.error("[Flow] Genkit returned a valid but empty response:", llmResponse);
              throw new Error('Model returned an empty response.');
         }
 
         return { text: textResponse };
 
     } catch (error: any) {
-        console.error(`[Flow] Failed to call LiteLLM. Error: ${error.message}`);
-        throw error; // Re-throw the error to be caught by the caller
+        console.error(`[Flow] Failed to call Genkit. Error: ${error.message}`);
+        // Provide a more user-friendly error message
+        if (error.message.includes('API key not found')) {
+            throw new Error(`API key for provider '${targetLlmConnection.provider}' is either missing or invalid. Please check the configuration.`);
+        }
+        if (error.message.includes('404')) {
+            throw new Error(`Model '${targetLlmConnection.modelName}' not found for provider '${targetLlmConnection.provider}'. Please check the model name.`);
+        }
+        throw error; // Re-throw the original error for detailed debugging
     }
   }
 );
