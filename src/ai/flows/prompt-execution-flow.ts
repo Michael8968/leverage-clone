@@ -3,9 +3,9 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { doc, getDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { LlmConnection, AIScenario, User, AIScenarioRules, Prompt } from '@/lib/types';
+import type { LlmConnection, AIScenario, User, Prompt } from '@/lib/types';
 import { getPlatformAssets } from './admin-management-flows';
 
 const PromptMessageSchema = z.object({
@@ -39,7 +39,7 @@ async function isRuleSetValid(rules: AIScenario, userId?: string): Promise<boole
         if (expiresAt && now > expiresAt) timeIsValid = false;
     } else {
         const currentDay = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][now.getDay()];
-        if (rules.repetition === 'weekly' && !rules.daysOfWeek?.includes(currentDay)) {
+        if (rules.repetition === 'weekly' && !rules.daysOfWeek?.includes(currentDay as any)) {
             timeIsValid = false;
         }
         if (timeIsValid && (rules.startTime || rules.endTime)) {
@@ -83,17 +83,27 @@ async function isRuleSetValid(rules: AIScenario, userId?: string): Promise<boole
     return timeIsValid && userIsValid;
 }
 
-async function findAvailableModels(promptDoc?: Prompt, allConnections?: LlmConnection[]): Promise<LlmConnection[]> {
+async function findModelsToTry(promptDoc?: Prompt, allConnections?: LlmConnection[], specificModelId?: string): Promise<LlmConnection[]> {
   const activeConnections = allConnections || [];
+  
+  // Highest priority: a specific modelId was passed in the request
+  if (specificModelId) {
+      const specificModel = activeConnections.find(c => c.id === specificModelId);
+      if (specificModel) return [specificModel];
+  }
+  
+  // Next priority: the modelId defined in the prompt document
   if (promptDoc?.modelId) {
     const specificModel = activeConnections.find(c => c.id === promptDoc.modelId);
     if (specificModel) return [specificModel];
   }
-  return activeConnections.sort((a, b) => a.priority - b.priority);
+
+  // Fallback: all active connections, sorted by priority
+  return activeConnections.sort((a, b) => (a.priority || 100) - (b.priority || 100));
 }
 
 // =================================================================
-// Core Flow: executePrompt (Upgraded with Unified Proxy Logic)
+// Core Flow: executePrompt (Refactored with Manual-First, Genkit-Fallback Logic)
 // =================================================================
 export async function executePrompt(input: z.infer<typeof PromptExecutionInputSchema>): Promise<z.infer<typeof PromptExecutionOutputSchema>> {
   return executePromptFlow(input);
@@ -108,6 +118,7 @@ const executePromptFlow = ai.defineFlow(
   async ({ modelId, promptKey, messages, temperature, scenario, userId }) => {
     let finalPromptKey = promptKey;
     let finalSystemPrompt = messages.find(m => m.role === 'system')?.content || '';
+    let finalModelId = modelId;
 
     // 1. Scenario-based configuration override (Highest Priority)
     if (scenario) {
@@ -127,80 +138,92 @@ const executePromptFlow = ai.defineFlow(
         const q = query(collection(db, 'prompts'), where("promptKey", "==", finalPromptKey), limit(1));
         const promptSnapshot = await getDocs(q);
         if (!promptSnapshot.empty) {
-            promptDoc = promptSnapshot.docs[0].data() as Prompt;
+            promptDoc = { id: promptSnapshot.docs[0].id, ...promptSnapshot.docs[0].data() } as Prompt;
             finalSystemPrompt = promptDoc.content; // Override system prompt with content from DB
+            if (promptDoc.modelId && !finalModelId) { // Prompt's model overrides if no specific model was passed in
+                finalModelId = promptDoc.modelId;
+            }
         }
     }
 
-    // 3. Determine models to try
-    const allConnectionsSnapshot = await getDocs(query(collection(db, 'llm_connections'), where('status', '==', '活跃')));
-    const allConnections = allConnectionsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as LlmConnection));
-    const modelsToTry = await findAvailableModels(promptDoc, allConnections);
-    if (modelsToTry.length === 0) throw new Error("No available or matching LLM connections found.");
+    // 3. If any manual configuration is found, use the custom fetch-based gateway
+    if (finalModelId || promptDoc) {
+        const allConnectionsSnapshot = await getDocs(query(collection(db, 'llm_connections'), where('status', '==', '活跃')));
+        const allConnections = allConnectionsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as LlmConnection));
+        const modelsToTry = await findModelsToTry(promptDoc, allConnections, finalModelId);
 
-    // 4. Construct final messages
-    const conversationMessages = messages.filter(m => m.role !== 'system');
-    const finalMessages = [{ role: 'system', content: finalSystemPrompt }, ...conversationMessages];
-    
-    // 5. Loop with Failover
-    const assets = await getPlatformAssets(null);
-    const errors: any[] = [];
-    for (const connection of modelsToTry) {
-        try {
-            const providerInfo = assets.providers.find(p => p.providerName.toLowerCase() === connection.provider.toLowerCase());
-            if (!providerInfo) throw new Error(`Provider "${connection.provider}" is not configured in PLATFORM_ASSETS.`);
+        if (modelsToTry.length > 0) {
+            const assets = await getPlatformAssets(null);
+            const errors: any[] = [];
             
-            const { provider, modelName, apiKey } = connection;
-            const { apiBaseUrl } = providerInfo;
-            
-            let requestUrl: string;
-            let requestHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-            let requestBody: any;
+            const conversationMessages = messages.filter(m => m.role !== 'system');
+            const finalMessages = finalSystemPrompt ? [{ role: 'system', content: finalSystemPrompt }, ...conversationMessages] : conversationMessages;
 
-            switch (provider.toLowerCase()) {
-                case 'google':
-                    requestUrl = `${apiBaseUrl}/${modelName}:generateContent?key=${apiKey}`;
-                    requestBody = {
-                        contents: finalMessages.filter(m => m.role !== 'system').map(m => ({
-                            role: m.role === 'user' ? 'user' : 'model',
-                            parts: [{ text: m.content }]
-                        })),
-                        systemInstruction: finalSystemPrompt ? { parts: [{ text: finalSystemPrompt }] } : undefined,
-                        generationConfig: { temperature },
-                    };
-                    break;
-                
-                default: // OpenAI-compatible providers
-                    requestUrl = `${apiBaseUrl.replace(/\/$/, "")}/chat/completions`;
-                    requestHeaders['Authorization'] = `Bearer ${apiKey}`;
-                    requestBody = { model: modelName, messages: finalMessages, temperature };
-                    break;
+            for (const connection of modelsToTry) {
+                try {
+                    const providerInfo = assets.providers.find(p => p.providerName.toLowerCase() === connection.provider.toLowerCase());
+                    if (!providerInfo) throw new Error(`Provider "${connection.provider}" is not configured in PLATFORM_ASSETS.`);
+                    
+                    const { provider, modelName, apiKey } = connection;
+                    const { apiBaseUrl } = providerInfo;
+                    
+                    let requestUrl: string;
+                    let requestHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+                    let requestBody: any;
+
+                    switch (provider.toLowerCase()) {
+                        case 'google':
+                            requestUrl = `${apiBaseUrl}/${modelName}:generateContent?key=${apiKey}`;
+                            requestBody = {
+                                contents: finalMessages.filter(m => m.role !== 'system').map(m => ({
+                                    role: m.role === 'user' ? 'user' : 'model',
+                                    parts: [{ text: m.content }]
+                                })),
+                                systemInstruction: finalSystemPrompt ? { parts: [{ text: finalSystemPrompt }] } : undefined,
+                                generationConfig: { temperature },
+                            };
+                            break;
+                        
+                        default: // OpenAI-compatible providers (includes DeepSeek, LiteLLM proxy, etc.)
+                            requestUrl = `${apiBaseUrl.replace(/\/$/, "")}/chat/completions`;
+                            requestHeaders['Authorization'] = `Bearer ${apiKey}`;
+                            requestBody = { model: modelName, messages: finalMessages, temperature };
+                            break;
+                    }
+
+                    const response = await fetch(requestUrl, { method: 'POST', headers: requestHeaders, body: JSON.stringify(requestBody) });
+                    if (!response.ok) throw new Error(`API returned ${response.status}: ${await response.text()}`);
+                    const responseData = await response.json();
+                    
+                    let outputText = '';
+                    switch (provider.toLowerCase()) {
+                        case 'google':
+                            outputText = responseData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                            break;
+                        default: // OpenAI-compatible response path
+                            outputText = responseData.choices?.[0]?.message?.content || '';
+                            break;
+                    }
+
+                    if (outputText) return { text: outputText };
+                    throw new Error("Model returned a successful status but no text content.");
+
+                } catch (error) {
+                    console.error(`Attempt with model ${connection.modelName} failed:`, error);
+                    errors.push({ modelName: connection.modelName, error: (error as Error).message });
+                }
             }
-
-            const response = await fetch(requestUrl, { method: 'POST', headers: requestHeaders, body: JSON.stringify(requestBody) });
-            if (!response.ok) throw new Error(`API returned ${response.status}: ${await response.text()}`);
-            const responseData = await response.json();
-            
-            let outputText = '';
-            switch (provider.toLowerCase()) {
-                case 'google':
-                    outputText = responseData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                    break;
-                default: // OpenAI-compatible response path
-                    outputText = responseData.choices?.[0]?.message?.content || '';
-                    break;
-            }
-
-            if (outputText) return { text: outputText };
-             // If no text but response was OK, still an issue with this model, try next.
-            throw new Error("Model returned a successful status but no text content.");
-
-        } catch (error) {
-            console.error(`Attempt with model ${connection.modelName} failed:`, error);
-            errors.push({ modelName: connection.modelName, error: (error as Error).message });
+            // If all manual models failed, throw an error.
+            throw new Error(`All configured models failed. Errors: ${JSON.stringify(errors, null, 2)}`);
         }
     }
 
-    throw new Error(`All available models failed. Errors: ${JSON.stringify(errors, null, 2)}`);
+    // 4. Fallback: No manual config found, use default Genkit AI.
+    console.log("No valid manual configuration found. Falling back to default Genkit AI.");
+    const llmResponse = await ai.generate({
+        prompt: messages.map(m => m.content).join('\n'), // Simple concatenation for fallback
+        temperature
+    });
+    return { text: llmResponse.text() };
   }
 );

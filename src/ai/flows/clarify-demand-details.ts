@@ -38,34 +38,6 @@ export async function clarifyDemandDetails(input: ClarifyDemandDetailsInput): Pr
   return clarifyDemandDetailsFlow(input);
 }
 
-// The original prompt content, now used as a fallback or within a prompt document.
-const defaultClarifyPrompt = `You are an intelligent and friendly assistant for a creative designer. 
-Your goal is to help the designer understand a client's needs by asking clarifying questions. The designer is busy and has asked you to take over the initial conversation.
-
-Here is the client's original request:
-- Title: {{{demandTitle}}}
-- Description: {{{demandDescription}}}
-
-Here is the conversation history so far:
-{{#each chatHistory}}
-- {{#if isAIMessage}}AI Assistant{{else}}Client{{/if}}: {{{text}}}
-{{/each}}
-
-Analyze the original request and the chat history. Identify what information is still missing to fully understand the client's requirements.
-Formulate a single, concise, and friendly question to ask the client next. 
-Focus on one key aspect at a time (e.g., budget, timeline, style references, materials, dimensions, target audience).
-Do not be conversational. Do not greet the user. Just ask the next most important question.
-
-Example questions:
-- "关于材质您有特定的偏好或要求吗？"
-- "您期望的交付日期大概是什么时候呢？"
-- "为了更好地把握风格，请问您有参考图片、链接或者更具体的风格案例吗？"
-- "这个模型的具体尺寸大概需要多大呢？"
-
-Based on the provided information, what is the best next question to ask?
-`;
-
-
 const clarifyDemandDetailsFlow = ai.defineFlow(
   {
     name: 'clarifyDemandDetailsFlow',
@@ -73,22 +45,24 @@ const clarifyDemandDetailsFlow = ai.defineFlow(
     outputSchema: ClarifyDemandDetailsOutputSchema,
   },
   async (input) => {
-    const chatHistoryText = input.chatHistory
-        .map(m => `${m.isAIMessage ? 'AI Assistant' : 'Client'}: ${m.text}`)
-        .join('\n');
-    
+    // This flow now acts as a simple wrapper.
+    // It constructs the necessary messages and passes them to the central executePrompt gateway.
+    // The gateway will handle all the logic of scenario lookup, prompt fetching, and execution.
     const userContent = `
-        Demand Title: ${input.demandTitle}
-        Demand Description: ${input.demandDescription}
-        Chat History:
-        ${chatHistoryText}
+        The client's original request:
+        - Title: ${input.demandTitle}
+        - Description: ${input.demandDescription}
+
+        The conversation history so far:
+        ${input.chatHistory.map(m => `- ${m.isAIMessage ? 'AI Assistant' : 'Client'}: ${m.text}`).join('\n')}
     `;
 
+    // The system prompt is now managed within the 'prompts' collection in Firestore.
+    // We just need to pass the business context and let the gateway handle the rest.
     const result = await executePrompt({
-        scenario: 'chat-assistant',
+        scenario: 'chat-assistant', // This is the key to trigger the scenario-based logic
         userId: input.userId,
         messages: [
-            { role: 'system', content: defaultClarifyPrompt }, 
             { role: 'user', content: userContent }
         ],
     });
