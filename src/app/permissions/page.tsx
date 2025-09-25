@@ -60,8 +60,18 @@ export default function PermissionsPage() {
         let sortableUsers = [...users];
         if (sortConfig !== null) {
             sortableUsers.sort((a, b) => {
-                const aVal = a[sortConfig.key] || '';
-                const bVal = b[sortConfig.key] || '';
+                let aVal: any = a[sortConfig.key];
+                let bVal: any = b[sortConfig.key];
+
+                // Robustly handle date sorting
+                if (sortConfig.key === 'createdAt') {
+                    aVal = aVal ? new Date(aVal).getTime() : 0;
+                    bVal = bVal ? new Date(bVal).getTime() : 0;
+                } else {
+                    aVal = aVal || '';
+                    bVal = bVal || '';
+                }
+
                 if (aVal < bVal) return sortConfig.direction === 'ascending' ? -1 : 1;
                 if (aVal > bVal) return sortConfig.direction === 'ascending' ? 1 : -1;
                 return 0;
@@ -88,9 +98,9 @@ export default function PermissionsPage() {
     };
 
     const handleBatchUpdate = async () => {
-        if (!modalAction || !actionValue || !currentUser) return;
+        if (!modalAction || (typeof actionValue !== 'number' && !actionValue) || !currentUser) return;
         try {
-            const updates = modalAction === 'role' ? { role: actionValue }
+            const updates = modalAction === 'role' ? { role: actionValue as string }
                           : modalAction === 'starLevel' ? { rating: Number(actionValue) }
                           : { status: actionValue as User['status'] };
                           
@@ -146,7 +156,7 @@ export default function PermissionsPage() {
                                 <TableCell className="font-medium">{user.name} <span className="text-muted-foreground text-xs">{user.email}</span></TableCell>
                                 <TableCell><Badge variant="secondary">{user.role}</Badge></TableCell>
                                 <TableCell>{user.rating ? `${user.rating} 星` : '未评级'}</TableCell>
-                                <TableCell><Badge variant={user.status === 'suspended' ? 'destructive' : 'default'}>{user.status === 'suspended' ? '已禁用' : '活跃'}</Badge></TableCell>
+                                <TableCell><Badge variant={user.status === 'suspended' ? 'destructive' : 'default'}>{user.status === 'suspended' ? '已禁用' : (user.status === 'active' ? '活跃' : '未知')}</Badge></TableCell>
                             </TableRow>
                         ))}
                     </TableBody>

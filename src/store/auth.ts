@@ -13,7 +13,7 @@ export interface User {
   role: Role;
   avatar: string;
   rating?: number;
-  status?: 'active' | 'suspended'; // Added status field
+  status?: 'active' | 'inactive';
 }
 
 interface AuthState {

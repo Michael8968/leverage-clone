@@ -5,6 +5,7 @@ import type { Role } from "@/store/auth";
 
 export type Demand = {
   id: string;
+  type: 'public' | 'private';
   title: string;
   description: string;
   category: string;
@@ -42,14 +43,13 @@ export type ProductService = {
   supplierScore?: number;
   purchaseUrl?: string;
   sku?: string;
-  supplementaryFields?: SupplementaryField[]; // Legacy, for general supplier info
-  details?: SupplementaryField[]; // New, for product-specific specifications
+  details?: SupplementaryField[]; // For product-specific specifications
   creatorId?: string;
   createdAt?: any; // Can be Date or Firestore Timestamp or string
   status?: '审核中' | '已入库' | '需要修改';
   imageUrl?: string; // Main image
   thumbnailUrl?: string; // Small image
-  images?: ProductImage[]; // New, for multiple product images with views
+  images?: ProductImage[]; // For multiple product images with views
 };
 
 export type Supplier = {
@@ -61,17 +61,7 @@ export type Supplier = {
   establishedDate?: any; // Can be Date or Firestore Timestamp or null
   registeredCapital?: string | null;
   creditCode?: string | null;
-  // Fields from form
-  contactPerson?: string;
-  jobTitle?: string;
-  mobile?: string;
-  phone?: string;
-  customerService?: string;
   email?: string;
-  // Fields from data processing
-  category?: string;
-  matchScore?: number;
-  recommendation?: string;
   supplementaryFields?: SupplementaryField[];
 }
 
@@ -87,7 +77,10 @@ export type User = {
   role: Role;
   avatar: string;
   rating?: number;
-  status?: 'active' | 'suspended';
+  status?: 'active' | 'inactive';
+  bio?: string;
+  skills?: string[];
+  createdAt?: any;
 };
 
 // Chat-related types
@@ -117,8 +110,8 @@ export interface LlmConnection {
     priority: number;
     status: '活跃' | '已禁用';
     scope?: '通用' | '专属';
-    category?: '文本' | '图像' | '推理' | '多模态';
-    lastTestStatus?: Omit<TestResultStatus, 'testing'>;
+    category?: '文本' | '图像' | '多模态';
+    lastTestStatus?: 'success' | 'failed' | 'untested';
     lastTestTimestamp?: any; // Firestore Timestamp
 }
 
@@ -173,15 +166,14 @@ export type AIScenario = {
   description: string;
   configuredPromptKey: string;
   tags?: string[];
-  // The rules are now nested in a property
-  repetition: AIScenarioRules['repetition'];
-  daysOfWeek: AIScenarioRules['daysOfWeek'];
-  startTime: AIScenarioRules['startTime'];
-  endTime: AIScenarioRules['endTime'];
-  startsAt: AIScenarioRules['startsAt'];
-  expiresAt: AIScenarioRules['expiresAt'];
-  targetUserRoles: AIScenarioRules['targetUserRoles'];
-  ruleLogic: AIScenarioRules['ruleLogic'];
+  repetition?: AIScenarioRules['repetition'];
+  daysOfWeek?: AIScenarioRules['daysOfWeek'];
+  startTime?: AIScenarioRules['startTime'];
+  endTime?: AIScenarioRules['endTime'];
+  startsAt?: AIScenarioRules['startsAt'];
+  expiresAt?: AIScenarioRules['expiresAt'];
+  targetUserRoles?: AIScenarioRules['targetUserRoles'];
+  ruleLogic?: AIScenarioRules['ruleLogic'];
 };
 
 export type MediaAsset = {
