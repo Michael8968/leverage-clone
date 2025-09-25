@@ -150,7 +150,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <div className="flex justify-between items-center w-full">
                     <div className="flex gap-2 items-center">
                         <Avatar className="h-8 w-8">
-                            <AvatarImage src={user?.avatar} />
+                            {user?.avatar && <AvatarImage src={user.avatar} />}
                             <AvatarFallback>{user?.name.charAt(0)}</AvatarFallback>
                         </Avatar>
                         <div className="flex flex-col items-start group-data-[collapsible=icon]:hidden">

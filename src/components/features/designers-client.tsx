@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState } from 'react';
@@ -8,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import type { User, Demand } from '@/lib/types';
 import { useAuthStore } from '@/store/auth';
-import { MessageSquare, Loader2 } from 'lucide-react';
+import { MessageSquare, Loader2, CalendarClock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { createPrivateDemand } from '@/ai/flows/demand-matching';
 import { ChatDialog } from '@/components/features/chat-dialog';
@@ -16,18 +17,18 @@ import { ChatDialog } from '@/components/features/chat-dialog';
 // =================================================================
 // Designer Card Component
 // =================================================================
-function DesignerCard({ designer, onStartChat }: { designer: User; onStartChat: (designerId: string) => void; }) {
+function DesignerCard({ designer, onStartChat, onBook }: { designer: User; onStartChat: (designerId: string) => void; onBook: (designerId: string) => void; }) {
     const isOnline = designer.status === 'active';
     return (
         <Card className="flex flex-col">
             <CardHeader className="flex flex-row items-center gap-4">
                 <Avatar className="h-16 w-16">
-                    <AvatarImage src={designer.avatar} alt={designer.name} />
+                    {designer.avatar && <AvatarImage src={designer.avatar} alt={designer.name} />}
                     <AvatarFallback>{designer.name.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <div>
                     <CardTitle className="font-headline">{designer.name}</CardTitle>
-                    <CardDescription>{designer.starLevel ? `${designer.starLevel} 星设计师` : '新晋设计师'}</CardDescription>
+                    <CardDescription>{designer.rating ? `${designer.rating} 星设计师` : '新晋设计师'}</CardDescription>
                 </div>
             </CardHeader>
             <CardContent className="flex-grow">
@@ -36,10 +37,14 @@ function DesignerCard({ designer, onStartChat }: { designer: User; onStartChat: 
                     {designer.skills?.map(skill => <Badge key={skill} variant="secondary">{skill}</Badge>)}
                 </div>
             </CardContent>
-            <CardFooter>
+            <CardFooter className="grid grid-cols-2 gap-2">
                 <Button className="w-full" variant={isOnline ? 'default' : 'outline'} disabled={!isOnline} onClick={() => onStartChat(designer.uid)}>
                     <MessageSquare className="mr-2 h-4 w-4" />
                     {isOnline ? '立即交流' : '当前离线'}
+                </Button>
+                 <Button className="w-full" variant="secondary" onClick={() => onBook(designer.uid)}>
+                    <CalendarClock className="mr-2 h-4 w-4" />
+                    立即预约
                 </Button>
             </CardFooter>
         </Card>
@@ -70,19 +75,21 @@ export function DesignersClient({ initialDesigners }: { initialDesigners: User[]
         setIsLoading(true);
         try {
             const { demandId } = await createPrivateDemand({ requesterId: user.uid, creatorId });
-            // We need to construct a temporary Demand object for the ChatDialog
+            
+            const creator = designers.find(d => d.uid === creatorId);
+
             const tempDemand: Demand = {
                 id: demandId,
                 requesterId: user.uid,
                 creatorId: creatorId,
-                title: `与设计师的专属沟通`,
-                // These are placeholders as they are not needed for the chat to function
+                title: `与设计师 ${creator?.name || ''} 的专属沟通`,
                 description: '',
                 budget: 0,
                 category: '',
                 status: '进行中',
                 createdAt: new Date(),
-                type: 'private'
+                requesterName: user.name,
+                requesterAvatar: user.avatar,
             };
             setChatDemand(tempDemand);
             setIsChatOpen(true);
@@ -91,6 +98,13 @@ export function DesignersClient({ initialDesigners }: { initialDesigners: User[]
         } finally {
             setIsLoading(false);
         }
+    };
+    
+    const handleBook = (designerId: string) => {
+        toast({
+            title: "功能开发中",
+            description: "预约功能即将上线，敬请期待！"
+        });
     };
 
     return (
@@ -106,7 +120,7 @@ export function DesignersClient({ initialDesigners }: { initialDesigners: User[]
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {designers.map(designer => (
-                    <DesignerCard key={designer.uid} designer={designer} onStartChat={handleStartChat} />
+                    <DesignerCard key={designer.uid} designer={designer} onStartChat={handleStartChat} onBook={handleBook} />
                 ))}
             </div>
 
