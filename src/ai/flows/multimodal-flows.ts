@@ -8,6 +8,7 @@ import { db } from '@/lib/firebase';
 import * as admin from 'firebase-admin';
 import type { MediaAsset } from '@/lib/types';
 import { googleAI } from '@genkit-ai/googleai';
+import { credential } from 'firebase-admin';
 
 // =================================================================
 // Firebase Admin SDK Initialization & Bucket Getter
@@ -16,14 +17,28 @@ import { googleAI } from '@genkit-ai/googleai';
 function initializeAdmin() {
     if (!admin.apps.length) {
         try {
-            const bucketName = process.env.FIREBASE_STORAGE_BUCKET || "your-default-bucket-name.appspot.com";
+            console.log("Attempting to initialize Firebase Admin...");
+            const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+            if (!serviceAccountKey) {
+                throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set.");
+            }
+            const parsedServiceAccount = JSON.parse(serviceAccountKey);
+
+            const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+            if (!bucketName) {
+                throw new Error("NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET environment variable is not set.");
+            }
+            
             admin.initializeApp({
-              credential: admin.credential.applicationDefault(),
+              credential: credential.cert(parsedServiceAccount),
               storageBucket: bucketName,
             });
             console.log("Firebase Admin initialized successfully.");
-        } catch (e) { 
-            console.error('Firebase Admin initialization error', e); 
+
+        } catch (e: any) { 
+            console.error('Firebase Admin initialization error:', e.message); 
+            // Re-throw or handle error appropriately so it doesn't fail silently
+            throw new Error(`Firebase Admin initialization failed: ${e.message}`);
         }
     }
 }
