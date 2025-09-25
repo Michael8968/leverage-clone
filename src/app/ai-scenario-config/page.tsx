@@ -491,7 +491,7 @@ export default function AIScenarioConfigPage() {
         try {
             const [scenarioConfigsSnapshot, promptsData] = await Promise.all([
                 getDocs(query(collection(db, 'ai_scenarios'), orderBy('name'))),
-                getPrompts()
+                getPrompts(null)
             ]);
 
             const dbScenarios = scenarioConfigsSnapshot.docs.map(doc => ({
