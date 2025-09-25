@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -14,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 
 
-import { Edit, Trash2, Loader2, PlusCircle, Frown, Bot, TestTube2, KeyRound, Settings2, Star, Globe, Link, ChevronsUpDown, Check } from 'lucide-react';
+import { Edit, Trash2, Loader2, PlusCircle, Frown, Bot, TestTube2, KeyRound, Settings2, Star, Globe, Link, ChevronsUpDown, Check, Circle } from 'lucide-react';
 import { useEffect, useState, useMemo, useCallback, useTransition } from 'react';
 import { collection, getDocs, query, orderBy, doc, updateDoc, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -34,7 +35,8 @@ import { cn } from '@/lib/utils';
 // =================================================================
 // TYPE DEFINITIONS
 // =================================================================
-// LlmConnection type is imported from '@/lib/types'
+type TestResultStatus = 'untested' | 'success' | 'failed' | 'testing';
+type TestResults = Record<string, TestResultStatus>;
 
 
 // =================================================================
@@ -124,15 +126,15 @@ function Combobox({ options, value, onChange, placeholder, onInputChange }: {
     );
 }
 
-const getStatusBadge = (status: LlmConnection['status']) => {
-    switch (status) {
-        case '活跃':
-            return <Badge variant="default" className="bg-green-500 hover:bg-green-600">{status}</Badge>;
-        case '已禁用':
-            return <Badge variant="outline">{status}</Badge>;
-        default:
-            return <Badge>{status}</Badge>;
-    }
+const StatusBadge = ({ textStatus, testStatus }: { textStatus: LlmConnection['status']; testStatus: TestResultStatus }) => {
+    const colorClasses: Record<TestResultStatus, string> = {
+        untested: 'bg-gray-400 hover:bg-gray-500',
+        testing: 'bg-blue-500 hover:bg-blue-600 animate-pulse',
+        success: 'bg-green-500 hover:bg-green-600',
+        failed: 'bg-destructive hover:bg-destructive/90',
+    };
+    
+    return <Badge className={cn(colorClasses[testStatus], 'text-primary-foreground')}>{textStatus}</Badge>;
 }
 
 function RestrictedAccess() {
@@ -149,13 +151,14 @@ function RestrictedAccess() {
 // LLM CONNECTION FORM (RIGHT PANEL)
 // =================================================================
 
-function LlmConnectionForm({ llm, onSave, onCancel }: {
+function LlmConnectionForm({ llm, onSave, onCancel, onTest, isTesting }: {
     llm: Partial<LlmConnection> | null;
     onSave: () => void;
     onCancel: () => void;
+    onTest: (modelId: string) => void;
+    isTesting: boolean;
 }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isTesting, startTesting] = useTransition();
     const { toast } = useToast();
     const isEditing = !!llm?.id;
     const [providers, setProviders] = useState<LlmProvider[]>([]);
@@ -213,26 +216,6 @@ function LlmConnectionForm({ llm, onSave, onCancel }: {
         } finally {
             setIsSubmitting(false);
         }
-    };
-
-    const handleTestAvailability = async () => {
-        if (!isEditing || !llm?.id) {
-            toast({ title: "请先保存", description: "只有已保存的连接才能进行可用性测试。", variant: "destructive" });
-            return;
-        }
-
-        startTesting(async () => {
-            try {
-                const result = await testLlmConnection({ modelId: llm.id! });
-                toast({
-                    title: result.success ? "测试成功" : "测试失败",
-                    description: result.message,
-                    variant: result.success ? "default" : "destructive",
-                });
-            } catch (error: any) {
-                toast({ title: "测试出错", description: error.message || "执行测试时发生未知错误。", variant: "destructive" });
-            }
-        });
     };
     
     const scopeOptions = [{value: '通用', label: '通用'}, {value: '专属', label: '专属'}];
@@ -305,7 +288,7 @@ function LlmConnectionForm({ llm, onSave, onCancel }: {
                              )}/>
                         </div>
                         <div className="flex justify-between items-center pt-4">
-                            <Button type="button" variant="outline" onClick={handleTestAvailability} disabled={isTesting || !isEditing}>
+                            <Button type="button" variant="outline" onClick={() => onTest(llm!.id!)} disabled={isTesting || !isEditing}>
                                 {isTesting ? <Loader2 className="animate-spin mr-2"/> : <TestTube2 className="mr-2"/>}
                                 可用性测试
                             </Button>
@@ -334,6 +317,8 @@ export default function AdminDashboardPage() {
     const [selectedLlm, setSelectedLlm] = useState<LlmConnection | null>(null);
     const [isFormVisible, setIsFormVisible] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<LlmConnection | null>(null);
+    const [testResults, setTestResults] = useState<TestResults>({});
+    const [testingId, setTestingId] = useState<string | null>(null);
 
     const { toast } = useToast();
     const { user, role, isLoading: isAuthLoading } = useAuthStore();
@@ -346,7 +331,14 @@ export default function AdminDashboardPage() {
             const llmsCollection = collection(db, 'llm_connections');
             const q = query(llmsCollection, orderBy('priority'));
             const llmsSnapshot = await getDocs(q);
-            setLlms(llmsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as LlmConnection)));
+            const connections = llmsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as LlmConnection));
+            setLlms(connections);
+            // Initialize test results state
+            const initialResults: TestResults = {};
+            connections.forEach(conn => {
+                initialResults[conn.id] = 'untested';
+            });
+            setTestResults(initialResults);
         } catch (error) {
             toast({ title: '加载失败', description: '无法加载LLM连接列表。', variant: 'destructive' });
         } finally {
@@ -374,6 +366,26 @@ export default function AdminDashboardPage() {
     const handleDelete = (llm: LlmConnection) => {
         setItemToDelete(llm);
     };
+
+    const handleTestAvailability = async (modelId: string) => {
+        setTestingId(modelId);
+        setTestResults(prev => ({ ...prev, [modelId]: 'testing' }));
+        try {
+            const result = await testLlmConnection({ modelId });
+            toast({
+                title: result.success ? "测试成功" : "测试失败",
+                description: result.message,
+                variant: result.success ? "default" : "destructive",
+            });
+            setTestResults(prev => ({ ...prev, [modelId]: result.success ? 'success' : 'failed' }));
+        } catch (error: any) {
+            toast({ title: "测试出错", description: error.message || "执行测试时发生未知错误。", variant: "destructive" });
+            setTestResults(prev => ({ ...prev, [modelId]: 'failed' }));
+        } finally {
+            setTestingId(null);
+        }
+    };
+
 
     const confirmDelete = async () => {
         if (!itemToDelete) return;
@@ -444,7 +456,9 @@ export default function AdminDashboardPage() {
                                             </div>
                                             <div className="col-span-4 md:col-span-2"><Badge variant="outline" className="gap-1 pl-1.5"><Star className="w-3 h-3"/> {llm.priority}</Badge></div>
                                             <div className="col-span-4 md:col-span-2"><Badge variant="secondary">{llm.category}</Badge></div>
-                                            <div className="col-span-4 md:col-span-2">{getStatusBadge(llm.status)}</div>
+                                            <div className="col-span-4 md:col-span-2">
+                                                <StatusBadge textStatus={llm.status} testStatus={testResults[llm.id] || 'untested'} />
+                                            </div>
                                             <div className="col-span-12 md:col-span-2 text-right">
                                                 <div className="flex items-center justify-end gap-2">
                                                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(llm)}>
@@ -468,6 +482,8 @@ export default function AdminDashboardPage() {
                                 llm={selectedLlm}
                                 onSave={handleSave}
                                 onCancel={handleCancel}
+                                onTest={handleTestAvailability}
+                                isTesting={!!testingId}
                            />
                         ) : (
                              <Card className="sticky top-20">
@@ -501,3 +517,5 @@ export default function AdminDashboardPage() {
     );
 
     
+}
+
