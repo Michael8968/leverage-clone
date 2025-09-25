@@ -6,7 +6,6 @@ import { z } from 'genkit';
 import { collection, query, where, getDocs, orderBy, limit, doc, updateDoc, addDoc, serverTimestamp, deleteDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { LlmConnection, LlmProvider as LlmProviderType } from '@/lib/types';
-import { executePrompt } from './prompt-execution-flow';
 
 
 const LlmProviderSchema = z.object({
@@ -73,35 +72,45 @@ export const testLlmConnection = ai.defineFlow(
         let resultMessage = '';
 
         try {
-            const proxyUrl = "/api/generate";
-            const body = {
+            // This logic now directly calls the external service via our proxy,
+            // but with a very simple, clean payload, ONLY for testing.
+            const proxyUrl = process.env.LITELLM_PROXY_URL;
+            if (!proxyUrl) {
+                throw new Error('代理URL (LITELLM_PROXY_URL) 未在环境变量中配置。');
+            }
+            
+            const testPayload = {
                 model: modelConfig.modelName,
                 messages: [{ role: 'user', content: 'Hello' }],
-                temperature: 0.1,
-                apiKey: modelConfig.apiKey, // Pass the key for the proxy to use
+                max_tokens: 5,
             };
 
-            const baseUrl = process.env.NODE_ENV === 'development'
-                ? `http://localhost:${process.env.PORT || 9002}`
-                : process.env.NEXT_PUBLIC_APP_URL || '';
-
-            const response = await fetch(`${baseUrl}${proxyUrl}`, {
+            const response = await fetch(`${proxyUrl}/chat/completions`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${modelConfig.apiKey}`,
+                },
+                body: JSON.stringify(testPayload),
             });
-            
-            const responseData = await response.json();
 
             if (!response.ok) {
-                 // Try to extract a meaningful error from LiteLLM's response
-                const errorMessage = responseData?.message || JSON.stringify(responseData);
-                throw new Error(`代理服务器返回错误 (状态 ${response.status}): ${errorMessage}`);
+                const errorBody = await response.text();
+                try {
+                    const errorJson = JSON.parse(errorBody);
+                    throw new Error(errorJson.message || `API 返回错误 (状态 ${response.status}): ${errorBody}`);
+                } catch {
+                     throw new Error(`API 返回错误 (状态 ${response.status}): ${errorBody}`);
+                }
             }
 
-            // A successful response from the proxy is enough to confirm availability
-            resultStatus = 'success';
-            resultMessage = `连接成功。模型代理返回了有效响应。`;
+            const responseData = await response.json();
+            if (responseData.choices && responseData.choices.length > 0) {
+                resultStatus = 'success';
+                resultMessage = `连接成功，模型返回了有效响应。`;
+            } else {
+                throw new Error(`连接成功但模型未返回有效响应。`);
+            }
 
         } catch (error: any) {
             console.error(`[testLlmConnection] Error testing model ${modelId}:`, error);
@@ -210,6 +219,7 @@ export const getDefaultLlmConnection = ai.defineFlow(
         return defaultConnection;
     }
 );
+    
     
 
     
