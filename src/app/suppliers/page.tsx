@@ -821,7 +821,3 @@ export default function SuppliersPage() {
     </AppLayout>
   );
 }
-
-    
-
-    
