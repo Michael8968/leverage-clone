@@ -559,7 +559,7 @@ function SubmissionsTab({ refreshKey }: { refreshKey: number }) {
 
     useEffect(() => {
         const fetchSubmissions = async () => {
-            if (!user) return;
+            if (!user?.uid) return;
             setIsLoading(true);
             try {
                 const q = query(
@@ -646,38 +646,6 @@ function SubmissionsTab({ refreshKey }: { refreshKey: number }) {
                         )}
                     </TableBody>
                 </Table>
-            </CardContent>
-        </Card>
-    );
-}
-
-// =================================================================
-// 3D AI CREATION TAB (New structure with sub-tabs)
-// =================================================================
-function CreationsTab({ onSubmissionSuccess }: { onSubmissionSuccess: () => void }) {
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="font-headline">AI 图像创作</CardTitle>
-                <CardDescription>选择您偏好的创作工具，输入创意描述，AI将为您生成预览图，完成后可直接提交入库审核。</CardDescription>
-            </CardHeader>
-            <CardContent>
-                 <Tabs defaultValue="nano-banana" className="w-full">
-                    <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="built-in">内置模型</TabsTrigger>
-                        <TabsTrigger value="tripo3d">Tripo3D</TabsTrigger>
-                        <TabsTrigger value="nano-banana">Gemini Image</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="built-in" className="pt-6">
-                        <BuiltInGenerator onSubmissionSuccess={onSubmissionSuccess} />
-                    </TabsContent>
-                    <TabsContent value="tripo3d" className="pt-6">
-                        <Tripo3DGenerator onSubmissionSuccess={onSubmissionSuccess} />
-                    </TabsContent>
-                    <TabsContent value="nano-banana" className="pt-6">
-                        <NanoBananaGenerator onSubmissionSuccess={onSubmissionSuccess} />
-                    </TabsContent>
-                </Tabs>
             </CardContent>
         </Card>
     );
@@ -863,6 +831,38 @@ function ScheduleTab() {
       </CardContent>
     </Card>
   );
+}
+
+// =================================================================
+// 3D AI CREATION TAB (New structure with sub-tabs)
+// =================================================================
+function CreationsTab({ onSubmissionSuccess }: { onSubmissionSuccess: () => void }) {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="font-headline">AI 图像创作</CardTitle>
+                <CardDescription>选择您偏好的创作工具，输入创意描述，AI将为您生成预览图，完成后可直接提交入库审核。</CardDescription>
+            </CardHeader>
+            <CardContent>
+                 <Tabs defaultValue="nano-banana" className="w-full">
+                    <TabsList className="grid w-full grid-cols-3">
+                        <TabsTrigger value="built-in">内置模型</TabsTrigger>
+                        <TabsTrigger value="tripo3d">Tripo3D</TabsTrigger>
+                        <TabsTrigger value="nano-banana">Gemini Image</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="built-in" className="pt-6">
+                        <BuiltInGenerator onSubmissionSuccess={onSubmissionSuccess} />
+                    </TabsContent>
+                    <TabsContent value="tripo3d" className="pt-6">
+                        <Tripo3DGenerator onSubmissionSuccess={onSubmissionSuccess} />
+                    </TabsContent>
+                    <TabsContent value="nano-banana" className="pt-6">
+                        <NanoBananaGenerator onSubmissionSuccess={onSubmissionSuccess} />
+                    </TabsContent>
+                </Tabs>
+            </CardContent>
+        </Card>
+    );
 }
 
 // =================================================================
