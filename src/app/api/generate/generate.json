@@ -1,21 +1,2 @@
-{
-    "url": "http://0.0.0.0:4000/chat/completions",
-    "method": "POST",
-    "headers": {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer sk-1234"
-    },
-    "body": {
-        "model": "gpt-3.5-turbo",
-        "messages": [
-            {
-                "role": "system",
-                "content": "You are a helpful assistant."
-            },
-            {
-                "role": "user",
-                "content": "Hey, how's it going?"
-            }
-        ]
-    }
-}
+LITELLM_PROXY_URL=http://localhost:4000
+LITELLM_API_KEY=your_litellm_master_key
