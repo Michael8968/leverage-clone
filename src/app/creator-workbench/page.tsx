@@ -321,7 +321,7 @@ function BuiltInGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
                 </div>
             )}
             
-            {aiResult && <SubmissionForm imageUrl={aiResult.imageDataUri} onSubmissionSuccess={handleSuccess} toolName="内置AI" />}
+            {aiResult && aiResult.imageDataUri && <SubmissionForm imageUrl={aiResult.imageDataUri} onSubmissionSuccess={handleSuccess} toolName="内置AI" />}
         </div>
     );
 }
