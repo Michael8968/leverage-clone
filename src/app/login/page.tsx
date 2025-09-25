@@ -20,7 +20,7 @@ import { useAuthStore } from '@/store/auth';
 import { auth, db } from '@/lib/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import type { User } from '@/store/auth';
+import type { User } from '@/lib/types';
 
 const formSchema = z.object({
   email: z.string().email({ message: "请输入有效的电子邮件地址。" }),

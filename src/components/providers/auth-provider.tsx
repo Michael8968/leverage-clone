@@ -2,7 +2,8 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useAuthStore, type User } from '@/store/auth';
+import { useAuthStore } from '@/store/auth';
+import type { User } from '@/lib/types';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
