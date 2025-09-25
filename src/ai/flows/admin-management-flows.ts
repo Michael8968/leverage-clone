@@ -3,7 +3,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { collection, query, where, getDocs, orderBy, limit, doc, updateDoc, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit, doc, updateDoc, addDoc, serverTimestamp, deleteDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { LlmConnection, LlmProvider as LlmProviderType } from '@/lib/types';
 import { executePrompt } from './prompt-execution-flow';
