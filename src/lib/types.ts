@@ -48,6 +48,7 @@ export type ProductService = {
   createdAt?: any; // Can be Date or Firestore Timestamp or string
   status?: '审核中' | '已入库' | '需要修改';
   imageUrl?: string; // Main image
+  thumbnailUrl?: string; // Small image
   images?: ProductImage[]; // New, for multiple product images with views
 };
 
