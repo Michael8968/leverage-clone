@@ -26,70 +26,35 @@ export const getPlatformAssets = ai.defineFlow(
         const SUPPORTED_PROVIDERS: LlmProviderType[] = [
             {
                 providerName: "OpenAI",
-                models: ["gpt-5", "gpt-4.5", "gpt-4.1", "gpt-4o", "gpt-4", "gpt-3.5-turbo"]
+                models: ["gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"]
             },
             {
                 providerName: "Google",
-                models: ["gemini-2.5-pro", "gemini-2.0-flash", "gemini-1.5-pro-latest", "gemini-1.5-flash-latest", "gemini-1.0-pro", "gemma-3-9b", "gemma-3-2b"]
+                models: ["gemini-1.5-pro-latest", "gemini-1.5-flash-latest", "gemini-1.0-pro"]
             },
             {
                 providerName: "Anthropic",
-                models: ["claude-4-opus", "claude-4-sonnet", "claude-3.7-sonnet"]
-            },
-            {
-                providerName: "xAI",
-                models: ["grok-3", "grok-3-mini"]
-            },
-            {
-                providerName: "Mistral AI",
-                models: ["mistral-large-2", "mistral-3-medium"]
-            },
-            {
-                providerName: "Meta",
-                models: ["llama-3.1", "llama-4"]
-            },
-            {
-                providerName: "IBM",
-                models: ["granite-3.3", "granite-3.2"]
+                models: ["claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"]
             },
             {
                 providerName: "DeepSeek",
-                models: ["deepseek-v3.1", "deepseek-rl", "deepseek-v3-0324"]
-            },
-            {
-                providerName: "Alibaba",
-                models: ["qwen-3", "qwen2.5-max", "qwen-q-32b"]
-            },
-            {
-                providerName: "Tencent",
-                models: ["hunyuan-turbo", "hunyuan-turbo-20250226"]
-            },
-            {
-                providerName: "ByteDance",
-                models: ["doubao-pro-2025"]
-            },
-            {
-                providerName: "MiniMax",
-                models: ["minimax-text-01", "minimax-vl-01"]
-            },
-            {
-                providerName: "iFlytek",
-                models: ["spark-v4"]
-            },
-            {
-                providerName: "Moonshot AI",
-                models: ["kimi-k1"]
+                models: ["deepseek-chat", "deepseek-coder"]
             },
             {
                 providerName: "Tripo3D",
                 models: ["text_to_model"]
+            },
+            // Add a generic proxy option
+            {
+                providerName: "LiteLLM-Proxy",
+                models: [] // Allow user to input any model
             }
         ];
         return { providers: SUPPORTED_PROVIDERS };
     }
 );
 
-// This flow now calls the internal /api/generate proxy route.
+
 export const testLlmConnection = ai.defineFlow(
     {
         name: 'testLlmConnection',
@@ -102,9 +67,11 @@ export const testLlmConnection = ai.defineFlow(
         let resultMessage = '';
 
         try {
+            // The executePrompt flow now handles the logic of whether to call natively or via proxy.
+            // This makes the test flow much simpler and more robust.
             const result = await executePrompt({
                 modelId: modelId,
-                messages: [{ role: 'user', content: 'Hello!' }],
+                messages: [{ role: 'user', content: [{ text: 'Hello!' }] }],
                 temperature: 0.1,
             });
 
@@ -120,7 +87,7 @@ export const testLlmConnection = ai.defineFlow(
             resultMessage = error.message || '发生未知错误。';
         }
 
-        // Persist the test result to Firestore
+        // Persist the test result to Firestore regardless of outcome
         try {
              await updateDoc(modelRef, {
                 lastTestStatus: resultStatus,
@@ -219,3 +186,5 @@ export const getDefaultLlmConnection = ai.defineFlow(
         return defaultConnection;
     }
 );
+
+    

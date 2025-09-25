@@ -73,16 +73,10 @@ const clarifyDemandDetailsFlow = ai.defineFlow(
     outputSchema: ClarifyDemandDetailsOutputSchema,
   },
   async (input) => {
-    // This flow now acts as a simple wrapper around the unified executePrompt gateway.
-    // It passes a 'scenario' key, allowing its behavior to be configured remotely
-    // from the 'ai_scenarios' collection in Firestore.
-
     const chatHistoryText = input.chatHistory
         .map(m => `${m.isAIMessage ? 'AI Assistant' : 'Client'}: ${m.text}`)
         .join('\n');
     
-    // Constructing a user message that can be templated if needed.
-    // The prompt in the `prompts` collection can use Handlebars to format this.
     const userContent = `
         Demand Title: ${input.demandTitle}
         Demand Description: ${input.demandDescription}
@@ -91,12 +85,11 @@ const clarifyDemandDetailsFlow = ai.defineFlow(
     `;
 
     const result = await executePrompt({
-        scenario: 'chat-assistant', // This is the key for scenario-based config
-        userId: input.userId, // Pass userId for rule evaluation
+        scenario: 'chat-assistant',
+        userId: input.userId,
         messages: [
-            // If no scenario or prompt is configured, this system message acts as a fallback.
-            { role: 'system', content: defaultClarifyPrompt }, 
-            { role: 'user', content: userContent }
+            { role: 'system', content: [{ text: defaultClarifyPrompt }] }, 
+            { role: 'user', content: [{ text: userContent }] }
         ],
     });
 
@@ -104,7 +97,8 @@ const clarifyDemandDetailsFlow = ai.defineFlow(
       throw new Error("AI failed to generate a clarification question.");
     }
     
-    // The output schema expects a 'clarification' field.
     return { clarification: result.text };
   }
 );
+
+    

@@ -272,7 +272,7 @@ export default function DemandPoolPage() {
                                 抢单
                             </Button>
                         ) : (role === 'supplier' || role === 'creator' || role === 'user') && demand.status === '进行中' ? (
-                            <Button variant="outline" size="sm" onClick={() => handleChatClick(demand)} disabled={role === 'user' ? demand.requesterId !== user?.uid : demand.creatorId !== user?.uid}>
+                            <Button variant="outline" size="sm" onClick={() => handleChatClick(demand)} disabled={(role === 'user' ? demand.requesterId !== user?.uid : demand.creatorId !== user?.uid) && role !== 'admin'}>
                                 <MessageSquare className="mr-2 h-4 w-4" />
                                 开始沟通
                             </Button>
@@ -546,17 +546,12 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
             const results = await Promise.all(
               demandsToProcess.map(async (d): Promise<BatchResult> => {
                     try {
-                        if (values.promptKey) {
-                            const context = `Demand: ${JSON.stringify(d)}\n\nCreatives: ${JSON.stringify(creatives)}`;
-                            const result = await executePrompt({
-                                promptKey: values.promptKey,
-                                messages: [{ role: 'user', content: context }],
-                            });
-                            return { demand: d, rawText: result.text };
-                        } else {
-                            const result = await recommendCreatives({ demand: d, creatives });
-                            return { demand: d, recommendations: result.recommendations };
-                        }
+                        const context = `Demand: ${JSON.stringify(d)}\n\nCreatives: ${JSON.stringify(creatives)}`;
+                        const result = await executePrompt({
+                            promptKey: values.promptKey || undefined, // Pass promptKey if selected
+                            messages: [{ role: 'user', content: [{ text: context }] }],
+                        });
+                        return { demand: d, rawText: result.text };
                     } catch (error: any) {
                         console.error(`AI recommendation failed for demand ${d.id}`, error);
                         return { demand: d, recommendations: undefined, error: error.message || 'AI推荐服务调用失败。' };
@@ -677,3 +672,5 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
         </Dialog>
     )
 }
+
+    

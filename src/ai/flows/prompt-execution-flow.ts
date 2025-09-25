@@ -7,11 +7,12 @@ import { doc, getDoc, collection, query, where, getDocs, Timestamp, orderBy, lim
 import { db } from '@/lib/firebase';
 import type { LlmConnection, AIScenario, User, Prompt } from '@/lib/types';
 import { getDefaultLlmConnection } from './admin-management-flows';
+import { googleAI } from '@genkit-ai/googleai';
 
-// Define native Genkit providers here.
-// If a provider from the DB is in this list, we'll use `ai.generate()`.
-// Otherwise, we'll use the HTTP proxy fallback.
-const NATIVE_GENKIT_PROVIDERS = ['google', 'openai', 'anthropic']; // Add more as Genkit supports them
+// Define providers that should use the NATIVE Genkit path.
+// Other providers will fall back to the HTTP proxy.
+// We are now more restrictive to ensure stability. Only 'google' is native.
+const NATIVE_GENKIT_PROVIDERS = ['google'];
 
 // Helper function to convert a Firestore collection to a string format for the prompt
 async function getCollectionAsContext(collectionName: string, maxItems = 10): Promise<string> {
@@ -29,8 +30,14 @@ async function getCollectionAsContext(collectionName: string, maxItems = 10): Pr
 }
 
 const PromptMessageSchema = z.object({
-  role: z.enum(['system', 'user', 'assistant']),
-  content: z.string(),
+  role: z.enum(['system', 'user', 'assistant', 'tool']),
+  content: z.array(z.object({
+    text: z.string().optional(),
+    media: z.object({
+        url: z.string(),
+        contentType: z.string().optional(),
+    }).optional(),
+  })),
 });
 
 const PromptExecutionInputSchema = z.object({
@@ -59,7 +66,7 @@ async function isRuleSetValid(rules: AIScenario, userId?: string): Promise<boole
         const checkDay = () => {
             if (rules.repetition === 'weekly') {
                 const dayMap: { [key: number]: (typeof rules.daysOfWeek)[number] } = { 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat', 0: 'sun' };
-                return rules.daysOfWeek?.includes(dayMap[now.getDay()]);
+                return rules.daysOfWeek?.includes(dayMap[now.getDay()]!);
             }
             return true; // daily
         };
@@ -130,7 +137,6 @@ const executePromptFlow = ai.defineFlow(
     let finalPromptKey = promptKey;
     let systemPromptContent: string | undefined;
     let promptDocument: Prompt | null = null;
-    let targetModelIdentifier: string | undefined;
     let llmConnection: LlmConnection | null = null;
 
     // 1. SCENARIO LOOKUP
@@ -171,7 +177,7 @@ const executePromptFlow = ai.defineFlow(
         throw new Error("No active LLM connection could be found or determined.");
     }
     
-    // 4. DYNAMIC CONTEXT INJECTION (as before)
+    // 4. DYNAMIC CONTEXT INJECTION
     let dynamicContext = "";
     if (promptDocument?.querySources) {
         const contextParts: string[] = [];
@@ -185,16 +191,21 @@ const executePromptFlow = ai.defineFlow(
     const finalMessages = [...messages];
     if (systemPromptContent) {
         let finalSystemContent = systemPromptContent;
+        // Check for '{{{context}}}' and replace it. This is a simple template replacement.
         if (systemPromptContent.includes('{{{context}}}')) {
             finalSystemContent = systemPromptContent.replace('{{{context}}}', dynamicContext);
         } else if (dynamicContext) {
+            // If context exists but the template variable doesn't, prepend the context.
             finalSystemContent = `${dynamicContext}\n\n${systemPromptContent}`;
         }
+        
         const systemMessageIndex = finalMessages.findIndex(m => m.role === 'system');
         if (systemMessageIndex !== -1) {
-            finalMessages[systemMessageIndex] = { role: 'system', content: finalSystemContent };
+             // It's better to combine system messages if one already exists.
+            const existingContent = finalMessages[systemMessageIndex]!.content[0]?.text || '';
+            finalMessages[systemMessageIndex]!.content[0]!.text = `${finalSystemContent}\n\n${existingContent}`;
         } else {
-            finalMessages.unshift({ role: 'system', content: finalSystemContent });
+            finalMessages.unshift({ role: 'system', content: [{ text: finalSystemContent }] });
         }
     }
 
@@ -204,53 +215,79 @@ const executePromptFlow = ai.defineFlow(
     if (NATIVE_GENKIT_PROVIDERS.includes(provider)) {
         // PATH A: Native Genkit Execution
         console.log(`[Flow] Using Native Genkit path for provider: ${provider}`);
-        targetModelIdentifier = `${provider}/${llmConnection.modelName}`;
+        const modelIdentifier = googleAI(llmConnection.modelName);
+
         try {
             const llmResponse = await ai.generate({
-                model: targetModelIdentifier,
-                prompt: finalMessages,
+                model: modelIdentifier,
+                prompt: finalMessages.map(m => ({ role: m.role, content: m.content.map(c => c.text).join('') })),
                 config: { temperature },
             });
+
             const textResponse = llmResponse.text();
             if (textResponse === undefined) throw new Error('Model returned an empty response.');
             return { text: textResponse };
         } catch (error: any) {
-            console.error(`[Flow] Native Genkit call failed for ${targetModelIdentifier}: ${error.message}`);
+            console.error(`[Flow] Native Genkit call failed for ${modelIdentifier}: ${error.message}`);
             throw error;
         }
+
     } else {
         // PATH B: HTTP Proxy Fallback (e.g., for LiteLLM)
         console.log(`[Flow] Using HTTP Proxy path for provider: ${llmConnection.provider}`);
-        const proxyUrl = process.env.LITELLM_PROXY_URL;
-        if (!proxyUrl) {
-            throw new Error("The specified LLM provider requires a proxy, but LITELLM_PROXY_URL is not set.");
-        }
         
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (process.env.LITELLM_API_KEY) {
-            headers['Authorization'] = `Bearer ${process.env.LITELLM_API_KEY}`;
-        }
+        // The /api/generate route is now the designated proxy
+        const proxyUrl = "/api/generate";
 
+        const simplifiedMessages = finalMessages.map(m => ({
+            role: m.role,
+            content: m.content.map(c => c.text).filter(Boolean).join('\n'),
+        }));
+        
         const body = JSON.stringify({
             model: llmConnection.modelName,
-            messages: finalMessages,
+            messages: simplifiedMessages,
             temperature,
+            // Pass the API key in the body for the proxy to use
+            apiKey: llmConnection.apiKey,
         });
 
         try {
-            const response = await fetch(`${proxyUrl}/chat/completions`, { method: 'POST', headers, body });
+            // NOTE: This fetch call happens on the server-side if executePrompt is called from a server component.
+            // If running on localhost, this needs to be an absolute URL. 
+            // In a managed environment, internal routing might handle this.
+            // For robustness, let's assume we need a full URL during local dev.
+            const baseUrl = process.env.NODE_ENV === 'development'
+                ? `http://localhost:${process.env.PORT || 9002}`
+                : process.env.NEXT_PUBLIC_APP_URL || '';
+                
+            const response = await fetch(`${baseUrl}${proxyUrl}`, { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body 
+            });
+
             if (!response.ok) {
                 const errorBody = await response.text();
                 throw new Error(`Proxy request failed with status ${response.status}: ${errorBody}`);
             }
             const result = await response.json();
-            const textResponse = result.choices[0]?.message?.content;
-            if (!textResponse) throw new Error('Proxy returned an invalid or empty response structure.');
+            
+            // LiteLLM response structure
+            const textResponse = result.choices?.[0]?.message?.content;
+            
+            if (!textResponse) {
+                // OpenAI raw response structure
+                if(result.text) return { text: result.text };
+                throw new Error('Proxy returned an invalid or empty response structure.');
+            }
             return { text: textResponse };
         } catch (error: any) {
             console.error(`[Flow] HTTP Proxy call failed for ${llmConnection.modelName}: ${error.message}`);
-            throw error; // Re-throw the specific error
+            throw error; 
         }
     }
   }
 );
+
+    
