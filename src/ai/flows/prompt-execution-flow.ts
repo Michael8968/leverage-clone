@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { ai } from '@/ai/genkit';
@@ -245,25 +244,6 @@ const executePromptFlow = ai.defineFlow(
     try {
         console.log(`[Flow] Calling ai.generate() with model: ${targetModelIdentifier}`);
 
-        // Dynamically get the model from the provider
-        const model = genkit({plugins: [googleAI()]}).model(targetModelIdentifier);
-        
-        // Convert messages to Genkit's format if needed (role is already compatible)
-        const generateRequest = {
-            model: model,
-            prompt: finalMessages.map(m => m.content), // Simplified for this example, could be more complex
-            config: {
-                temperature: temperature,
-            },
-            // For OpenAI or other providers, you might need to pass API keys
-            // This assumes the keys are configured in the Genkit plugin initialization
-        };
-        
-        // This is a simplified representation. For a true multi-provider setup,
-        // you would need to dynamically instantiate plugins or have a more robust way
-        // of handling API keys per call if not globally configured.
-        // For Google AI, the key is often handled via Application Default Credentials.
-        // For others, we might need to pass it.
         const llmResponse = await ai.generate({
             model: targetModelIdentifier,
             prompt: finalMessages,
@@ -283,14 +263,13 @@ const executePromptFlow = ai.defineFlow(
 
     } catch (error: any) {
         console.error(`[Flow] Failed to call Genkit. Error: ${error.message}`);
-        // Provide a more user-friendly error message
         if (error.message.includes('API key not found')) {
             throw new Error(`API key for provider '${targetLlmConnection.provider}' is either missing or invalid. Please check the configuration.`);
         }
         if (error.message.includes('404')) {
             throw new Error(`Model '${targetLlmConnection.modelName}' not found for provider '${targetLlmConnection.provider}'. Please check the model name.`);
         }
-        throw error; // Re-throw the original error for detailed debugging
+        throw error;
     }
   }
 );

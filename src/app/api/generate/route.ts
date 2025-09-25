@@ -1,44 +1,33 @@
+
 import { NextRequest, NextResponse } from 'next/server';
+import { executePrompt } from '@/ai/flows/prompt-execution-flow';
 
-// This is a proxy route to call the LiteLLM server.
-// It forwards the request from the client to the LiteLLM proxy.
-
+// This is now the central, self-contained AI gateway for the entire application.
+// It directly invokes the Genkit flow, removing the need for an external LiteLLM proxy.
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const liteLLMProxyUrl = process.env.LITELLM_PROXY_URL;
-
-        if (!liteLLMProxyUrl) {
-            throw new Error("LITELLM_PROXY_URL environment variable is not set.");
-        }
         
-        // LiteLLM typically uses the Authorization header for its master key
-        const headers = new Headers();
-        headers.set('Content-Type', 'application/json');
-        if (process.env.LITELLM_API_KEY) {
-             headers.set('Authorization', `Bearer ${process.env.LITELLM_API_KEY}`);
-        }
+        // Directly call the master Genkit flow with the request body.
+        // The body should conform to the PromptExecutionInputSchema.
+        const result = await executePrompt(body);
 
-        const response = await fetch(liteLLMProxyUrl, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(body),
-        });
-
-        if (!response.ok) {
-            const errorBody = await response.text();
-            // Return a more detailed error to the client
-            return new NextResponse(JSON.stringify({ 
-                message: `Error from LiteLLM proxy: ${response.statusText}`, 
-                details: errorBody 
-            }), { status: response.status });
-        }
-
-        const data = await response.json();
-        return NextResponse.json(data);
+        // Return the successful response from the Genkit flow.
+        return NextResponse.json(result);
 
     } catch (error: any) {
-        console.error("Error in /api/generate proxy route:", error);
-        return new NextResponse(JSON.stringify({ message: 'Internal Server Error', details: error.message }), { status: 500 });
+        console.error("Error in AI Gateway (/api/generate):", error);
+        
+        // Return a structured error response.
+        return new NextResponse(
+            JSON.stringify({ 
+                message: 'Error processing AI request.', 
+                details: error.message 
+            }), 
+            { 
+                status: 500,
+                headers: { 'Content-Type': 'application/json' }
+            }
+        );
     }
 }

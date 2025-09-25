@@ -6,7 +6,7 @@ import { z } from 'genkit';
 import { collection, query, where, getDocs, orderBy, limit, doc, updateDoc, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { LlmConnection, LlmProvider as LlmProviderType } from '@/lib/types';
-import { executePrompt } from './prompt-execution-flow';
+
 
 const LlmProviderSchema = z.object({
     providerName: z.string(),
@@ -88,6 +88,7 @@ export const getPlatformAssets = ai.defineFlow(
     }
 );
 
+// This flow now calls the internal /api/generate proxy route.
 export const testLlmConnection = ai.defineFlow(
     { 
         name: 'testLlmConnection', 
@@ -96,11 +97,21 @@ export const testLlmConnection = ai.defineFlow(
     }, 
     async ({ modelId }) => {
         try {
-            const result = await executePrompt({
-                modelId: modelId,
-                messages: [{ role: 'user', content: 'Hello!' }],
-                temperature: 0.1,
+            const response = await fetch('/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    modelId: modelId,
+                    messages: [{ role: 'user', content: 'Hello!' }],
+                    temperature: 0.1,
+                }),
             });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.details || 'API request failed');
+            }
 
             if (result && result.text) {
                 return { success: true, message: `模型响应: ${result.text.substring(0, 50)}...` };
