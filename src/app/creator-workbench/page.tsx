@@ -21,6 +21,8 @@ import { generate3dModel, type Generate3dModelOutput } from '@/ai/flows/generate
 import { generateTripo3dModel } from '@/ai/flows/generate-tripo3d-model';
 import { getTripo3dModelStatus } from '@/ai/flows/get-tripo3d-model-status';
 import { generateNanoBananaImage } from '@/ai/flows/generate-nanobanana-image';
+import { getUploadUrlForMediaAsset } from '@/ai/flows/multimodal-flows';
+
 
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -150,7 +152,7 @@ function TasksTab() {
 
 
 // =================================================================
-// SUBMISSION FORM (SHARED)
+// SUBMISSION FORM (SHARED) & HELPERS
 // =================================================================
 const submissionSchema = z.object({
     name: z.string().min(3, { message: "名称至少需要3个字符。" }),
@@ -161,6 +163,14 @@ const submissionSchema = z.object({
     ),
     category: z.string().min(2, {message: "请填写一个类别。"})
 });
+
+// Helper to convert Base64 Data URI to a File object
+async function dataUriToFile(dataUrl: string, fileName: string): Promise<File> {
+    const res: Response = await fetch(dataUrl);
+    const blob: Blob = await res.blob();
+    return new File([blob], fileName, { type: blob.type });
+}
+
 
 function SubmissionForm({ 
     imageUrl, 
@@ -185,15 +195,38 @@ function SubmissionForm({
             toast({ title: '错误', description: '没有可提交的作品或用户信息丢失。', variant: 'destructive' });
             return;
         }
+
         startSubmission(async () => {
             try {
+                // Step 1: Convert Data URI to File and get upload URL
+                const fileName = `${values.name.replace(/\s+/g, '-')}-${Date.now()}.png`;
+                const imageFile = await dataUriToFile(imageUrl, fileName);
+
+                const { uploadUrl, mediaAssetId } = await getUploadUrlForMediaAsset({
+                    userId: user.uid,
+                    fileName: imageFile.name,
+                    contentType: imageFile.type,
+                });
+
+                // Step 2: Upload the file to Firebase Storage
+                await fetch(uploadUrl, {
+                    method: 'PUT',
+                    body: imageFile,
+                    headers: { 'Content-Type': imageFile.type },
+                });
+                
+                // Step 3: Construct the final public URL
+                const publicUrl = `https://storage.googleapis.com/${process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}/media_assets/${user.uid}/${mediaAssetId}-${imageFile.name}`;
+
+                // Step 4: Save the product data with the public URL to Firestore
                 await addDoc(collection(db, "products"), {
                     ...values,
-                    imageUrl: imageUrl,
+                    imageUrl: publicUrl, // <-- Use the public URL from Firebase Storage
                     creatorId: user.uid,
                     status: '审核中',
                     createdAt: serverTimestamp(),
                 });
+                
                 toast({ title: '提交成功！', description: '您的作品已提交审核，请在“我的提交”中查看状态。' });
                 onSubmissionSuccess();
             } catch (error) {
