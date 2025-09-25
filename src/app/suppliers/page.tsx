@@ -283,11 +283,20 @@ function ProductManagement() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {isLoading ? <div className="space-y-4"><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /></div>
-            : products.length > 0 ? products.map((product) => (
-                <ProductServiceItem key={product.id} product={product} onUpdate={updateProduct} onRemove={removeProduct} />
-              ))
-            : <div className="text-center text-muted-foreground py-8">暂无产品，请点击右上角按钮添加。</div>}
+            {isLoading ? (
+                <div className="space-y-4">
+                    <Skeleton className="h-32 w-full" />
+                    <Skeleton className="h-32 w-full" />
+                </div>
+            ) : products.length > 0 ? (
+                products.map((product) => (
+                    <ProductServiceItem key={product.id} product={product} onUpdate={updateProduct} onRemove={removeProduct} />
+                ))
+            ) : (
+                <div className="text-center text-muted-foreground py-8">
+                    暂无产品，请点击右上角按钮添加。
+                </div>
+            )}
           </CardContent>
         </Card>
     );
