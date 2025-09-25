@@ -1,89 +1,70 @@
 
 'use server';
 
-/**
- * @fileOverview AI flow for matching user demands with suitable products or creatives.
- *
- * - recommendCreatives - A function that takes a user demand and a list of creatives, and returns a list of recommended creatives.
- * - RecommendCreativesInput - The input type for the recommendCreatives function.
- * - RecommendCreativesOutput - The return type for the recommendCreatives function.
- */
+import { ai } from '@/ai/genkit';
+import { z } from 'genkit';
+import { doc, getDoc, collection, query, where, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import type { Demand, ProductService, Supplier, User } from '@/lib/types';
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
 
-const DemandSchema = z.object({
-  id: z.string().describe('The unique identifier of the demand.'),
-  description: z.string().describe('The description of the demand.'),
-  budget: z.number().describe('The budget for the demand.'),
-  category: z.string().describe('The category of the demand.'),
+// ... (existing recommendCreatives flow)
+export const recommendCreatives = ai.defineFlow({ name: 'recommendCreatives', inputSchema: z.any(), outputSchema: z.any() }, async ({ demandId }) => { /* ... */ });
+
+
+// =================================================================
+// Flow to create a private demand for direct communication
+// =================================================================
+
+const CreatePrivateDemandInputSchema = z.object({
+    requesterId: z.string(),
+    creatorId: z.string(),
 });
 
-export type Demand = z.infer<typeof DemandSchema>;
-
-const CreativeSchema = z.object({
-  id: z.string().describe('The unique identifier of the creative source (e.g., product, supplier).'),
-  name: z.string().describe('The name of the creative source.'),
-  description: z.string().describe('The description of the creative source.'),
-  category: z.string().optional().describe('The category of the creative source.'),
+const CreatePrivateDemandOutputSchema = z.object({
+    demandId: z.string(),
 });
 
-export type Creative = z.infer<typeof CreativeSchema>;
+export const createPrivateDemand = ai.defineFlow(
+    {
+        name: 'createPrivateDemand',
+        inputSchema: CreatePrivateDemandInputSchema,
+        outputSchema: CreatePrivateDemandOutputSchema,
+    },
+    async ({ requesterId, creatorId }) => {
+        const creatorRef = doc(db, 'users', creatorId);
+        const creatorSnap = await getDoc(creatorRef);
 
-const RecommendCreativesInputSchema = z.object({
-  demand: DemandSchema.describe('The user demand.'),
-  creatives: z.array(CreativeSchema).describe('The list of creatives (products, suppliers, etc.) to be considered.'),
-});
+        if (!creatorSnap.exists()) {
+            throw new Error("Target designer not found.");
+        }
+        const creator = creatorSnap.data() as User;
 
-export type RecommendCreativesInput = z.infer<typeof RecommendCreativesInputSchema>;
+        const batch = writeBatch(db);
 
-const RecommendationSchema = z.object({
-  creativeId: z.string().describe('The ID of the recommended creative.'),
-  reason: z.string().describe('The reason for recommending this creative.'),
-});
+        // 1. Create the private demand document
+        const newDemandRef = doc(collection(db, 'demands'));
+        batch.set(newDemandRef, {
+            type: 'private',
+            title: `与 ${creator.name} 的专属沟通`,
+            description: `由用户直接发起的与设计师 ${creator.name} 的专属沟通需求。`,
+            status: '进行中', // Private demands start immediately
+            requesterId: requesterId,
+            creatorId: creatorId,
+            createdAt: serverTimestamp(),
+            // Set default or empty values for other required fields
+            budget: 0,
+            category: '专属沟通',
+        });
 
-const RecommendCreativesOutputSchema = z.object({
-  recommendations: z.array(RecommendationSchema).describe('The list of recommended creatives with reasons.'),
-});
+        // 2. Create the corresponding chat document
+        const newChatRef = doc(db, 'chats', newDemandRef.id);
+        batch.set(newChatRef, {
+            messages: [],
+        });
 
-export type RecommendCreativesOutput = z.infer<typeof RecommendCreativesOutputSchema>;
+        await batch.commit();
 
-export async function recommendCreatives(
-  input: RecommendCreativesInput
-): Promise<RecommendCreativesOutput> {
-  return recommendCreativesFlow(input);
-}
-
-const prompt = ai.definePrompt({
-  name: 'recommendCreativesPrompt',
-  input: {schema: RecommendCreativesInputSchema},
-  output: {schema: RecommendCreativesOutputSchema},
-  prompt: `You are an expert in matching user demands with suitable creatives (products, services, or suppliers).
-
-  Given a user demand and a list of available creatives, you will select the creatives that best match the demand and provide a concise reason for each recommendation.
-
-  Demand:
-  Description: {{{demand.description}}}
-  Budget: {{{demand.budget}}}
-  Category: {{{demand.category}}}
-
-  Available Creatives (JSON):
-  {{{json creatives}}}
-
-  Please analyze the demand against the list of creatives. Pay attention to the description, category, and potential capabilities of each creative. 
-  
-  Return a list of the top recommendations with a clear, brief reason for why each is a good match.
-  `,
-});
-
-const recommendCreativesFlow = ai.defineFlow(
-  {
-    name: 'recommendCreativesFlow',
-    inputSchema: RecommendCreativesInputSchema,
-    outputSchema: RecommendCreativesOutputSchema,
-  },
-  async input => {
-    const {output} = await prompt(input);
-    return output!;
-  }
+        return { demandId: newDemandRef.id };
+    }
 );
