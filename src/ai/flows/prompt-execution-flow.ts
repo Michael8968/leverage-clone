@@ -6,7 +6,7 @@ import { z } from 'genkit';
 import { doc, getDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { LlmConnection, AIScenario, User, AIScenarioRules, Prompt } from '@/lib/types';
-import { getPlatformAssets, getDefaultLlmConnection } from './admin-management-flows';
+import { getPlatformAssets } from './admin-management-flows';
 
 // ... (existing schemas, isRuleSetValid, findAvailableModels)
 const PromptMessageSchema = z.object({ role: z.enum(['system', 'user', 'assistant']), content: z.string() });
@@ -38,7 +38,7 @@ const executePromptFlow = ai.defineFlow(
     if (modelsToTry.length === 0) throw new Error("No models match criteria.");
 
     // 2. Loop with Failover
-    const assets = await getPlatformAssets();
+    const assets = await getPlatformAssets(null);
     const errors: any[] = [];
     for (const connection of modelsToTry) {
         try {
