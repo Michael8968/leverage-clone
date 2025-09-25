@@ -634,7 +634,7 @@ const Lightbox = ({ image, onClose }: { image: ProductImage; onClose: () => void
         lastMousePosition.current = { x: e.clientX, y: e.clientY };
     };
 
-    const isVideo = image.url.includes('.mp4') || image.url.includes('.webm');
+    const isVideo = image.url && (image.url.includes('.mp4') || image.url.includes('.webm'));
 
     return (
         <Dialog open={true} onOpenChange={onClose}>
@@ -658,7 +658,7 @@ const Lightbox = ({ image, onClose }: { image: ProductImage; onClose: () => void
                             autoPlay
                         />
                     ) : (
-                        <img 
+                        image.url && <img 
                             ref={imgRef as React.RefObject<HTMLImageElement>}
                             src={image.url} 
                             alt="Lightbox view" 
