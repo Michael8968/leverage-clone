@@ -27,7 +27,7 @@ import * as z from 'zod';
 import { useAuthStore } from '@/store/auth';
 import { useRouter } from 'next/navigation';
 
-import { getPlatformAssets, testLlmConnection, type LlmProvider } from '@/ai/flows/admin-management-flows';
+import { getPlatformAssets } from '@/ai/flows/admin-management-flows';
 import type { LlmConnection } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -36,7 +36,10 @@ import { cn } from '@/lib/utils';
 // TYPE DEFINITIONS
 // =================================================================
 type DisplayTestResultStatus = 'untested' | 'success' | 'failed' | 'testing';
-
+type LlmProvider = {
+    providerName: string;
+    models: string[];
+};
 
 // =================================================================
 // ZOD SCHEMAS
@@ -330,6 +333,7 @@ export default function AdminDashboardPage() {
     const { toast } = useToast();
     const { user, role, isLoading: isAuthLoading } = useAuthStore();
     const router = useRouter();
+    const [isPending, startTransition] = useTransition();
 
     // --- DATA FETCHING ---
     const fetchLlms = useCallback(async () => {
@@ -370,22 +374,27 @@ export default function AdminDashboardPage() {
 
     const handleTestAvailability = async (modelId: string) => {
         setTestingId(modelId);
-        try {
-            const result = await testLlmConnection({ modelId });
-            toast({
-                title: result.success ? "测试成功" : "测试失败",
-                description: result.message,
-                variant: result.success ? "default" : "destructive",
-            });
-            // Refetch to get the persisted test status
-            fetchLlms();
-        } catch (error: any) {
-            toast({ title: "测试出错", description: error.message || "执行测试时发生未知错误。", variant: "destructive" });
-             // Refetch even on error to see if the status was updated to 'failed'
-            fetchLlms();
-        } finally {
-            setTestingId(null);
-        }
+        startTransition(async () => {
+            try {
+                // Assuming testLlmConnection is adapted to be a server action or an API route
+                // For this example, we'll simulate an async call
+                // In a real app, this would be: const result = await testLlmConnection({ modelId });
+                const { testLlmConnection } = await import('@/ai/flows/admin-management-flows');
+                const result = await testLlmConnection({ modelId });
+
+                toast({
+                    title: result.success ? "测试成功" : "测试失败",
+                    description: result.message,
+                    variant: result.success ? "default" : "destructive",
+                });
+                await fetchLlms(); // Refetch to get the persisted test status
+            } catch (error: any) {
+                toast({ title: "测试出错", description: error.message || "执行测试时发生未知错误。", variant: "destructive" });
+                await fetchLlms(); // Refetch even on error
+            } finally {
+                setTestingId(null);
+            }
+        });
     };
 
 
@@ -485,7 +494,7 @@ export default function AdminDashboardPage() {
                                 onSave={handleSave}
                                 onCancel={handleCancel}
                                 onTest={handleTestAvailability}
-                                isTesting={!!testingId}
+                                isTesting={!!testingId || isPending}
                            />
                         ) : (
                              <Card className="sticky top-20">

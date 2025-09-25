@@ -25,7 +25,7 @@ const PLATFORM_ASSETS = {
 };
 
 export const getPlatformAssets = ai.defineFlow(
-    { name: 'getPlatformAssets', inputSchema: z.null(), outputSchema: z.any() },
+    { name: 'getPlatformAssets', inputSchema: z.null().optional(), outputSchema: z.any() },
     async () => PLATFORM_ASSETS
 );
 
