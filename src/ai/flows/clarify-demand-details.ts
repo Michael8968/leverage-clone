@@ -88,8 +88,8 @@ const clarifyDemandDetailsFlow = ai.defineFlow(
         scenario: 'chat-assistant',
         userId: input.userId,
         messages: [
-            { role: 'system', content: [{ text: defaultClarifyPrompt }] }, 
-            { role: 'user', content: [{ text: userContent }] }
+            { role: 'system', content: defaultClarifyPrompt }, 
+            { role: 'user', content: userContent }
         ],
     });
 
@@ -100,5 +100,3 @@ const clarifyDemandDetailsFlow = ai.defineFlow(
     return { clarification: result.text };
   }
 );
-
-    

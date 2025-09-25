@@ -197,10 +197,12 @@ export default function DemandPoolPage() {
                     </Button>
                 )}
               </div>
+              {role === 'user' && (
               <Button onClick={() => setIsCreateDialogOpen(true)}>
                 <PlusCircle className="mr-2"/>
                 发布新需求
               </Button>
+              )}
             </div>
           </CardHeader>
           <CardContent>
@@ -359,7 +361,7 @@ function CreateDemandDialog({ open, onOpenChange, onDemandCreated }: {
         },
     });
 
-    const handleSubmit = async (values: z.infer<typeof demandSchema>) => {
+    const handleSubmit = async (values: z.infer<typeof demandSchema>>) => {
         if (!user || !user.uid) {
             toast({ title: "错误", description: "无法获取用户信息，请重新登录再试。", variant: "destructive" });
             return;
@@ -500,7 +502,7 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
           const [productsSnapshot, suppliersSnapshot, promptsData] = await Promise.all([
             getDocs(collection(db, 'products')),
             getDocs(collection(db, 'suppliers')),
-            getPrompts(),
+            getPrompts(null),
           ]);
 
           const productsList: Creative[] = productsSnapshot.docs.map(doc => {
@@ -670,7 +672,7 @@ function RecommendationDialog({ open, onOpenChange, demand, selectedDemands }: {
                 </div>
             </DialogContent>
         </Dialog>
-    )
+    );
 }
 
     
