@@ -97,9 +97,11 @@ export const testLlmConnection = ai.defineFlow(
         outputSchema: z.object({ success: z.boolean(), message: z.string() })
     },
     async ({ modelId }) => {
+        const modelRef = doc(db, 'llm_connections', modelId);
+        let resultStatus: 'success' | 'failed' = 'failed';
+        let resultMessage = '';
+
         try {
-            // The unified executePrompt flow handles the logic of whether to call Genkit or a proxy.
-            // For a simple availability test, we send a minimal "Hello" prompt.
             const result = await executePrompt({
                 modelId: modelId,
                 messages: [{ role: 'user', content: 'Hello!' }],
@@ -107,16 +109,29 @@ export const testLlmConnection = ai.defineFlow(
             });
 
             if (result && result.text) {
-                // Limit the response text to avoid showing too much data.
                 const responseSnippet = result.text.substring(0, 50);
-                return { success: true, message: `模型响应: ${responseSnippet}...` };
+                resultStatus = 'success';
+                resultMessage = `模型响应: ${responseSnippet}...`;
             } else {
-                return { success: false, message: '连接成功，但模型返回了空响应。' };
+                resultMessage = '连接成功，但模型返回了空响应。';
             }
         } catch (error: any) {
             console.error(`[testLlmConnection] Error testing model ${modelId}:`, error);
-            return { success: false, message: error.message || '发生未知错误。' };
+            resultMessage = error.message || '发生未知错误。';
         }
+
+        // Persist the test result to Firestore
+        try {
+             await updateDoc(modelRef, {
+                lastTestStatus: resultStatus,
+                lastTestTimestamp: serverTimestamp()
+            });
+        } catch (dbError) {
+             console.error(`[testLlmConnection] Failed to persist test result for model ${modelId}:`, dbError);
+             // Don't overwrite the original error message, but log this persistence failure.
+        }
+
+        return { success: resultStatus === 'success', message: resultMessage };
     }
 );
 

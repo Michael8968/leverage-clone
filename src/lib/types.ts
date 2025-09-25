@@ -106,6 +106,8 @@ export type Chat = {
   participants: string[]; // Array of user UIDs
 };
 
+export type TestResultStatus = 'untested' | 'success' | 'failed' | 'testing';
+
 export interface LlmConnection {
     id: string;
     modelName: string;
@@ -115,6 +117,8 @@ export interface LlmConnection {
     status: '活跃' | '已禁用';
     scope?: '通用' | '专属';
     category?: '文本' | '图像' | '推理' | '多模态';
+    lastTestStatus?: Omit<TestResultStatus, 'testing'>;
+    lastTestTimestamp?: any; // Firestore Timestamp
 }
 
 export interface LlmProvider {

@@ -28,15 +28,14 @@ import { useAuthStore } from '@/store/auth';
 import { useRouter } from 'next/navigation';
 
 import { getPlatformAssets, testLlmConnection, type LlmProvider } from '@/ai/flows/admin-management-flows';
-import type { LlmConnection } from '@/lib/types';
+import type { LlmConnection, TestResultStatus } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 
 // =================================================================
 // TYPE DEFINITIONS
 // =================================================================
-type TestResultStatus = 'untested' | 'success' | 'failed' | 'testing';
-type TestResults = Record<string, TestResultStatus>;
+type DisplayTestResultStatus = 'untested' | 'success' | 'failed' | 'testing';
 
 
 // =================================================================
@@ -126,8 +125,8 @@ function Combobox({ options, value, onChange, placeholder, onInputChange }: {
     );
 }
 
-const StatusBadge = ({ textStatus, testStatus }: { textStatus: LlmConnection['status']; testStatus: TestResultStatus }) => {
-    const colorClasses: Record<TestResultStatus, string> = {
+const StatusBadge = ({ textStatus, testStatus }: { textStatus: LlmConnection['status']; testStatus: DisplayTestResultStatus }) => {
+    const colorClasses: Record<DisplayTestResultStatus, string> = {
         untested: 'bg-gray-400 hover:bg-gray-500',
         testing: 'bg-blue-500 hover:bg-blue-600 animate-pulse',
         success: 'bg-green-500 hover:bg-green-600',
@@ -180,6 +179,12 @@ function LlmConnectionForm({ llm, onSave, onCancel, onTest, isTesting }: {
     useEffect(() => {
         if (llm) {
             form.reset(llm);
+        } else {
+             // Reset to default for new form
+            form.reset({
+                provider: '', modelName: '', apiKey: '', priority: 10,
+                status: '活跃', scope: '通用', category: '文本',
+            });
         }
     }, [llm, form]);
     
@@ -191,7 +196,6 @@ function LlmConnectionForm({ llm, onSave, onCancel, onTest, isTesting }: {
     }, [selectedProviderName, providers]);
 
     useEffect(() => {
-        // Reset modelName when provider changes and the current model isn't in the new list
         if (form.getValues("modelName") && availableModels.length > 0 && !availableModels.map(m => m.toLowerCase()).includes(form.getValues("modelName").toLowerCase())) {
             form.setValue("modelName", "");
         }
@@ -201,12 +205,16 @@ function LlmConnectionForm({ llm, onSave, onCancel, onTest, isTesting }: {
     const handleSubmit = async (values: z.infer<typeof llmConnectionSchema>) => {
         setIsSubmitting(true);
         try {
+            const dataToSave = {
+                ...values,
+                lastTestStatus: isEditing ? llm?.lastTestStatus : 'untested',
+            };
             if (isEditing && llm?.id) {
                 const docRef = doc(db, 'llm_connections', llm.id);
-                await updateDoc(docRef, values);
+                await updateDoc(docRef, dataToSave);
                 toast({ title: "成功", description: "模型连接已更新。" });
             } else {
-                await addDoc(collection(db, 'llm_connections'), { ...values, createdAt: serverTimestamp() });
+                await addDoc(collection(db, 'llm_connections'), { ...dataToSave, createdAt: serverTimestamp() });
                 toast({ title: "成功", description: "新模型连接已添加。" });
             }
             onSave();
@@ -317,7 +325,6 @@ export default function AdminDashboardPage() {
     const [selectedLlm, setSelectedLlm] = useState<LlmConnection | null>(null);
     const [isFormVisible, setIsFormVisible] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<LlmConnection | null>(null);
-    const [testResults, setTestResults] = useState<TestResults>({});
     const [testingId, setTestingId] = useState<string | null>(null);
 
     const { toast } = useToast();
@@ -333,12 +340,6 @@ export default function AdminDashboardPage() {
             const llmsSnapshot = await getDocs(q);
             const connections = llmsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as LlmConnection));
             setLlms(connections);
-            // Initialize test results state
-            const initialResults: TestResults = {};
-            connections.forEach(conn => {
-                initialResults[conn.id] = 'untested';
-            });
-            setTestResults(initialResults);
         } catch (error) {
             toast({ title: '加载失败', description: '无法加载LLM连接列表。', variant: 'destructive' });
         } finally {
@@ -369,7 +370,6 @@ export default function AdminDashboardPage() {
 
     const handleTestAvailability = async (modelId: string) => {
         setTestingId(modelId);
-        setTestResults(prev => ({ ...prev, [modelId]: 'testing' }));
         try {
             const result = await testLlmConnection({ modelId });
             toast({
@@ -377,10 +377,12 @@ export default function AdminDashboardPage() {
                 description: result.message,
                 variant: result.success ? "default" : "destructive",
             });
-            setTestResults(prev => ({ ...prev, [modelId]: result.success ? 'success' : 'failed' }));
+            // Refetch to get the persisted test status
+            fetchLlms();
         } catch (error: any) {
             toast({ title: "测试出错", description: error.message || "执行测试时发生未知错误。", variant: "destructive" });
-            setTestResults(prev => ({ ...prev, [modelId]: 'failed' }));
+             // Refetch even on error to see if the status was updated to 'failed'
+            fetchLlms();
         } finally {
             setTestingId(null);
         }
@@ -457,7 +459,7 @@ export default function AdminDashboardPage() {
                                             <div className="col-span-4 md:col-span-2"><Badge variant="outline" className="gap-1 pl-1.5"><Star className="w-3 h-3"/> {llm.priority}</Badge></div>
                                             <div className="col-span-4 md:col-span-2"><Badge variant="secondary">{llm.category}</Badge></div>
                                             <div className="col-span-4 md:col-span-2">
-                                                <StatusBadge textStatus={llm.status} testStatus={testResults[llm.id] || 'untested'} />
+                                                <StatusBadge textStatus={llm.status} testStatus={testingId === llm.id ? 'testing' : llm.lastTestStatus || 'untested'} />
                                             </div>
                                             <div className="col-span-12 md:col-span-2 text-right">
                                                 <div className="flex items-center justify-end gap-2">
@@ -518,4 +520,3 @@ export default function AdminDashboardPage() {
 
     
 }
-
