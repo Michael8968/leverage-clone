@@ -4,7 +4,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { collection, query, where, getDocs, orderBy, limit, doc, updateDoc, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit, doc, updateDoc, addDoc, serverTimestamp, getDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { LlmConnection, Prompt } from '@/lib/types';
 
@@ -133,6 +133,7 @@ const PromptSchema = z.object({
   id: z.string(),
   name: z.string(),
   promptKey: z.string(),
+  createdAt: z.any().optional(),
 });
 const GetPromptsOutputSchema = z.object({ prompts: z.array(PromptSchema) });
 export type GetPromptsOutput = z.infer<typeof GetPromptsOutputSchema>;
@@ -148,7 +149,14 @@ export const getPrompts = ai.defineFlow(
     const q = query(promptsCollection, where('status', '==', '生效中'));
     const snapshot = await getDocs(q);
     const prompts = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as Prompt))
+        .map(doc => {
+            const data = doc.data();
+            // Convert Firestore Timestamp to a serializable format (e.g., ISO string)
+            const createdAt = data.createdAt instanceof Timestamp 
+                ? data.createdAt.toDate().toISOString() 
+                : data.createdAt;
+            return { id: doc.id, ...data, createdAt } as Prompt;
+        })
         .sort((a, b) => a.name.localeCompare(b.name));
     return { prompts };
   }
