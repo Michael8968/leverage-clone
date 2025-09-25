@@ -19,7 +19,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 import { Edit, Trash2, Loader2, PlusCircle, Frown, Bot, Workflow, Settings2, Star, User, Key, Info, Download, Copy, Database, Library, Building2 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
-import { collection, getDocs, query, where, orderBy, doc, updateDoc, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, doc, updateDoc, addDoc, serverTimestamp, deleteDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -92,7 +92,15 @@ export default function PromptManagementPage() {
                 q = query(promptsCollection, where("ownerId", "==", user.uid), orderBy('name'));
             }
             const promptsSnapshot = await getDocs(q);
-            setPrompts(promptsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Prompt)));
+            const promptsList = promptsSnapshot.docs.map(doc => {
+                const data = doc.data();
+                return { 
+                    ...data, 
+                    id: doc.id,
+                    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : data.createdAt
+                } as Prompt
+            });
+            setPrompts(promptsList);
 
             // Fetch active LLMs for the dropdown
             const llmsCollection = collection(db, 'llm_connections');
