@@ -32,7 +32,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { db } from '@/lib/firebase';
-import { collection, doc, getDocs, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, getDocs, updateDoc, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { ChatDialog } from '@/components/features/chat-dialog';
@@ -45,6 +45,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { getPrompts, type GetPromptsOutput } from '@/ai/flows/admin-management-flows';
 import { executePrompt } from '@/ai/flows/prompt-execution-flow';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 
 
@@ -185,11 +186,14 @@ export default function DemandPoolPage() {
     try {
       const demandsCollection = collection(db, 'demands');
       const demandSnapshot = await getDocs(demandsCollection);
-      const demandsList = demandSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: (doc.data().createdAt as any).toDate(), // convert Firestore Timestamp to Date
-      } as Demand));
+      const demandsList = demandSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            ...data,
+            createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(data.createdAt),
+        } as Demand;
+      });
       setDemands(demandsList);
     } catch (error) {
       console.error("Error fetching demands:", error);
@@ -322,7 +326,10 @@ export default function DemandPoolPage() {
               <div className="flex items-center gap-2">
                 {role === 'admin' && (
                     <div className='flex items-center gap-2'>
-                        <Select onValueChange={setSelectedPromptKey} value={selectedPromptKey || ''}>
+                        <Select 
+                            onValueChange={(value) => setSelectedPromptKey(value === 'default' ? null : value)} 
+                            value={selectedPromptKey || 'default'}
+                        >
                             <SelectTrigger className="w-[180px]">
                                 <div className="flex items-center gap-2">
                                 <Workflow className="w-4 h-4 text-muted-foreground"/>
@@ -330,7 +337,7 @@ export default function DemandPoolPage() {
                                 </div>
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="">-- 默认推荐逻辑 --</SelectItem>
+                                <SelectItem value="default">-- 默认推荐逻辑 --</SelectItem>
                                 {availablePrompts.map(p => <SelectItem key={p.promptKey} value={p.promptKey}>{p.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
@@ -384,7 +391,7 @@ export default function DemandPoolPage() {
                       </TableCell>
                       <TableCell>¥{demand.budget.toLocaleString()}</TableCell>
                       <TableCell>{getStatusBadge(demand.status)}</TableCell>
-                      <TableCell>{format(demand.createdAt, 'yyyy-MM-dd')}</TableCell>
+                      <TableCell>{demand.createdAt ? format(demand.createdAt, 'yyyy-MM-dd') : 'N/A'}</TableCell>
                       <TableCell className="text-right">
                          {(demand.status === "进行中" && (demand.requesterId === user?.uid || demand.creatorId === user?.uid || role === 'admin')) && (
                              <Button variant="outline" size="sm" onClick={() => handleStartChat(demand)}>
