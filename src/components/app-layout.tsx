@@ -61,7 +61,6 @@ import type { LucideIcon } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
-import { ThreeDBackground } from './features/three-d-background';
 
 
 interface NavItem {
@@ -229,7 +228,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
-        {role === 'user' && <ThreeDBackground />}
         <main className="flex-1">
           <header className="flex items-center justify-end p-2 border-b md:hidden">
               <SidebarTrigger/>
