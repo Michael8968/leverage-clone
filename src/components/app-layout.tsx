@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useAuthStore } from '@/store/auth';
 import type { Role } from '@/store/auth';
 import {
@@ -60,6 +60,7 @@ import type { LucideIcon } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
+import { ThreeDBackground } from '@/components/features/three-d-background';
 
 interface NavItem {
   href: string;
@@ -225,12 +226,19 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </DropdownMenu>
         </SidebarFooter>
       </Sidebar>
-      <main className="flex-1">
-        <header className="flex items-center justify-end p-2 border-b md:hidden">
-             <SidebarTrigger/>
-        </header>
-        {children}
-      </main>
+      <SidebarInset>
+        {role === 'user' && (
+          <Suspense fallback={null}>
+            <ThreeDBackground />
+          </Suspense>
+        )}
+        <main className="flex-1">
+          <header className="flex items-center justify-end p-2 border-b md:hidden">
+              <SidebarTrigger/>
+          </header>
+          {children}
+        </main>
+      </SidebarInset>
     </SidebarProvider>
   );
 }
