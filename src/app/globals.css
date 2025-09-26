@@ -71,7 +71,6 @@
     --ring: 211 75% 62%;
   }
   
-  /* Optimized Gradient Theme */
   .gradient {
     --background: 210 20% 98%; /* #fcfcfd */
     --foreground: 215 28% 17%; /* #20242a */
@@ -94,7 +93,6 @@
     --ring: 212 58% 30%;
   }
   
-  /* Optimized 3D Hologram Theme */
   .hologram-3d {
     --background: 199 87% 76%; /* #8FD3F7 - Page Background (and Sidebar) */
     --foreground: 212 58% 30%; /* #1a3c5e - Navy blue for text */
