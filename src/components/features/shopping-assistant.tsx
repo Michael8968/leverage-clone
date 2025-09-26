@@ -27,6 +27,7 @@ import { useAuthStore } from '@/store/auth';
 import { executePrompt } from '@/ai/flows/prompt-execution-flow';
 import { getUploadUrlForMediaAsset, analyzeMediaAsset } from '@/ai/flows/multimodal-flows';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useTheme } from 'next-themes';
 
 
 // Type definitions for chat messages
@@ -67,6 +68,9 @@ export function ShoppingAssistant() {
     const { role, user }                = useAuthStore();
     const router                        = useRouter();
     const form                          = useForm<FormValues>({ resolver: zodResolver(formSchema), defaultValues: { description: "", scenarioId: "default" } });
+    const { theme } = useTheme();
+    const [videoSrc, setVideoSrc] = useState<string>('');
+
 
     useEffect(() => {
         const fetchInitialData = async () => {
@@ -110,6 +114,25 @@ export function ShoppingAssistant() {
     }, [toast]);
     
     useEffect(() => { scrollAreaRef.current?.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' }); }, [messages]);
+
+    useEffect(() => {
+        // Set video source based on theme
+        switch (theme) {
+            case 'light':
+                setVideoSrc('/videos/light-theme.mp4');
+                break;
+            case 'dark':
+                setVideoSrc('/videos/dark-theme.mp4');
+                break;
+            case 'gradient':
+                setVideoSrc('/videos/gradient-theme.mp4');
+                break;
+            default:
+                setVideoSrc('/videos/light-theme.mp4'); // Default video
+                break;
+        }
+    }, [theme]);
+
 
     const handleMediaUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -186,7 +209,7 @@ export function ShoppingAssistant() {
             console.error("AI search failed:", error);
             const errorMessage: Message = { id: Date.now() + 2, type: 'ai', text: `抱歉，AI分析时遇到问题: ${error.message}`, isRawText: true };
             setMessages(prev => prev.map(msg => (msg.id === loadingMessage.id ? errorMessage : msg)));
-            toast({ title: 'AI 分析失败', description: error.message || '请稍后重试。', variant: "destructive" });
+            toast({ title: 'AI 分析失败', description: error.message || '请稍后重试。', variant: 'destructive' });
           }
         });
     };
@@ -201,7 +224,20 @@ export function ShoppingAssistant() {
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 min-h-0">
                 <div className="lg:col-span-2 flex flex-col">
-                    <Card className="flex-1 flex flex-col overflow-hidden">
+                    <Card className="flex-1 flex flex-col overflow-hidden relative">
+                         {videoSrc && (
+                            <video
+                                key={videoSrc}
+                                className="absolute top-0 left-0 w-full h-full object-cover -z-10"
+                                autoPlay
+                                loop
+                                muted
+                                playsInline
+                            >
+                                <source src={videoSrc} type="video/mp4" />
+                            </video>
+                        )}
+                        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm -z-10"></div>
                         <CardHeader><CardTitle className="font-headline flex items-center gap-2"><Bot/> AI购物助手</CardTitle><CardDescription>您好,我是您的专属购物助手。请问您在寻找什么?</CardDescription></CardHeader>
                         <CardContent className="flex-1 min-h-0"><ScrollArea className="h-full" ref={scrollAreaRef}><div className="space-y-6 pr-4">
                             {messages.length === 0 && <div className="text-center text-muted-foreground pt-16"><Sparkles className="mx-auto h-12 w-12 text-accent mb-4" /><p>告诉我您的需求，比如“一个未来感的台灯”，我来帮您寻找。 </p></div>}
@@ -281,17 +317,17 @@ const UserMessage = ({ text, mediaPreviewUrl, mediaType }: Message) => (
   </div>
 );
 const AIMessage = ({ profile, recommendations, text, isRawText }: Message) => (
-    <div className="flex items-start gap-3"><Bot className="w-8 h-8 text-accent flex-shrink-0" /><div className="bg-card rounded-lg p-3 border space-y-4 w-full">
+    <div className="flex items-start gap-3"><Bot className="w-8 h-8 text-accent flex-shrink-0" /><div className="bg-card/80 backdrop-blur-sm rounded-lg p-3 border space-y-4 w-full">
         {isRawText ? <p className="text-sm whitespace-pre-wrap">{text}</p> : <> <p className='font-semibold'>这是我根据您的需求分析的结果：</p> {profile && <UserProfileDisplay profile={profile} />} {recommendations && recommendations.length > 0 && <RecommendationsDisplay recommendations={recommendations} />} {(!recommendations || recommendations.length === 0) && <p className="text-sm text-muted-foreground">抱歉，暂时没有找到完全匹配的商品。</p>} </>}
     </div></div>
 );
 const LoadingMessage = () => (
-    <div className="flex items-start gap-3"><Bot className="w-8 h-8 text-accent" /><div className="bg-card rounded-lg p-3 max-w-sm border w-full"><div className="space-y-3"><p className='text-sm font-semibold text-muted-foreground'>AI 正在分析您的需求，请稍候...</p><Skeleton className="h-16 w-full" /><Skeleton className="h-24 w-full" /></div></div></div>
+    <div className="flex items-start gap-3"><Bot className="w-8 h-8 text-accent" /><div className="bg-card/80 backdrop-blur-sm rounded-lg p-3 max-w-sm border w-full"><div className="space-y-3"><p className='text-sm font-semibold text-muted-foreground'>AI 正在分析您的需求，请稍候...</p><Skeleton className="h-16 w-full" /><Skeleton className="h-24 w-full" /></div></div></div>
 );
 const CustomServiceConnector = () => { const router = useRouter(); return (<Card><CardHeader><CardTitle className="font-headline flex items-center gap-2"><Users/> 寻找创意师</CardTitle><CardDescription>浏览平台上的创意人才，查看他们的作品集和专长。</CardDescription></CardHeader><CardContent><Button className="w-full" variant="accent" onClick={() => router.push('/designers')}>寻找创意师 →</Button></CardContent></Card>); };
 const DemandPoolConnector = () => { const router = useRouter(); return (<Card className="bg-accent/10 border-accent"><CardHeader><CardTitle className="font-headline flex items-center gap-2"><FilePlus2/> 没找到满意的？</CardTitle><CardDescription>您可以将您的需求发布到需求池，让更多的供应商和创意者来帮助您。</CardDescription></CardHeader><CardContent><Button className="w-full" onClick={() => router.push('/demand-pool')}>发布到需求池</Button></CardContent></Card>); };
-const UserProfileDisplay = ({ profile }: { profile: UserProfile }) => ( <Card className="bg-background"><CardHeader className="p-3"><CardTitle className="text-base font-semibold flex items-center gap-2"><BrainCircuit className="w-5 h-5 text-accent"/> 用户画像分析</CardTitle></CardHeader><CardContent className="p-3 pt-0"><p className="text-sm text-muted-foreground mb-2">{profile.summary}</p><div className="flex flex-wrap gap-1">{profile.tags.map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}</div></CardContent></Card> );
-const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductService[] }) => ( <div><h4 className="font-semibold mb-2 flex items-center gap-2"><Sparkles className="w-5 h-5 text-amber-500" /> 首要推荐</h4><div className="space-y-3">{recommendations.map((rec) => ( <Card key={rec.id} className="overflow-hidden"><div className="aspect-video relative w-full"><Image src={rec.imageUrl || `https://picsum.photos/seed/${rec.id}/300/200`} alt={rec.name} fill style={{objectFit: "cover"}}/></div><div className="p-3"><div className='flex justify-between items-start gap-2'><div><h5 className="font-semibold truncate pr-2">{rec.name}</h5>{rec.supplierName && <p className="text-xs text-muted-foreground">由 {rec.supplierName} 提供</p>}</div><p className="font-bold text-right text-primary whitespace-nowrap">¥{rec.price.toLocaleString()}</p></div></div>
+const UserProfileDisplay = ({ profile }: { profile: UserProfile }) => ( <Card className="bg-background/80"><CardHeader className="p-3"><CardTitle className="text-base font-semibold flex items-center gap-2"><BrainCircuit className="w-5 h-5 text-accent"/> 用户画像分析</CardTitle></CardHeader><CardContent className="p-3 pt-0"><p className="text-sm text-muted-foreground mb-2">{profile.summary}</p><div className="flex flex-wrap gap-1">{profile.tags.map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}</div></CardContent></Card> );
+const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductService[] }) => ( <div><h4 className="font-semibold mb-2 flex items-center gap-2"><Sparkles className="w-5 h-5 text-amber-500" /> 首要推荐</h4><div className="space-y-3">{recommendations.map((rec) => ( <Card key={rec.id} className="overflow-hidden bg-background/80"><div className="aspect-video relative w-full"><Image src={rec.imageUrl || `https://picsum.photos/seed/${rec.id}/300/200`} alt={rec.name} fill style={{objectFit: "cover"}}/></div><div className="p-3"><div className='flex justify-between items-start gap-2'><div><h5 className="font-semibold truncate pr-2">{rec.name}</h5>{rec.supplierName && <p className="text-xs text-muted-foreground">由 {rec.supplierName} 提供</p>}</div><p className="font-bold text-right text-primary whitespace-nowrap">¥{rec.price.toLocaleString()}</p></div></div>
     <CardFooter className="p-3 bg-muted/50 flex w-full justify-end gap-2">
         <TooltipProvider>
             <Tooltip>
@@ -322,5 +358,7 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
         </TooltipProvider>
     </CardFooter>
 </Card>))}</div></div> );
+
+    
 
     
