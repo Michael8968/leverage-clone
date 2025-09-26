@@ -10,26 +10,17 @@ export function Logo({ className }: { className?: string }) {
         className="w-full h-full"
       >
         <g>
-            <ellipse 
-                cx="50" 
-                cy="50" 
-                rx="45" 
-                ry="18" 
-                stroke="hsl(var(--foreground))" 
-                strokeWidth="3" 
-                strokeOpacity="0.6"
+            <path
+                d="M50 2.5 L95.5 26.25 V 73.75 L50 97.5 L4.5 73.75 V 26.25 Z"
+                stroke="hsl(var(--foreground))"
+                strokeWidth="4"
+                strokeLinejoin="round"
             />
-            <ellipse 
-                cx="50" 
-                cy="50" 
-                rx="45" 
-                ry="18" 
-                stroke="hsl(var(--foreground))" 
-                strokeWidth="3" 
-                strokeOpacity="0.6"
-                transform="rotate(60 50 50)"
+            <path
+                d="M50 50 L4.5 26.25 M50 50 L95.5 26.25 M50 50 V 97.5"
+                stroke="hsl(var(--primary))"
+                strokeWidth="4"
             />
-            <circle cx="50" cy="50" r="12" className="fill-primary" />
         </g>
       </svg>
     </div>

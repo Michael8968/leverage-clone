@@ -112,8 +112,8 @@ export default function LoginPage() {
       </video>
       <div className="absolute inset-0 bg-black/50 -z-10"></div>
       <div className="w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center gap-2 text-2xl font-headline font-semibold whitespace-nowrap text-white">
-            <Logo />
+        <div className="mb-8 flex flex-col items-center gap-4 text-2xl font-headline font-semibold whitespace-nowrap text-white">
+            <Logo className="h-12 w-12" />
             <h1 className="font-headline text-3xl">Leverage&nbsp;力维利治</h1>
         </div>
         <Card>
