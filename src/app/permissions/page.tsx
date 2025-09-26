@@ -109,16 +109,21 @@ export default function PermissionsPage() {
     const handleBatchUpdate = async () => {
         if (!modalAction || (typeof actionValue !== 'number' && !actionValue) || !currentUser) return;
         try {
-            const updates = modalAction === 'role' ? { role: actionValue as string }
-                          : modalAction === 'starLevel' ? { rating: Number(actionValue) }
-                          : { status: actionValue as User['status'] };
-                          
-            const flowUpdates: any = {};
-            if (updates.role) flowUpdates.role = updates.role;
-            if (updates.rating) flowUpdates.starLevel = updates.rating;
-            if (updates.status) flowUpdates.disabled = updates.status === 'suspended';
+            let updates: any = {};
+            if (modalAction === 'role') {
+                updates.role = actionValue as string;
+            } else if (modalAction === 'starLevel') {
+                updates.starLevel = Number(actionValue);
+            } else if (modalAction === 'status') {
+                updates.disabled = actionValue === 'suspended';
+            }
 
-            await batchUpdateUsers({ userIds: selectedUserIds, updates: flowUpdates, currentUserId: currentUser.uid });
+            await batchUpdateUsers({
+                userIds: selectedUserIds,
+                updates: updates,
+                currentUserId: currentUser.uid,
+            });
+
             toast({ title: '批量更新成功！' });
             fetchUsers();
             setSelectedUserIds([]);
