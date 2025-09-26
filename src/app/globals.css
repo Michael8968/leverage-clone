@@ -73,24 +73,24 @@
   
   /* Optimized Gradient Theme */
   .gradient {
-    --background: 220 33% 97%; /* #f5f7fa */
-    --foreground: 0 0% 18%; /* #2e2e2e - Dark Gray for text */
-    --card: 0 0% 100%; 
-    --card-foreground: 0 0% 18%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 18%;
-    --primary: 212 58% 30%; /* #1a3c5e - Navy Blue for buttons */
-    --primary-foreground: 0 0% 100%; /* White */
-    --secondary: 220 25% 94%; /* #e8edf3 */
-    --secondary-foreground: 0 0% 18%;
-    --muted: 220 25% 94%;
-    --muted-foreground: 0 0% 40%;
-    --accent: 212 58% 40%; /* #2a5a8a - A slightly lighter navy blue */
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 72% 51%; /* #e53e3e */
-    --destructive-foreground: 0 0% 98%;
-    --border: 220 20% 90%; /* #e0e7f0 */
-    --input: 0 0% 100%;
+    --background: 210 20% 98%; /* #fcfcfd */
+    --foreground: 215 28% 17%; /* #20242a */
+    --card: 220 25% 94%;       /* #e8edf3 */
+    --card-foreground: 215 28% 17%;
+    --popover: 210 20% 98%;
+    --popover-foreground: 215 28% 17%;
+    --primary: 212 58% 30%;    /* #1a3c5e */
+    --primary-foreground: 210 20% 98%;
+    --secondary: 216 34% 92%;  /* #e2e8f0 */
+    --secondary-foreground: 215 28% 17%;
+    --muted: 216 34% 92%;
+    --muted-foreground: 217 19% 51%; /* #71717a */
+    --accent: 212 58% 40%;     /* #2a5a8a */
+    --accent-foreground: 210 20% 98%;
+    --destructive: 0 72% 51%;      /* #e53e3e */
+    --destructive-foreground: 210 20% 98%;
+    --border: 216 34% 92%;
+    --input: 216 34% 92%;
     --ring: 212 58% 30%;
   }
   
@@ -98,22 +98,22 @@
   .hologram-3d {
     --background: 213 27% 94%; /* #f0f4f8 */
     --foreground: 212 58% 30%; /* #1a3c5e - Navy blue for text */
-    --card: 0 0% 100%;
+    --card: 199 87% 76%;       /* #8FD3F7 */
     --card-foreground: 212 58% 30%;
-    --popover: 0 0% 100%;
+    --popover: 213 27% 94%;
     --popover-foreground: 212 58% 30%;
-    --primary: 211 100% 56%; /* #2176ff - Bright Blue */
+    --primary: 211 100% 56%;   /* #2176ff - Bright Blue */
     --primary-foreground: 0 0% 100%;
-    --secondary: 214 32% 91%; /* #e2e8f0 */
+    --secondary: 214 32% 91%;  /* #e2e8f0 */
     --secondary-foreground: 212 58% 30%;
     --muted: 214 32% 91%;
     --muted-foreground: 212 58% 45%;
-    --accent: 251 100% 64%;
+    --accent: 251 100% 64%;    /* #6b48ff - Vivid Purple */
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 214 24% 86%; /* #dce4ec */
-    --input: 0 0% 100%;
+    --border: 214 24% 86%;     /* #dce4ec */
+    --input: 214 32% 91%;
     --ring: 211 100% 56%;
   }
 }
