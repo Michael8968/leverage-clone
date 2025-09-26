@@ -121,10 +121,10 @@ export default function LoginPage() {
             <Logo className="h-12 w-12" />
             <h1 className="font-headline text-3xl">Leverage&nbsp;力维利治</h1>
         </div>
-        <Card className="bg-black/50 backdrop-blur-md">
+        <Card className="bg-black/50 backdrop-blur-md border-white/20">
           <CardHeader>
-            <CardTitle className="font-headline text-2xl">登录您的账户</CardTitle>
-            <CardDescription>输入您的凭据以访问平台。</CardDescription>
+            <CardTitle className="font-headline text-2xl text-white">登录您的账户</CardTitle>
+            <CardDescription className="text-gray-300">输入您的凭据以访问平台。</CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -134,7 +134,7 @@ export default function LoginPage() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <Label>电子邮件</Label>
+                      <Label className="text-white">电子邮件</Label>
                       <FormControl>
                         <Input placeholder="you@example.com" {...field} />
                       </FormControl>
@@ -147,7 +147,7 @@ export default function LoginPage() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <Label>密码</Label>
+                      <Label className="text-white">密码</Label>
                       <FormControl>
                         <Input type="password" placeholder="********" {...field} />
                       </FormControl>
@@ -160,9 +160,9 @@ export default function LoginPage() {
                 </Button>
               </form>
             </Form>
-            <div className="mt-6 text-center text-sm">
+            <div className="mt-6 text-center text-sm text-gray-300">
               还没有账户？{" "}
-              <Link href="/register" className="underline">
+              <Link href="/register" className="underline text-white hover:text-gray-200">
                 立即注册
               </Link>
             </div>
