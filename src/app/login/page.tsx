@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -22,6 +22,7 @@ import { auth, db } from '@/lib/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import type { User } from '@/lib/types';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const formSchema = z.object({
   email: z.string().email({ message: "请输入有效的电子邮件地址。" }),
@@ -35,7 +36,7 @@ const getRedirectPath = (role: string | null): string => {
   return '/dashboard'; 
 };
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -100,6 +101,80 @@ export default function LoginPage() {
   };
 
   return (
+      <Card className="bg-black/50 backdrop-blur-md border-white/20">
+        <CardHeader>
+          <CardTitle className="font-headline text-2xl text-white">登录您的账户</CardTitle>
+          <CardDescription className="text-gray-300">输入您的凭据以访问平台。</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <Label className="text-white">电子邮件</Label>
+                    <FormControl>
+                      <Input placeholder="you@example.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <Label className="text-white">密码</Label>
+                    <FormControl>
+                      <Input type="password" placeholder="********" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" className="w-full" disabled={isPending}>
+                {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "登录"}
+              </Button>
+            </form>
+          </Form>
+          <div className="mt-6 text-center text-sm text-gray-300">
+            还没有账户？{" "}
+            <Link href="/register" className="underline text-white hover:text-gray-200">
+              立即注册
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+  )
+}
+
+function LoginFormSkeleton() {
+  return (
+    <Card>
+      <CardHeader>
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-64 mt-2" />
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+        <Skeleton className="h-10 w-full" />
+      </CardContent>
+    </Card>
+  )
+}
+
+export default function LoginPage() {
+  return (
     <div className="relative flex min-h-screen flex-col items-center justify-center p-4">
       {/* Background Video */}
       <video
@@ -121,53 +196,9 @@ export default function LoginPage() {
             <Logo className="h-12 w-12" />
             <h1 className="font-headline text-3xl">Leverage&nbsp;力维利治</h1>
         </div>
-        <Card className="bg-black/50 backdrop-blur-md border-white/20">
-          <CardHeader>
-            <CardTitle className="font-headline text-2xl text-white">登录您的账户</CardTitle>
-            <CardDescription className="text-gray-300">输入您的凭据以访问平台。</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <Label className="text-white">电子邮件</Label>
-                      <FormControl>
-                        <Input placeholder="you@example.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <Label className="text-white">密码</Label>
-                      <FormControl>
-                        <Input type="password" placeholder="********" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" className="w-full" disabled={isPending}>
-                  {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "登录"}
-                </Button>
-              </form>
-            </Form>
-            <div className="mt-6 text-center text-sm text-gray-300">
-              还没有账户？{" "}
-              <Link href="/register" className="underline text-white hover:text-gray-200">
-                立即注册
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+        <Suspense fallback={<LoginFormSkeleton />}>
+            <LoginContent />
+        </Suspense>
       </div>
     </div>
   );
