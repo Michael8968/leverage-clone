@@ -100,10 +100,10 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center bg-background p-4">
-       <video
-        key="/videos/gradient-theme.mp4"
-        className="absolute top-0 left-0 w-full h-full object-cover -z-20"
+    <div className="relative flex min-h-screen flex-col items-center justify-center p-4">
+      {/* Background Video */}
+      <video
+        className="absolute inset-0 w-full h-full object-cover z-10"
         autoPlay
         loop
         muted
@@ -111,8 +111,12 @@ export default function LoginPage() {
       >
         <source src="/videos/gradient-theme.mp4" type="video/mp4" />
       </video>
-      <div className="absolute inset-0 bg-black/50 -z-10"></div>
-      <div className="w-full max-w-sm">
+
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-black/50 z-20"></div>
+
+      {/* Content */}
+      <div className="relative z-30 w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-4 text-2xl font-headline font-semibold whitespace-nowrap text-white">
             <Logo className="h-12 w-12" />
             <h1 className="font-headline text-3xl">Leverage&nbsp;力维利治</h1>
