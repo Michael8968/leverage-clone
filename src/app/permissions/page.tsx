@@ -13,7 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { User } from '@/lib/types';
-import { useAuthStore } from '@/store/auth';
+import { useAuthStore, type Role } from '@/store/auth';
 import { Frown, Loader2, ChevronsUpDown, UserCog, ShieldCheck, Star, Ban } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -24,6 +24,15 @@ import { Input } from '@/components/ui/input';
 
 
 type SortConfig = { key: keyof User; direction: 'ascending' | 'descending'; };
+
+const ROLE_NAMES: Record<Role, string> = {
+    admin: '管理员',
+    creator: '创意者',
+    supplier: '供应商',
+    user: '普通用户',
+    suspended: '已禁用',
+};
+
 
 export default function PermissionsPage() {
     const [users, setUsers] = useState<User[]>([]);
@@ -154,7 +163,7 @@ export default function PermissionsPage() {
                             <TableRow key={user.uid}>
                                 <TableCell><Checkbox checked={selectedUserIds.includes(user.uid)} onCheckedChange={(c) => handleSelect(user.uid, !!c)}/></TableCell>
                                 <TableCell className="font-medium">{user.name} <span className="text-muted-foreground text-xs">{user.email}</span></TableCell>
-                                <TableCell><Badge variant="secondary">{user.role}</Badge></TableCell>
+                                <TableCell><Badge variant="secondary">{ROLE_NAMES[user.role] || user.role}</Badge></TableCell>
                                 <TableCell>{user.rating ? `${user.rating} 星` : '未评级'}</TableCell>
                                 <TableCell><Badge variant={user.status === 'suspended' ? 'destructive' : 'default'}>{user.status === 'suspended' ? '已禁用' : (user.status === 'active' ? '活跃' : '未知')}</Badge></TableCell>
                             </TableRow>
