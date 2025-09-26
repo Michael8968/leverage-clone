@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Tooltip,
@@ -225,6 +225,11 @@ const Sidebar = React.forwardRef<
             }
             side={side}
           >
+             {/* Accessibility: Add a screen-reader-only title and description */}
+            <SheetHeader className="sr-only">
+              <SheetTitle>主菜单</SheetTitle>
+              <SheetDescription>应用的主导航菜单</SheetDescription>
+            </SheetHeader>
             <div className="flex h-full w-full flex-col">{children}</div>
           </SheetContent>
         </Sheet>
