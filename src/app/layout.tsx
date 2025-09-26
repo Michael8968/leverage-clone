@@ -4,8 +4,8 @@ import { Toaster } from "@/components/ui/toaster";
 import AuthProvider from "@/components/providers/auth-provider";
 import { cn } from "@/lib/utils";
 import "./globals.css";
+import { ThemeProvider } from "@/components/providers/theme-provider";
 
-// Font configuration as per DESIGN_DOC.md
 const fontSans = Inter({ 
   subsets: ["latin"], 
   variable: "--font-sans" 
@@ -35,10 +35,17 @@ export default function RootLayout({
           fontHeadline.variable
         )}
       >
+        <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+        >
           <AuthProvider>
             {children}
           </AuthProvider>
           <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );

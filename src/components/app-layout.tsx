@@ -48,6 +48,8 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
+import { cn } from '@/lib/utils';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 interface NavItem {
   href: string;
@@ -81,8 +83,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     setMounted(true);
   }, []);
 
-  // 此处的路由守卫仅作为备用，主要的守卫逻辑在 page.tsx 中。
-  // 它确保在 layout 渲染时，如果 auth 状态已明确为未登录，则跳转。
   useEffect(() => {
     if (mounted && !isLoading && !user) {
       router.replace('/login');
@@ -91,10 +91,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   const handleLogout = async () => {
     await logout();
-    // 登出后，根页面的监听器会处理跳转到 /login
+    router.replace('/login');
   };
 
-  // 在认证状态加载完成前，显示骨架屏。
   if (!mounted || isLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
@@ -109,7 +108,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
   
-  // 如果加载完成但没有用户，不渲染布局，让根页面的守卫来处理跳转。
   if (!user || !role) {
     return null; 
   }
@@ -118,7 +116,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider>
-      <Sidebar>
+      <Sidebar className="bg-sidebar-gradient">
         <SidebarHeader>
           <div className="flex items-center gap-2">
             <Logo />
@@ -142,12 +140,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter>
+          <div className="flex items-center gap-2">
+              <ThemeToggle />
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="w-full justify-start h-14 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:p-0">
                 <div className="flex justify-between items-center w-full">
                     <div className="flex gap-2 items-center">
-                        <Avatar className="h-8 w-8">
+                        <Avatar className="h-8 w-8 transition-transform transform hover:scale-110">
                             {user?.avatar && <AvatarImage src={user.avatar} />}
                             <AvatarFallback>{user?.name.charAt(0)}</AvatarFallback>
                         </Avatar>
@@ -185,6 +186,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <span className="font-headline text-lg font-semibold">Leverage</span>
             </div>
             <div className="flex items-center gap-2">
+                <ThemeToggle />
                 <SidebarTrigger/>
             </div>
         </header>
