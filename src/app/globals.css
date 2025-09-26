@@ -72,14 +72,14 @@
   }
   
   .gradient {
-    --background: 220 20% 97%; /* #f5f7fa */
-    --foreground: 225 15% 18%; /* #2e2e2e */
+    --background: 216 34% 97%;   /* #f5f7fa */
+    --foreground: 224 15% 18%;   /* #2e2e38 */
     --card: 0 0% 100%;
-    --card-foreground: 225 15% 18%;
+    --card-foreground: 224 15% 18%;
     --popover: 0 0% 100%;
-    --popover-foreground: 225 15% 18%;
-    --primary: 212 58% 30%;    /* #1a3c5e */
-    --primary-foreground: 210 20% 98%;
+    --popover-foreground: 224 15% 18%;
+    --primary: 214 65% 35%;    /* #1a3c5e */
+    --primary-foreground: 0 0% 100%;
     --secondary: 216 34% 92%;  /* #e2e8f0 */
     --secondary-foreground: 215 28% 17%;
     --muted: 216 34% 92%;
@@ -88,39 +88,9 @@
     --accent-foreground: 210 20% 98%;
     --destructive: 0 72% 51%;      /* #e53e3e */
     --destructive-foreground: 210 20% 98%;
-    --border: 216 34% 92%;
-    --input: 216 34% 92%;
+    --border: 216 34% 88%;
+    --input: 216 34% 88%;
     --ring: 212 58% 30%;
-  }
-  
-  .hologram-3d {
-    --background: 220 20% 97%; /* #f5f7fa - Main content background */
-    --foreground: 225 15% 18%; /* #2e2e2e - Main content text */
-    
-    --card: 210 31% 93%; /* #e6ecef - Sidebar background */
-    --card-foreground: 212 58% 30%; /* #1a3c5e - Sidebar text */
-    
-    --popover: 213 27% 94%;
-    --popover-foreground: 212 58% 30%;
-    
-    --primary: 212 58% 30%;   /* #1a3c5e - Buttons */
-    --primary-foreground: 0 0% 100%;
-    
-    --secondary: 214 32% 91%;  /* #e2e8f0 */
-    --secondary-foreground: 212 58% 30%;
-    
-    --muted: 214 32% 91%;
-    --muted-foreground: 212 58% 45%;
-    
-    --accent: 211 100% 56%;    /* #2176ff - Vivid Blue for highlights */
-    --accent-foreground: 0 0% 100%;
-    
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    
-    --border: 212 30% 87%;     /* #d3e0ea */
-    --input: 212 30% 87%;
-    --ring: 211 100% 56%;
   }
 }
 
@@ -135,55 +105,6 @@
     transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     transition-duration: 300ms;
-  }
-}
-
-@layer components {
-  /* Add animated shadow for cards */
-  .card {
-    @apply transition-shadow duration-300;
-  }
-  .card:hover {
-    @apply shadow-lg;
-  }
-
-  /* Hologram Background Styles */
-  .hologram-background {
-    background: linear-gradient(135deg, #2c3e50, #3498db);
-    overflow: hidden;
-    animation: rotate-hologram 10s ease-in-out infinite alternate;
-  }
-
-  @keyframes rotate-hologram {
-    0% {
-      transform: rotate3d(1, 1, 1, 0deg) scale(1.5);
-    }
-    100% {
-      transform: rotate3d(1, 1, 1, 20deg) scale(1.5);
-    }
-  }
-
-  /* Responsive adjustments for the animation */
-  @media (max-width: 1024px) { /* Tablets and below */
-    @keyframes rotate-hologram {
-      0% {
-        transform: rotate3d(1, 1, 1, 0deg) scale(1.2);
-      }
-      100% {
-        transform: rotate3d(1, 1, 1, 15deg) scale(1.2);
-      }
-    }
-  }
-
-  @media (max-width: 767px) { /* Mobile phones */
-     @keyframes rotate-hologram {
-      0% {
-        transform: rotate3d(1, 1, 0, 0deg) scale(1.1);
-      }
-      100% {
-        transform: rotate3d(1, 1, 0, 10deg) scale(1.1);
-      }
-    }
   }
 }
 

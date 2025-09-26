@@ -55,13 +55,11 @@ import {
   Laptop,
   Palette,
   Sparkles,
-  View,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
-import { HologramBackground } from './features/hologram-background';
 
 
 interface NavItem {
@@ -108,10 +106,6 @@ function ThemeToggle() {
           <DropdownMenuItem onClick={() => setTheme("gradient")}>
             <Sparkles className="mr-2 h-4 w-4" />
             <span>渐变</span>
-          </DropdownMenuItem>
-           <DropdownMenuItem onClick={() => setTheme("hologram-3d")}>
-            <View className="mr-2 h-4 w-4" />
-            <span>3D全息</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => setTheme("system")}>
@@ -230,7 +224,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
-        {theme === 'hologram-3d' && <HologramBackground />}
         <main className="flex-1">
           <header className="flex items-center justify-end p-2 border-b md:hidden">
               <SidebarTrigger/>
