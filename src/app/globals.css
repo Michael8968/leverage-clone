@@ -96,9 +96,9 @@
   
   /* Optimized 3D Hologram Theme */
   .hologram-3d {
-    --background: 213 27% 94%; /* #f0f4f8 */
+    --background: 199 87% 76%; /* #8FD3F7 - Page Background (and Sidebar) */
     --foreground: 212 58% 30%; /* #1a3c5e - Navy blue for text */
-    --card: 199 87% 76%;       /* #8FD3F7 */
+    --card: 199 87% 76%;       /* #8FD3F7 - Card Background */
     --card-foreground: 212 58% 30%;
     --popover: 213 27% 94%;
     --popover-foreground: 212 58% 30%;
