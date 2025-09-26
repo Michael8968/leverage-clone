@@ -4,26 +4,96 @@
 
 @layer base {
   :root {
-    --background: 216 100% 96%;
-    --foreground: 224 71.4% 4.1%;
-    --card: 216 100% 98%;
-    --card-foreground: 224 71.4% 4.1%;
+    /* "Light" Theme - Inspired by Figma Community Kits */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 224 71.4% 4.1%;
+    --popover-foreground: 222.2 84% 4.9%;
     --primary: 212 98% 73%;
     --primary-foreground: 224 71.4% 4.1%;
-    --secondary: 220 13% 91%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 220 13% 85%;
-    --muted-foreground: 220 9% 46%;
-    --accent: 275 43% 77%;
-    --accent-foreground: 224 71.4% 4.1%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 215.4 16.3% 46.9%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 98%;
+    --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 212 98% 73%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
     --radius: 0.5rem;
+  }
+
+  .dark {
+    /* "Dark" Theme - Inspired by UIverse Gradient Buttons */
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+
+  .gradient {
+    /* "Gradient" Theme - Inspired by Awwwards 3D Gradients */
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 4% 10%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 346.8 77.2% 49.8%;
+    --primary-foreground: 355.7 100% 97.3%;
+    --secondary: 240 4% 12%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 4% 15%;
+    --muted-foreground: 240 4% 65%;
+    --accent: 240 4% 12%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 85.7% 97.3%;
+    --border: 240 4% 15%;
+    --input: 240 4% 15%;
+    --ring: 346.8 77.2% 49.8%;
+  }
+
+  .hologram-3d {
+    /* "3D Hologram" Theme - Experimental theme for 'user' role */
+    --background: 225 30% 8%;
+    --foreground: 210 100% 90%;
+    --card: 225 25% 12%;
+    --card-foreground: 210 100% 90%;
+    --popover: 225 30% 10%;
+    --popover-foreground: 210 100% 90%;
+    --primary: 180 100% 50%; /* Bright Cyan */
+    --primary-foreground: 225 30% 8%;
+    --secondary: 225 20% 20%;
+    --secondary-foreground: 210 100% 90%;
+    --muted: 225 20% 15%;
+    --muted-foreground: 210 30% 70%;
+    --accent: 270 100% 70%; /* Bright Purple */
+    --accent-foreground: 210 100% 90%;
+    --destructive: 0 80% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 210 40% 30%;
+    --input: 210 40% 25%;
+    --ring: 180 100% 50%;
   }
 }
 
@@ -33,5 +103,19 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  html, body {
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 300ms;
+  }
+}
+
+@layer utilities {
+  .bg-gradient-primary {
+    @apply bg-gradient-to-r from-primary to-[hsl(var(--primary-foreground))];
+  }
+  .bg-gradient-secondary {
+     @apply bg-gradient-to-r from-secondary to-muted;
   }
 }

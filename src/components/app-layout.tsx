@@ -25,6 +25,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuPortal
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import {
@@ -45,10 +49,17 @@ import {
   Workflow,
   Puzzle,
   CalendarDays,
+  Sun, 
+  Moon, 
+  Laptop,
+  Palette,
+  Sparkles,
+  View,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
+import { useTheme } from 'next-themes';
 
 interface NavItem {
   href: string;
@@ -71,6 +82,44 @@ const navItems: NavItem[] = [
   { href: '/public-resources', label: '公共资源库', icon: Library, roles: ['admin'] },
   { href: '/permissions', label: '权限管理', icon: ShieldCheck, roles: ['admin'] },
 ];
+
+function ThemeToggle() {
+  const { setTheme } = useTheme();
+
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        <Palette className="mr-2 h-4 w-4" />
+        <span>切换主题</span>
+      </DropdownMenuSubTrigger>
+      <DropdownMenuPortal>
+        <DropdownMenuSubContent>
+          <DropdownMenuItem onClick={() => setTheme("light")}>
+            <Sun className="mr-2 h-4 w-4" />
+            <span>明亮</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setTheme("dark")}>
+            <Moon className="mr-2 h-4 w-4" />
+            <span>暗黑</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setTheme("gradient")}>
+            <Sparkles className="mr-2 h-4 w-4" />
+            <span>渐变</span>
+          </DropdownMenuItem>
+           <DropdownMenuItem onClick={() => setTheme("hologram-3d")}>
+            <View className="mr-2 h-4 w-4" />
+            <span>3D全息</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => setTheme("system")}>
+            <Laptop className="mr-2 h-4 w-4" />
+            <span>系统默认</span>
+          </DropdownMenuItem>
+        </DropdownMenuSubContent>
+      </DropdownMenuPortal>
+    </DropdownMenuSub>
+  );
+}
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { role, user, isLoading, logout } = useAuthStore();
@@ -143,7 +192,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <Button variant="ghost" className="w-full justify-start">
                 <div className="flex justify-between items-center w-full">
                     <div className="flex gap-2 items-center">
-                        <Avatar className="h-8 w-8">
+                        <Avatar className="h-8 w-8 transition-transform duration-300 hover:scale-110">
                             {user?.avatar && <AvatarImage src={user.avatar} />}
                             <AvatarFallback>{user?.name.charAt(0)}</AvatarFallback>
                         </Avatar>
@@ -165,6 +214,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   </p>
                 </div>
               </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <ThemeToggle />
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />
