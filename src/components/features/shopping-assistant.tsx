@@ -239,8 +239,7 @@ export function ShoppingAssistant() {
                         )}
                         <CardHeader className="bg-transparent"><CardTitle className="font-headline flex items-center gap-2"><Bot/> AI购物助手</CardTitle><CardDescription>您好,我是您的专属购物助手。请问您在寻找什么?</CardDescription></CardHeader>
                         <CardContent className="flex-1 min-h-0 bg-transparent"><ScrollArea className="h-full" ref={scrollAreaRef}><div className="space-y-6 pr-4">
-                            {messages.length === 0 && <div className="text-center text-muted-foreground pt-16"><Sparkles className="mx-auto h-12 w-12 text-accent mb-4" /><p>告诉我您的需求，比如“一个未来感的台灯”，我来帮您寻找。 </p></div>}
-                            {messages.map((msg) => {
+                            {messages.length > 0 && messages.map((msg) => {
                                 if (msg.type === 'user') return <UserMessage key={msg.id} {...msg} />;
                                 if (msg.type === 'ai') return <AIMessage key={msg.id} {...msg} />;
                                 if (msg.type === 'loading') return <LoadingMessage key={msg.id} />;
