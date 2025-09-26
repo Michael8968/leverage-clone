@@ -49,7 +49,6 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
-import { ThemeToggle } from '@/components/theme-toggle';
 
 interface NavItem {
   href: string;
@@ -116,7 +115,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider>
-      <Sidebar className="bg-sidebar-gradient">
+      <Sidebar>
         <SidebarHeader>
           <div className="flex items-center gap-2">
             <Logo />
@@ -130,7 +129,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <SidebarMenuButton
                   isActive={pathname === item.href}
                   onClick={() => router.push(item.href)}
-                  tooltip={item.label}
                 >
                     <item.icon />
                     <span>{item.label}</span>
@@ -140,24 +138,21 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter>
-          <div className="flex items-center gap-2">
-              <ThemeToggle />
-          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="w-full justify-start h-14 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:p-0">
+              <Button variant="ghost" className="w-full justify-start">
                 <div className="flex justify-between items-center w-full">
                     <div className="flex gap-2 items-center">
-                        <Avatar className="h-8 w-8 transition-transform transform hover:scale-110">
+                        <Avatar className="h-8 w-8">
                             {user?.avatar && <AvatarImage src={user.avatar} />}
                             <AvatarFallback>{user?.name.charAt(0)}</AvatarFallback>
                         </Avatar>
-                        <div className="flex flex-col items-start group-data-[collapsible=icon]:hidden">
+                        <div className="flex flex-col items-start">
                             <span className="text-sm font-medium">{user?.name}</span>
                             <span className="text-xs text-muted-foreground">{user?.email}</span>
                         </div>
                     </div>
-                    <ChevronDown className="w-4 h-4 group-data-[collapsible=icon]:hidden"/>
+                    <ChevronDown className="w-4 h-4"/>
                 </div>
               </Button>
             </DropdownMenuTrigger>
@@ -179,19 +174,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </DropdownMenu>
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset>
-        <header className="flex items-center justify-between p-2 border-b md:hidden">
-            <div className="flex items-center gap-2">
-                <Logo />
-                <span className="font-headline text-lg font-semibold">Leverage</span>
-            </div>
-            <div className="flex items-center gap-2">
-                <ThemeToggle />
-                <SidebarTrigger/>
-            </div>
+      <main className="flex-1">
+        <header className="flex items-center justify-end p-2 border-b md:hidden">
+             <SidebarTrigger/>
         </header>
         {children}
-      </SidebarInset>
+      </main>
     </SidebarProvider>
   );
 }

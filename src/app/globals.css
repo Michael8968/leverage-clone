@@ -14,7 +14,7 @@
     --primary-foreground: 224 71.4% 4.1%;
     --secondary: 220 13% 91%;
     --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 220 13% 85%; /* Slightly darker for gradient */
+    --muted: 220 13% 85%;
     --muted-foreground: 220 9% 46%;
     --accent: 275 43% 77%;
     --accent-foreground: 224 71.4% 4.1%;
@@ -25,28 +25,6 @@
     --ring: 212 98% 73%;
     --radius: 0.5rem;
   }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 10%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 212 98% 63%; /* Brighter for dark mode */
-    --primary-foreground: 210 40% 98%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 22.5%; /* Lighter for gradient */
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 275 43% 67%; /* Brighter for dark mode */
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212 98% 63%;
-  }
 }
 
 @layer base {
@@ -55,19 +33,5 @@
   }
   body {
     @apply bg-background text-foreground;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
   }
-}
-
-@layer components {
-    .bg-sidebar-gradient {
-        @apply bg-gradient-to-b from-[hsl(var(--secondary))] to-[hsl(var(--muted))];
-    }
-    .dark .bg-sidebar-gradient {
-        @apply bg-gradient-to-b from-[hsl(var(--secondary))] to-[hsl(var(--muted))];
-    }
-    .btn-primary-gradient {
-        @apply bg-gradient-to-r from-primary to-accent text-primary-foreground;
-    }
 }

@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
 import { Toaster } from "@/components/ui/toaster";
-import AuthProvider from "@/components/providers/auth-provider";
+import { Providers } from "@/components/providers/providers";
 import { cn } from "@/lib/utils";
 import "./globals.css";
-import { ThemeProvider } from "@/components/providers/theme-provider";
 
 const fontSans = Inter({ 
   subsets: ["latin"], 
@@ -35,17 +34,10 @@ export default function RootLayout({
           fontHeadline.variable
         )}
       >
-        <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-        >
-          <AuthProvider>
+        <Providers>
             {children}
-          </AuthProvider>
-          <Toaster />
-        </ThemeProvider>
+        </Providers>
+        <Toaster />
       </body>
     </html>
   );

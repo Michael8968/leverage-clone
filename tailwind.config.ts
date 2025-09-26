@@ -1,8 +1,6 @@
 import type { Config } from 'tailwindcss';
-import { fontFamily } from 'tailwindcss/defaultTheme';
 
 const config = {
-  darkMode: "class",
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
@@ -19,10 +17,7 @@ const config = {
     },
     extend: {
       fontFamily: {
-        // Overriding the default 'sans' with the Inter font variable
-        sans: ["var(--font-sans)", ...fontFamily.sans],
-        // Adding a new 'headline' family with the Space Grotesk font variable
-        headline: ["var(--font-headline)", "sans-serif"],
+        headline: ['Space Grotesk', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
