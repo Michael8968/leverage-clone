@@ -224,11 +224,11 @@ export function ShoppingAssistant() {
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 min-h-0">
                 <div className="lg:col-span-2 flex flex-col">
-                    <Card className="flex-1 flex flex-col overflow-hidden relative">
+                    <Card className="flex-1 flex flex-col overflow-hidden relative bg-transparent">
                          {videoSrc && (
                             <video
                                 key={videoSrc}
-                                className="absolute top-0 left-0 w-full h-full object-cover -z-10"
+                                className="absolute top-0 left-0 w-full h-full object-cover -z-20"
                                 autoPlay
                                 loop
                                 muted
@@ -237,9 +237,8 @@ export function ShoppingAssistant() {
                                 <source src={videoSrc} type="video/mp4" />
                             </video>
                         )}
-                        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm -z-10"></div>
-                        <CardHeader><CardTitle className="font-headline flex items-center gap-2"><Bot/> AI购物助手</CardTitle><CardDescription>您好,我是您的专属购物助手。请问您在寻找什么?</CardDescription></CardHeader>
-                        <CardContent className="flex-1 min-h-0"><ScrollArea className="h-full" ref={scrollAreaRef}><div className="space-y-6 pr-4">
+                        <CardHeader className="bg-transparent"><CardTitle className="font-headline flex items-center gap-2"><Bot/> AI购物助手</CardTitle><CardDescription>您好,我是您的专属购物助手。请问您在寻找什么?</CardDescription></CardHeader>
+                        <CardContent className="flex-1 min-h-0 bg-transparent"><ScrollArea className="h-full" ref={scrollAreaRef}><div className="space-y-6 pr-4">
                             {messages.length === 0 && <div className="text-center text-muted-foreground pt-16"><Sparkles className="mx-auto h-12 w-12 text-accent mb-4" /><p>告诉我您的需求，比如“一个未来感的台灯”，我来帮您寻找。 </p></div>}
                             {messages.map((msg) => {
                                 if (msg.type === 'user') return <UserMessage key={msg.id} {...msg} />;
@@ -248,7 +247,7 @@ export function ShoppingAssistant() {
                                 return null;
                             })}
                         </div></ScrollArea></CardContent>
-                        <CardFooter><Form {...form}><form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="w-full space-y-4">
+                        <CardFooter className="bg-transparent"><Form {...form}><form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="w-full space-y-4">
                             {mediaAsset && ( <div className="relative w-24 h-24">{mediaAsset.mediaType === 'video' ? <video src={mediaAsset.previewUrl} className="w-full h-full rounded-md object-cover"/> : <Image src={mediaAsset.previewUrl!} alt="Preview" layout="fill" className="rounded-md object-cover"/>}<Button variant="ghost" size="icon" className="absolute top-0 right-0 h-6 w-6" onClick={() => setMediaAsset(null)}><X className="h-4 w-4" /></Button></div> )}
                              <FormField
                                 control={form.control}
@@ -358,6 +357,8 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
         </TooltipProvider>
     </CardFooter>
 </Card>))}</div></div> );
+
+    
 
     
 
