@@ -61,6 +61,7 @@ import type { LucideIcon } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
+import { HologramBackground } from './features/hologram-background';
 
 
 interface NavItem {
@@ -228,6 +229,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
+        {role === 'user' && <HologramBackground />}
         <main className="flex-1">
           <header className="flex items-center justify-end p-2 border-b md:hidden">
               <SidebarTrigger/>

@@ -119,6 +119,45 @@
   .card:hover {
     @apply shadow-lg;
   }
+
+  /* Hologram Background Styles */
+  .hologram-background {
+    background: linear-gradient(135deg, #2c3e50, #3498db);
+    overflow: hidden;
+    animation: rotate-hologram 10s ease-in-out infinite alternate;
+  }
+
+  @keyframes rotate-hologram {
+    0% {
+      transform: rotate3d(1, 1, 1, 0deg) scale(1.5);
+    }
+    100% {
+      transform: rotate3d(1, 1, 1, 20deg) scale(1.5);
+    }
+  }
+
+  /* Responsive adjustments for the animation */
+  @media (max-width: 1024px) { /* Tablets and below */
+    @keyframes rotate-hologram {
+      0% {
+        transform: rotate3d(1, 1, 1, 0deg) scale(1.2);
+      }
+      100% {
+        transform: rotate3d(1, 1, 1, 15deg) scale(1.2);
+      }
+    }
+  }
+
+  @media (max-width: 767px) { /* Mobile phones */
+     @keyframes rotate-hologram {
+      0% {
+        transform: rotate3d(1, 1, 0, 0deg) scale(1.1);
+      }
+      100% {
+        transform: rotate3d(1, 1, 0, 10deg) scale(1.1);
+      }
+    }
+  }
 }
 
 @layer utilities {
