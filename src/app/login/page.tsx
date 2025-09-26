@@ -121,7 +121,7 @@ export default function LoginPage() {
             <Logo className="h-12 w-12" />
             <h1 className="font-headline text-3xl">Leverage&nbsp;力维利治</h1>
         </div>
-        <Card>
+        <Card className="bg-card/80 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="font-headline text-2xl">登录您的账户</CardTitle>
             <CardDescription>输入您的凭据以访问平台。</CardDescription>
