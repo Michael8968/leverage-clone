@@ -72,28 +72,51 @@
   }
   
   .gradient {
-    --foreground: 0 0% 98%;
-    --card: 220 13% 18%; /* Darker card for gradient background */
-    --card-foreground: 0 0% 98%;
-    --popover: 220 13% 13%;
-    --popover-foreground: 0 0% 98%;
+    --background: 220 13% 94%; /* Light gray */
+    --foreground: 0 0% 18%; /* Dark Gray for text */
+    --card: 220 13% 98%; 
+    --card-foreground: 0 0% 18%;
+    --popover: 220 13% 98%;
+    --popover-foreground: 0 0% 18%;
     --primary: 4 79% 56%; /* #e74c3c */
     --primary-foreground: 0 0% 100%;
-    --secondary: 215 28% 17%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 215 28% 17%;
-    --muted-foreground: 220 10% 65%;
+    --secondary: 220 13% 90%;
+    --secondary-foreground: 0 0% 18%;
+    --muted: 220 13% 90%;
+    --muted-foreground: 0 0% 40%;
     --accent: 44 91% 50%; /* #f1c40f */
     --accent-foreground: 240 6% 10%;
     --destructive: 0 63% 31%;
     --destructive-foreground: 0 0% 98%;
-    --border: 215 28% 17%;
-    --input: 215 28% 17%;
+    --border: 220 13% 88%;
+    --input: 220 13% 88%;
     --ring: 4 79% 56%;
   }
 
   body.gradient {
-    background: linear-gradient(135deg, #2c3e50, #3498db);
+    background: linear-gradient(135deg, hsl(210 40% 96.1%), hsl(220 40% 96.1%));
+  }
+  
+  .hologram-3d {
+    --background: 210 20% 98%; /* Very light blueish-white */
+    --foreground: 211 43% 23%; /* Navy blue for text */
+    --card: 0 0% 100%;
+    --card-foreground: 211 43% 23%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 211 43% 23%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 20% 94%;
+    --secondary-foreground: 211 43% 23%;
+    --muted: 210 20% 94%;
+    --muted-foreground: 211 43% 43%;
+    --accent: 251 100% 64%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 210 20% 90%;
+    --input: 210 20% 90%;
+    --ring: 217 91% 60%;
   }
 }
 

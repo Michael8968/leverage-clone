@@ -126,6 +126,7 @@ function ThemeToggle() {
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { role, user, isLoading, logout } = useAuthStore();
+  const { theme } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
@@ -229,7 +230,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
-        {role === 'user' && <HologramBackground />}
+        {theme === 'hologram-3d' && <HologramBackground />}
         <main className="flex-1">
           <header className="flex items-center justify-end p-2 border-b md:hidden">
               <SidebarTrigger/>
