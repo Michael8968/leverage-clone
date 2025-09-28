@@ -101,10 +101,10 @@ function LoginContent() {
   };
 
   return (
-      <Card className="bg-black/50 backdrop-blur-md border-white/20">
+      <Card>
         <CardHeader>
-          <CardTitle className="font-headline text-2xl text-white">登录您的账户</CardTitle>
-          <CardDescription className="text-gray-300">输入您的凭据以访问平台。</CardDescription>
+          <CardTitle className="font-headline text-2xl">登录您的账户</CardTitle>
+          <CardDescription>输入您的凭据以访问平台。</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -114,7 +114,7 @@ function LoginContent() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <Label className="text-white">电子邮件</Label>
+                    <Label>电子邮件</Label>
                     <FormControl>
                       <Input placeholder="you@example.com" {...field} />
                     </FormControl>
@@ -127,7 +127,7 @@ function LoginContent() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <Label className="text-white">密码</Label>
+                    <Label>密码</Label>
                     <FormControl>
                       <Input type="password" placeholder="********" {...field} />
                     </FormControl>
@@ -140,9 +140,9 @@ function LoginContent() {
               </Button>
             </form>
           </Form>
-          <div className="mt-6 text-center text-sm text-gray-300">
+          <div className="mt-6 text-center text-sm">
             还没有账户？{" "}
-            <Link href="/register" className="underline text-white hover:text-gray-200">
+            <Link href="/register" className="underline">
               立即注册
             </Link>
           </div>
@@ -175,25 +175,10 @@ function LoginFormSkeleton() {
 
 export default function LoginPage() {
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center p-4">
-      {/* Background Video */}
-      <video
-        className="absolute inset-0 w-full h-full object-cover z-10"
-        autoPlay
-        loop
-        muted
-        playsInline
-      >
-        <source src="/videos/gradient-theme.mp4" type="video/mp4" />
-      </video>
-
-      {/* Overlay */}
-      <div className="absolute inset-0 bg-black/50 z-20"></div>
-
-      {/* Content */}
-      <div className="relative z-30 w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center gap-4 text-2xl font-headline font-semibold whitespace-nowrap text-white">
-            <Logo className="h-12 w-12" />
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
+      <div className="w-full max-w-sm">
+        <div className="mb-8 flex flex-col items-center gap-2 text-2xl font-headline font-semibold whitespace-nowrap">
+            <Logo />
             <h1 className="font-headline text-3xl">Leverage&nbsp;力维利治</h1>
         </div>
         <Suspense fallback={<LoginFormSkeleton />}>
