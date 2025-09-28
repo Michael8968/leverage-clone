@@ -72,16 +72,21 @@ const clarifyDemandDetailsFlow = ai.defineFlow(
             ],
         });
 
+        // Check for special "handoff" keyword from AI
+        if (result.text.includes("[HANDOFF_TO_HUMAN]")) {
+             throw new Error("AI requests handoff.");
+        }
+
         if (!result.text) {
           throw new Error("AI failed to generate a clarification question.");
         }
         
         return { clarification: result.text };
     } catch (error) {
-        console.warn("AI Assistant failed to respond, initiating handoff to human agent.", error);
+        console.warn("AI Assistant failed or requested handoff. Initiating handoff to human agent.", error);
 
         // Handoff to human agent logic
-        const latestUserMessage = input.chatHistory[input.chatHistory.length - 1]?.text || input.demandDescription;
+        const latestUserMessage = input.chatHistory.filter(m => !m.isAIMessage).pop()?.text || input.demandDescription;
         const routingResult = await intelligentRoutingFlow({
             requesterId: input.userId,
             requestDescription: `用户在与AI助理对话时遇到问题，请求人工介入。用户最后的问题是：“${latestUserMessage}”`,
@@ -101,4 +106,3 @@ const clarifyDemandDetailsFlow = ai.defineFlow(
     }
   }
 );
-

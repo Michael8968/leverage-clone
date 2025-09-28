@@ -22,6 +22,9 @@
 | **role** | `string` | 用户角色 (`admin`, `supplier`, `creator`, `user`, `suspended`)。 |
 | **rating** | `number` | (可选) 平台为用户评定的星级 (1-10)。 |
 | **status** | `string` | 用户状态 (`active`, `inactive`)。`active`为在线/可用，`inactive`为离线。 |
+| **aiAssistantEnabled**| `boolean`| (可选, 针对 'creator') 是否启用AI助理模式。 |
+| **currentQueueSize**| `number`| (可选, 针对 'creator') 当前排队人数。 |
+| **maxQueueSize**| `number` | (可选, 针对 'creator') 最大可接待排队人数。 |
 | **bio** | `string` | (可选, 针对 'creator') 个人简介。 |
 | **skills** | `Array<string>`| (可选, 针对 'creator') 技能标签。 |
 | **createdAt** | `Timestamp`| 用户创建时间。 |
@@ -201,9 +204,11 @@
 *   `recommendCreatives`: 为指定需求匹配最合适的创意方，并给出理由。
 *   `generate3dModel`, `generateTripo3dModel`, `generateNanoBananaImage`: 调用各类AI模型生成图像。
 *   `evaluateSellerData`: 批量分析CSV文件内容，评估供应商或产品的匹配度。
-*   `clarifyDemandDetails`: 作为AI助理，分析对话上下文，生成澄清问题。
+*   `clarifyDemandDetails`: 作为AI助理，分析对话上下文，生成澄清问题。当无法处理时，触发智能路由进行人工转接。
 *   **`executePrompt` (核心网关)**: 统一的API网关，根据场景配置、提示词Key或模型ID，智能路由AI请求。
-*   **`createPrivateDemand` (新增)**: 为用户和设计师创建专属的`private`需求和聊天室。
-*   **`batchUpdateUsers` (新增)**: 批量更新用户的角色、星级或状态。
-*   **`getDesigners` (新增)**: 获取所有角色为`creator`的用户信息。
-*   **`getUploadUrlForMediaAsset` & `analyzeMediaAsset` (新增)**: 支持多模态文件的上传和分析。
+*   **`createPrivateDemand` (智能分诊)**: 为用户和设计师创建专属的`private`需求和聊天室，并根据设计师状态决定连接本人还是AI助理。
+*   **`intelligentRoutingFlow` (智能路由中枢)**: 接收来自各方的转人工请求，根据全局策略智能分配给最合适的设计师。
+*   **`batchUpdateUsers`**: 批量更新用户的角色、星级或状态。
+*   **`getDesigners`**: 获取所有角色为`creator`的用户信息。
+*   **`getUploadUrlForMediaAsset` & `analyzeMediaAsset`**: 支持多模态文件的上传和分析。
+*   **`updateUserStatus`**: 更新创作者的在线状态或AI助理模式。

@@ -78,7 +78,7 @@ export type User = {
   avatar: string;
   rating?: number;
   status?: 'active' | 'inactive';
-  aiAssistantEnabled?: boolean; // NEW: Flag for AI assistant
+  aiAssistantEnabled?: boolean;
   bio?: string;
   skills?: string[];
   createdAt?: any;

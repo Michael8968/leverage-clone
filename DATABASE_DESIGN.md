@@ -18,6 +18,9 @@
 | `starLevel`| number | (可选) 用户星级 (1-10)。 |
 | `skills` | Array<string>| (可选, 针对 a'creator') 技能标签 (e.g., "3D建模", "角色设计")。 |
 | `status` | string | (可选) 用户在线状态 ('active', 'inactive')。 |
+| `aiAssistantEnabled`| `boolean`| (可选, 针对 'creator') 是否启用AI助理模式。 |
+| `currentQueueSize`| `number`| (可选, 针对 'creator') 当前排队人数。 |
+| `maxQueueSize`| `number` | (可选, 针对 'creator') 最大可接待排队人数。 |
 | `bio` | string | (可选, 针对 'creator') 个人简介。 |
 
 ### 1.2. `demands` 集合 (已更新)

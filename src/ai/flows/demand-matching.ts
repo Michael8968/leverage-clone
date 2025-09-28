@@ -103,25 +103,26 @@ export const createPrivateDemand = ai.defineFlow(
             let connectToHuman = false;
             let initialMessageText = '';
 
-            // User wants human AND designer is available and not in AI mode
+            // User wants human AND designer has NOT enabled AI assistant
             if (preferredAgent === 'human' && !creator.aiAssistantEnabled) { 
                 const maxQueue = creator.maxQueueSize ?? 1;
                 const currentQueue = creator.currentQueueSize ?? 0;
-                // Designer must be active and have queue space
+                
+                // Designer must be active and have queue space to connect to human directly
                 if (creator.status === 'active' && currentQueue < maxQueue) {
                     connectToHuman = true;
                 } else {
-                    // Automatically route to AI if human is not available
-                    outputMessage = "设计师正在忙，已为您连接AI助理，他会先了解您的需求。";
+                    // Automatically route to AI if human is not available for any reason
+                    outputMessage = "设计师当前正忙，已为您连接其AI助理，他会先了解您的需求。";
                 }
-            } else { // Connect to AI if user chose AI, or if designer has AI assistant enabled
+            } else { // Connect to AI if user chose AI, or if designer has their AI assistant enabled
                  outputMessage = creator.aiAssistantEnabled 
                     ? "设计师已开启AI助理模式，由我先来为您服务。" 
                     : "已为您连接AI助理，他会先了解您的需求。";
             }
             
             if (connectToHuman) {
-                // Increment creator's queue size
+                // Increment creator's queue size only when connecting to a human
                 transaction.update(creatorRef, { currentQueueSize: increment(1) });
                 initialMessageText = "您好，很高兴能与您直接沟通，请问有什么可以帮助您的吗？";
             } else { // Connect to AI
@@ -152,7 +153,7 @@ export const createPrivateDemand = ai.defineFlow(
                     text: initialMessageText,
                     senderId: connectToHuman ? creatorId : 'ai-assistant',
                     senderName: connectToHuman ? creator.name : 'AI 助理',
-                    senderAvatar: connectToHuman ? creator.avatar || '' : '',
+                    senderAvatar: connectToHuman ? creator.avatar || '' : '/bot.png',
                     isAIMessage: !connectToHuman,
                     timestamp: new Date(),
                 }],
@@ -164,4 +165,3 @@ export const createPrivateDemand = ai.defineFlow(
         return { demandId, message: outputMessage };
     }
 );
-

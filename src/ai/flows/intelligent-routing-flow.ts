@@ -40,10 +40,8 @@ const IntelligentRoutingOutputSchema = z.object({
  * Fetches all relevant data needed for the AI to make a routing decision.
  */
 async function getRoutingContext(requesterId: string, specificDesignerId?: string) {
-    // If a specific designer is requested, we only need their data. Otherwise, fetch all.
-    const designerQuery = specificDesignerId
-        ? query(collection(db, 'users'), where('__name__', '==', specificDesignerId))
-        : query(collection(db, 'users'), where('role', '==', 'creator'));
+    // If a specific designer is requested, we still fetch all active designers to allow for re-routing.
+    const designerQuery = query(collection(db, 'users'), where('role', '==', 'creator'), where('status', '==', 'active'));
 
     const [requesterSnap, designersSnap, strategySnap] = await Promise.all([
         getDoc(doc(db, 'users', requesterId)),
@@ -55,7 +53,7 @@ async function getRoutingContext(requesterId: string, specificDesignerId?: strin
 
     const requesterInfo = { uid: requesterSnap.id, ...requesterSnap.data() } as User;
     
-    // Sanitize all designers, but don't filter them out yet. The AI will decide based on aiAssistantEnabled.
+    // Sanitize all active designers, but don't filter them based on AI assistant yet.
     const allDesigners = designersSnap.docs
         .map(doc => {
             const data = doc.data() as User;
@@ -87,7 +85,7 @@ async function getRoutingContext(requesterId: string, specificDesignerId?: strin
 
     return {
         requesterInfo,
-        allDesigners, // Return all designers for the AI to consider
+        allDesigners,
         strategy,
         currentTime: format(new Date(), "yyyy-MM-dd HH:mm:ss 'Weekday:' EEEE"),
     };
@@ -100,7 +98,7 @@ async function getRoutingContext(requesterId: string, specificDesignerId?: strin
 
 const RoutingDecisionSchema = z.object({
     designerId: z.string().describe("The ID of the chosen designer. Should be 'fallback_to_ai' if no suitable designer is found."),
-    reason: z.string().describe("A concise explanation for why this designer was chosen or why a fallback to AI was necessary."),
+    reason: z.string().describe("A concise explanation for why this designer was chosen or why a fallback to AI was necessary. Mention the chosen designer's name."),
 });
 
 const routingPrompt = ai.definePrompt({
@@ -109,12 +107,11 @@ const routingPrompt = ai.definePrompt({
     output: { schema: RoutingDecisionSchema },
     prompt: `
         You are a world-class, hyper-efficient service dispatcher for a high-end design platform.
-        Your task is to analyze an incoming user request and all available real-time data to find the *single best designer* to handle it, or decide to let an AI assistant handle it.
+        Your task is to analyze an incoming user request and all available real-time data to find the *single best designer* to handle it, or decide to let a generic platform AI assistant handle it.
 
         Strictly follow the routing strategy provided below. Pay close attention to the weights of different decision factors.
 
-        A critical rule: If a designer has their "aiAssistantEnabled" flag set to true, you should treat them as a valid candidate for routing, but your "reason" should state their AI assistant will handle it. The final routing logic will handle this.
-        Do NOT filter out designers just because their AI assistant is on. The goal is to find the best match, human or AI.
+        A critical rule: You MUST NOT select a designer if their 'aiAssistantEnabled' flag is true. These designers are not available for direct routing. You must choose another designer or fallback to the generic AI assistant.
 
         ==============================
         == PLATFORM ROUTING STRATEGY ==
@@ -140,17 +137,17 @@ const routingPrompt = ai.definePrompt({
         - User's Problem/Request:
         "{{{requestDescription}}}"
 
-        - List of All Designers (consider their status, skills, queue size and aiAssistantEnabled flag):
+        - List of available designers (Remember, only route to a designer if their status is 'active' AND 'aiAssistantEnabled' is false):
         {{{json allDesigners}}}
 
         ==============================
         == YOUR TASK ==
         ==============================
         1.  Analyze all the provided data in light of the platform's routing strategy and factor weights.
-        2.  Consider all factors: designer status (must be 'active'), skills, current queue size, user rating, and 'aiAssistantEnabled'.
-        3.  Select the single best *available* designer from the list. The best match might be someone who has their AI assistant enabled.
-        4.  If no designer is a good fit or if they are all offline, decide to fall back to a generic platform AI assistant.
-        5.  Return a JSON object with your decision. The "designerId" must be either a valid designer UID from the list or the exact string "fallback_to_ai". Provide a clear "reason" for your choice, mentioning the chosen designer's name.
+        2.  Consider all factors: designer status, skills, queue size, user rating, and the crucial 'aiAssistantEnabled' flag.
+        3.  Select the single best *available* designer from the list. An available designer MUST have 'status: active' and 'aiAssistantEnabled: false'.
+        4.  If no designer is a good fit, if they are all offline, or if they all have their AI assistant enabled, you MUST decide to fall back to a generic platform AI assistant.
+        5.  Return a JSON object with your decision. The "designerId" must be either a valid designer UID from the list or the exact string "fallback_to_ai". Provide a clear "reason" for your choice.
     `,
 });
 
@@ -170,11 +167,16 @@ export const intelligentRoutingFlow = ai.defineFlow(
             // 1. Aggregate all necessary data
             const context = await getRoutingContext(requesterId, specificDesignerId);
 
-            // If there are no designers at all, fallback immediately.
-            if (context.allDesigners.length === 0) {
+            // Filter out designers who are not available for routing before sending to AI
+            const availableDesigners = context.allDesigners.filter(
+                d => d.status === 'active' && !d.aiAssistantEnabled
+            );
+
+            // If there are no designers available for routing at all, fallback immediately.
+            if (availableDesigners.length === 0) {
                  return {
                     decision: 'fallback_to_ai',
-                    reason: 'No designers are currently available on the platform.',
+                    reason: 'No designers are currently available for direct routing.',
                     aiAssistantMessage: "抱歉，平台当前没有可用的设计师。请稍后再试。",
                 };
             }
@@ -186,7 +188,7 @@ export const intelligentRoutingFlow = ai.defineFlow(
                 currentTime: context.currentTime,
                 requesterInfo: context.requesterInfo,
                 requestDescription: requestDescription,
-                allDesigners: context.allDesigners,
+                allDesigners: availableDesigners, // Pass only the available designers to the AI
             });
 
             if (!output) {
