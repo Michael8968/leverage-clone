@@ -1,3 +1,4 @@
+'use server';
 
 import '@/ai/flows/shopping-assistant.ts';
 import '@/ai/flows/user-profiling.ts';
@@ -12,3 +13,4 @@ import '@/ai/flows/admin-management-flows.ts';
 import '@/ai/flows/prompt-execution-flow.ts';
 import '@/ai/flows/multimodal-flows.ts';
 import '@/ai/flows/user-management-flows.ts';
+import '@/ai/flows/intelligent-routing-flow.ts';

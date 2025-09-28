@@ -220,3 +220,11 @@ export interface Appointment {
   notes?: string;
   createdAt: any; // Firestore Timestamp
 }
+
+// New type for Intelligent Routing Strategy
+export interface IntelligentRoutingStrategy {
+    id: 'main_strategy'; // Singleton document
+    strategyText: string;
+    temperature: number;
+    updatedAt: any; // Firestore Timestamp
+}

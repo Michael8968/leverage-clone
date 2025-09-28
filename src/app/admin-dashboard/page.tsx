@@ -432,6 +432,7 @@ export default function AdminDashboardPage() {
             <div className="p-4 md:p-8 space-y-6">
                 <header>
                     <h1 className="text-2xl font-headline font-bold flex items-center gap-2"><Bot /> LLM 对接</h1>
+                    <p className="text-muted-foreground">在此处动态配置、测试和管理来自不同厂商的大语言模型连接。</p>
                 </header>
                 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
