@@ -118,6 +118,19 @@
   .dark .bg-gradient-primary {
      @apply bg-gradient-to-r from-secondary to-muted;
   }
+  
+  /* Card hover animation for dark theme */
+  .dark .card-animated-shadow {
+      transition: box-shadow 0.3s ease-in-out;
+  }
+  .dark .card-animated-shadow:hover {
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  }
+
+  /* Button gradient hover for dark theme */
+  .dark .button-gradient-hover:hover {
+      background-image: linear-gradient(to right, hsl(var(--primary)), hsl(var(--accent)));
+  }
 }
 
 /* Accordion Animation */
@@ -129,23 +142,9 @@
   from { height: var(--radix-accordion-content-height); }
   to { height: 0; }
 }
-
-.gradient [data-state='open'][data-radix-collection-item] {
+.gradient [data-state=open] > [data-radix-collapsible-content] {
   animation: accordion-down 200ms ease-out;
 }
-.gradient [data-state='closed'][data-radix-collection-item] {
+.gradient [data-state=closed] > [data-radix-collapsible-content] {
   animation: accordion-up 200ms ease-out;
-}
-
-/* Card hover animation for dark theme */
-.dark .card-animated-shadow {
-    transition: box-shadow 0.3s ease-in-out;
-}
-.dark .card-animated-shadow:hover {
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-}
-
-/* Button gradient hover for dark theme */
-.dark .button-gradient-hover:hover {
-    background-image: linear-gradient(to right, hsl(var(--primary)), hsl(var(--accent)));
 }
