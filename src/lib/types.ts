@@ -222,10 +222,18 @@ export interface Appointment {
   createdAt: any; // Firestore Timestamp
 }
 
-// New type for Intelligent Routing Strategy
+// New types for Intelligent Routing Strategy
+export type DecisionFactor = {
+    id: string;
+    name: string;
+    description: string;
+    icon: string; // Lucide icon name
+};
+
 export interface IntelligentRoutingStrategy {
     id: 'main_strategy'; // Singleton document
     strategyText: string;
+    factors: DecisionFactor[];
     factorTemperatures: {
         [key: string]: number;
     };
