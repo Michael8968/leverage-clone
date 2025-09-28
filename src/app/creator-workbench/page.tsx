@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -12,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { collection, getDocs, query, where, doc, updateDoc, addDoc, serverTimestamp, getDoc, deleteDoc, Timestamp, setDoc, orderBy, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Demand, ProductService, LlmConnection, Appointment, Availability, AssistantRule, Prompt } from '@/lib/types';
+import type { Demand, ProductService, LlmConnection, Appointment, Availability, AssistantRule, Prompt, User } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -732,12 +733,14 @@ function ScheduleAndAssistantTab() {
             const availablePrompts = promptsData.prompts.filter(p => p.ownerType === 'platform' || p.ownerId === user.uid);
             setPrompts(availablePrompts);
 
-            // Fetch appointments - REMOVED orderBy to avoid needing an index
-            const apptQuery = query(collection(db, 'appointments'), where("creatorId", "==", user.uid));
+            // Fetch appointments with server-side sorting
+            const apptQuery = query(
+                collection(db, 'appointments'), 
+                where("creatorId", "==", user.uid),
+                orderBy('appointmentTime', 'desc')
+            );
             const apptSnapshot = await getDocs(apptQuery);
-            let apptList = apptSnapshot.docs.map(doc => doc.data() as Appointment);
-            // Sort on the client
-            apptList.sort((a,b) => b.appointmentTime.toMillis() - a.appointmentTime.toMillis());
+            const apptList = apptSnapshot.docs.map(doc => doc.data() as Appointment);
             setAppointments(apptList);
             setIsAppointmentsLoading(false);
 
@@ -1087,8 +1090,11 @@ function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, is
     const handleRatingToggle = (role: Role, rating: number) => {
         const currentRoles = { ...(rule.conditions.targetUserRoles || {}) };
         const currentRatings = currentRoles[role] || [];
-        const newRatings = currentRatings.includes(rating) ? currentRatings.filter(r => r !== rating) : [...currentRatings, rating];
-        currentRoles[role] = newRatings;
+        if (currentRatings.includes(rating)) {
+            currentRoles[role] = currentRatings.filter(r => r !== rating);
+        } else {
+            currentRoles[role] = [...currentRatings, rating];
+        }
         handleConditionChange('targetUserRoles', currentRoles);
     };
     
