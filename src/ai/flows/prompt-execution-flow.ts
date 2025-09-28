@@ -145,7 +145,8 @@ const executePromptFlow = ai.defineFlow(
     
     // 2. Fetch prompt document if a key is determined
     let promptDoc: Prompt | undefined;
-    if (finalPromptKey) {
+    // FIX: Add a stricter check to ensure finalPromptKey is a valid, non-empty string.
+    if (typeof finalPromptKey === 'string' && finalPromptKey.trim() !== '') {
         // This query requires a single-field index on the 'promptKey' field in the 'prompts' collection.
         const q = query(collection(db, 'prompts'), where('promptKey', '==', finalPromptKey), limit(1));
         const promptSnapshot = await getDocs(q);
