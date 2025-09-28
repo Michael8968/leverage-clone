@@ -85,7 +85,7 @@ const navItems: NavItem[] = [
   { href: '/search', label: '智能搜索', icon: Search, roles: ['user', 'admin', 'supplier', 'creator'] },
   { href: '/suppliers', label: '供应商中心', icon: Building, roles: ['admin', 'supplier'] },
   { href: '/admin-dashboard', label: 'LLM对接', icon: Settings, roles: ['admin'] },
-  { href: '/prompt-management', label: '提示词管理', icon: Workflow, roles: ['admin', 'creator']},
+  { href: '/prompt-management', label: '提示词管理', icon: Workflow, roles: ['admin']},
   { href: '/ai-scenario-config', label: 'AI场景配置', icon: Puzzle, roles: ['admin'] },
   { href: '/intelligent-routing', label: '智能路由策略', icon: Route, roles: ['admin'] },
   { href: '/knowledge-base', label: '知识库管理', icon: Database, roles: ['admin'] },
@@ -248,37 +248,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <DropdownMenuSeparator />
                {role === 'creator' && (
                 <>
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      {user.status === 'active' ? (
-                        <ToggleRight className="mr-2 h-4 w-4 text-green-500" />
-                      ) : (
-                        <ToggleLeft className="mr-2 h-4 w-4 text-muted-foreground" />
-                      )}
-                      <span>接待状态</span>
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuPortal>
-                        <DropdownMenuSubContent>
-                          <DropdownMenuItem onClick={() => handleStatusChange('active')}>
-                              <Power className="mr-2 h-4 w-4 text-green-500" />
-                              <span>在线接待</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleStatusChange('inactive')}>
-                              <Power className="mr-2 h-4 w-4 text-red-500"/>
-                              <span>挂起示忙</span>
-                          </DropdownMenuItem>
-                        </DropdownMenuSubContent>
-                    </DropdownMenuPortal>
-                  </DropdownMenuSub>
-                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                    <Bot className="mr-2 h-4 w-4" />
-                    <span>AI助理模式</span>
-                    <Switch 
-                        checked={user.aiAssistantEnabled}
-                        onCheckedChange={handleAIAssistantToggle}
-                        className="ml-auto"
-                    />
-                  </DropdownMenuItem>
+                  {/* The status toggles are now moved to the creator workbench */}
                   <DropdownMenuSeparator />
                 </>
               )}
