@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef }from 'react';
@@ -11,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Bot, Loader2, Send, Sparkles, Settings, Trash2 } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot, updateDoc, arrayUnion, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, arrayUnion, setDoc, getDoc } from 'firebase/firestore';
 import type { Demand, User, ChatMessage } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
