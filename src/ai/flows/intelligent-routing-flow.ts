@@ -64,7 +64,16 @@ async function getRoutingContext(requesterId: string) {
 
     const strategy: IntelligentRoutingStrategy = strategySnap.exists()
         ? strategySnap.data() as IntelligentRoutingStrategy
-        : { id: 'main_strategy', strategyText: "Default: Route to the designer with the fewest people in their queue (currentQueueSize).", temperature: 0.2, updatedAt: new Date() };
+        : { 
+            id: 'main_strategy', 
+            strategyText: "Default: Route to the designer with the fewest people in their queue (currentQueueSize).", 
+            factorTemperatures: {
+                problemCategory: 0.8,
+                userPriority: 0.5,
+                busyness: 1.0,
+            },
+            updatedAt: new Date() 
+        };
 
     return {
         requesterInfo,
@@ -92,12 +101,20 @@ const routingPrompt = ai.definePrompt({
         You are a world-class, hyper-efficient service dispatcher for a high-end design platform.
         Your task is to analyze an incoming user request and all available real-time data to find the *single best designer* to handle it, or decide to let an AI assistant handle it.
 
-        Strictly follow the routing strategy provided below.
+        Strictly follow the routing strategy provided below. Pay close attention to the weights of different decision factors.
 
         ==============================
         == PLATFORM ROUTING STRATEGY ==
         ==============================
         {{{strategyText}}}
+
+        ==================================
+        == DECISION FACTOR WEIGHTS ==
+        ==================================
+        (0.0 means not important, 1.0 means most important)
+        {{#each factorTemperatures}}
+        - {{@key}}: {{this}}
+        {{/each}}
 
         ==============================
         == REAL-TIME DATA ==
@@ -116,7 +133,7 @@ const routingPrompt = ai.definePrompt({
         ==============================
         == YOUR TASK ==
         ==============================
-        1.  Analyze all the provided data in light of the platform's routing strategy.
+        1.  Analyze all the provided data in light of the platform's routing strategy and factor weights.
         2.  Consider all factors: designer status (must be 'active'), skills, current queue size, user rating, time of day, etc.
         3.  Select the single best designer from the list.
         4.  If no designer is a good fit or if the strategy dictates it (e.g., off-hours), decide to fall back to the AI assistant.
@@ -143,7 +160,7 @@ export const intelligentRoutingFlow = ai.defineFlow(
             // 2. Call the AI model with the rich context
             const { output } = await routingPrompt({
                 strategyText: context.strategy.strategyText,
-                temperature: context.strategy.temperature,
+                factorTemperatures: context.strategy.factorTemperatures,
                 currentTime: context.currentTime,
                 requesterInfo: context.requesterInfo,
                 requestDescription: requestDescription,

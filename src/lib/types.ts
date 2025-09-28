@@ -225,6 +225,8 @@ export interface Appointment {
 export interface IntelligentRoutingStrategy {
     id: 'main_strategy'; // Singleton document
     strategyText: string;
-    temperature: number;
+    factorTemperatures: {
+        [key: string]: number;
+    };
     updatedAt: any; // Firestore Timestamp
 }
