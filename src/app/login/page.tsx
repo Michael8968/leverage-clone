@@ -51,26 +51,19 @@ function LoginContent() {
   const onSubmit = (values: z.infer<typeof formSchema>) => {
     startTransition(async () => {
       try {
-        console.log("[LOGIN_DEBUG] Step 1: Attempting to sign in with Firebase Auth...");
         const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
         const firebaseUser = userCredential.user;
-        console.log(`[LOGIN_DEBUG] Step 1 SUCCESS: User authenticated with UID: ${firebaseUser.uid}`);
 
-        console.log("[LOGIN_DEBUG] Step 2: Attempting to fetch user document from Firestore...");
         const userDocRef = doc(db, "users", firebaseUser.uid);
         const userDocSnap = await getDoc(userDocRef);
-        console.log(`[LOGIN_DEBUG] Step 2 SUCCESS: Firestore document snapshot received. Document exists: ${userDocSnap.exists()}`);
 
         if (!userDocSnap.exists()) {
           await auth.signOut();
-          throw new Error("User profile not found in the database. Please contact support.");
+          throw new Error("该用户不存在或已被删除。");
         }
 
         const userData = userDocSnap.data() as User;
-        console.log("[LOGIN_DEBUG] Step 3: User role found:", userData.role);
-
         setUser(userData, userData.role);
-        console.log("[LOGIN_DEBUG] Step 4: Global state updated.");
 
         toast({
           title: "登录成功",
@@ -78,19 +71,28 @@ function LoginContent() {
         });
 
         const redirectPath = getRedirectPath(userData.role);
-        console.log(`[LOGIN_DEBUG] Step 5: Redirecting to ${redirectPath}...`);
         router.push(redirectPath);
 
       } catch (error: any) {
-        // ==> CRITICAL DEBUG LOG <==
-        console.error("[LOGIN_DEBUG] An error occurred during the login process:", error);
-        
         let description = "登录过程中发生未知错误。";
-        if (error.code) { // Firebase errors have a 'code' property
-          description = `错误代码: ${error.code}. ${error.message}`;
+        if (error.code) {
+          switch (error.code) {
+            case 'auth/invalid-credential':
+              description = "电子邮件或密码不正确，请重试。";
+              break;
+            case 'auth/user-not-found':
+              description = "该电子邮件地址未注册。";
+              break;
+            case 'auth/wrong-password':
+              description = "密码不正确，请重试。";
+              break;
+            default:
+              description = `发生了一个错误，请稍后重试。 (代码: ${error.code})`;
+          }
         } else {
-          description = error.message;
+            description = error.message;
         }
+
         toast({
           title: "登录失败",
           description,
