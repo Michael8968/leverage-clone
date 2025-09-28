@@ -147,7 +147,7 @@ const routingPrompt = ai.definePrompt({
         == YOUR TASK ==
         ==============================
         1.  Analyze all the provided data in light of the platform's routing strategy and factor weights.
-        2.  Consider all factors: designer status (must be 'active'), skills, current queue size, user rating, and `aiAssistantEnabled`.
+        2.  Consider all factors: designer status (must be 'active'), skills, current queue size, user rating, and 'aiAssistantEnabled'.
         3.  Select the single best *available* designer from the list. The best match might be someone who has their AI assistant enabled.
         4.  If no designer is a good fit or if they are all offline, decide to fall back to a generic platform AI assistant.
         5.  Return a JSON object with your decision. The "designerId" must be either a valid designer UID from the list or the exact string "fallback_to_ai". Provide a clear "reason" for your choice, mentioning the chosen designer's name.
@@ -221,4 +221,3 @@ export const intelligentRoutingFlow = ai.defineFlow(
         }
     }
 );
-
