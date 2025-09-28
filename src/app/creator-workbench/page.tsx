@@ -39,6 +39,7 @@ import { Progress } from '@/components/ui/progress';
 import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { TimePicker } from '@/components/ui/time-picker';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 // =================================================================
@@ -698,6 +699,7 @@ function ScheduleTab() {
   const { user } = useAuthStore();
   const { toast } = useToast();
   const [availability, setAvailability] = useState<Availability | null>(null);
+  const [isAlwaysAvailable, setIsAlwaysAvailable] = useState(false);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [upcomingAppointments, setUpcomingAppointments] = useState<Appointment[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
@@ -710,19 +712,24 @@ function ScheduleTab() {
       const availRef = doc(db, 'availabilities', user.uid);
       const availSnap = await getDoc(availRef);
       if (availSnap.exists()) {
-        setAvailability(availSnap.data() as Availability);
+        const data = availSnap.data() as Availability;
+        setAvailability(data);
+        setIsAlwaysAvailable(data.alwaysAvailable || false);
       } else {
-        setAvailability({ creatorId: user.uid, slots: [] });
+        setAvailability({ creatorId: user.uid, slots: [], alwaysAvailable: false });
+        setIsAlwaysAvailable(false);
       }
 
       const appointmentsQuery = query(
           collection(db, 'appointments'), 
-          where('creatorId', '==', user.uid),
-          orderBy('appointmentTime', 'asc')
+          where('creatorId', '==', user.uid)
       );
       const appointmentsSnapshot = await getDocs(appointmentsQuery);
       const apptList = appointmentsSnapshot.docs.map(d => ({ ...d.data(), id: d.id } as Appointment));
       
+      // Client-side sorting
+      apptList.sort((a,b) => a.appointmentTime.toDate().getTime() - b.appointmentTime.toDate().getTime());
+
       const now = new Date();
       const upcoming = apptList.filter(appt => 
           appt.status === 'confirmed' && 
@@ -733,6 +740,7 @@ function ScheduleTab() {
       setAppointments(apptList);
 
     } catch (error) {
+      console.error("Failed to load schedule data:", error);
       toast({ title: "加载失败", description: "无法加载您的排班和预约信息。", variant: "destructive" });
     } finally {
       setIsLoading(false);
@@ -742,6 +750,19 @@ function ScheduleTab() {
   useEffect(() => {
     fetchScheduleData();
   }, [fetchScheduleData]);
+
+  const handleAlwaysAvailableToggle = async (checked: boolean) => {
+      if (!user) return;
+      setIsAlwaysAvailable(checked);
+      try {
+        const availRef = doc(db, 'availabilities', user.uid);
+        await setDoc(availRef, { alwaysAvailable: checked }, { merge: true });
+        toast({ title: "设置已更新", description: `您已${checked ? '开启' : '关闭'}“全时空闲”。` });
+      } catch (error) {
+        toast({ title: "失败", description: "更新设置失败。", variant: "destructive" });
+        setIsAlwaysAvailable(!checked); // Revert on error
+      }
+  };
 
   const handleAddTimeSlot = async () => {
     if (!user || !selectedDate || !availability) return;
@@ -761,7 +782,7 @@ function ScheduleTab() {
     const newSlots = (availability.slots || []).filter(slot => !slot.isEqual(slotToRemove));
     try {
       const availRef = doc(db, 'availabilities', user.uid);
-      await setDoc(availRef, { creatorId: user.uid, slots: newSlots });
+      await setDoc(availRef, { creatorId: user.uid, slots: newSlots }, { merge: true });
       fetchScheduleData(); // Refresh data
       toast({ title: "成功", description: "时间段已移除。" });
     } catch (error) {
@@ -833,17 +854,23 @@ function ScheduleTab() {
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="md:col-span-1">
             <h4 className="font-semibold mb-2">添加空闲时间</h4>
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={setSelectedDate}
-              className="rounded-md border"
-              disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))}
-            />
-             <div className="flex items-center gap-2 mt-4">
-                <TimePicker date={selectedDate} setDate={setSelectedDate}/>
-                <Button onClick={handleAddTimeSlot} disabled={!selectedDate}>添加</Button>
-             </div>
+            <div className="flex items-center space-x-2 mb-4 p-3 border rounded-md">
+                <Checkbox id="always-available" checked={isAlwaysAvailable} onCheckedChange={(checked) => handleAlwaysAvailableToggle(Boolean(checked))} />
+                <Label htmlFor="always-available">全时空闲</Label>
+            </div>
+            <div className={isAlwaysAvailable ? 'opacity-50 pointer-events-none' : ''}>
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={setSelectedDate}
+                  className="rounded-md border"
+                  disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))}
+                />
+                 <div className="flex items-center gap-2 mt-4">
+                    <TimePicker date={selectedDate} setDate={setSelectedDate}/>
+                    <Button onClick={handleAddTimeSlot} disabled={!selectedDate}>添加</Button>
+                 </div>
+            </div>
           </div>
           <div className="md:col-span-2">
               <h4 className="font-semibold mb-2">

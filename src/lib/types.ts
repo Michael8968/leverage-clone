@@ -211,6 +211,7 @@ export interface Resource {
 export interface Availability {
   creatorId: string;
   slots: Timestamp[]; // Array of Firestore Timestamps
+  alwaysAvailable?: boolean;
 }
 
 export interface Appointment {
