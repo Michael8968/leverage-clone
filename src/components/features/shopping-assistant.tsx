@@ -100,7 +100,7 @@ export function ShoppingAssistant() {
                 const shoppingScenarios = scenariosSnapshot.docs.map(doc => ({id: doc.id, ...doc.data() } as AIScenario));
                 setScenarios(shoppingScenarios);
 
-                if (user) {
+                if (user && user.uid) {
                      const appointmentsQuery = query(collection(db, 'appointments'), where('requesterId', '==', user.uid));
                      const appointmentsSnapshot = await getDocs(appointmentsQuery);
                      
@@ -365,4 +365,5 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
     
 
     
+
 
