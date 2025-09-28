@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useRef, useEffect, useTransition } from 'react';
@@ -30,6 +29,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { differenceInHours, format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+import { useTheme } from 'next-themes';
 
 // Type definitions for chat messages
 type Message = {
@@ -52,6 +52,49 @@ const formSchema = z.object({
 });
 
 type FormValues = z.infer<typeof formSchema>;
+
+
+// New component for the dynamic video background
+function DynamicVideoBackground() {
+  const { theme } = useTheme();
+  const [videoSrc, setVideoSrc] = useState('/videos/dark-bg.mp4');
+
+  useEffect(() => {
+    // We need to check if the component is mounted to avoid SSR issues with theme
+    switch (theme) {
+      case 'light':
+        setVideoSrc('/videos/light-bg.mp4');
+        break;
+      case 'dark':
+        setVideoSrc('/videos/dark-bg.mp4');
+        break;
+      case 'gradient':
+        setVideoSrc('/videos/gradient-bg.mp4');
+        break;
+      default:
+        // Fallback for system theme or initial load
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          setVideoSrc('/videos/dark-bg.mp4');
+        } else {
+          setVideoSrc('/videos/light-bg.mp4');
+        }
+        break;
+    }
+  }, [theme]);
+
+  return (
+    <video
+      key={videoSrc} // Use key to force re-render when src changes
+      className="absolute top-0 left-0 w-full h-full object-cover -z-10"
+      autoPlay
+      loop
+      muted
+      playsInline
+    >
+      <source src={videoSrc} type="video/mp4" />
+    </video>
+  );
+}
 
 
 export function ShoppingAssistant() {
@@ -216,88 +259,91 @@ export function ShoppingAssistant() {
     const hasAiResponse = messages.some(m => m.type === 'ai');
 
     return (
-        <div className="flex h-[calc(100vh-57px)] md:h-screen flex-col p-4 md:p-8">
-            {upcomingAppointments.length > 0 && (
-                <Alert variant="default" className="mb-4 border-amber-500">
-                <AlertCircle className="h-4 w-4 text-amber-500" />
-                <AlertTitle className="font-headline text-amber-600">预约提醒</AlertTitle>
-                <AlertDescription>
-                    您在24小时内有新的预约：
-                    <ul className="list-disc pl-5 mt-2">
-                    {upcomingAppointments.map(appt => (
-                        <li key={appt.id}>
-                        与创意者的预约在 **{format(appt.appointmentTime.toDate(), 'M月d日 HH:mm', { locale: zhCN })}**
-                        </li>
-                    ))}
-                    </ul>
-                </AlertDescription>
-                </Alert>
-            )}
-            <div className='text-center mb-4'>
-                <h1 className="text-2xl font-headline font-bold">欢迎光临 Leverage 力维利治</h1>
-                <p className="text-muted-foreground">与AI导购对话,发现为您量身推荐的独特设计,部分商品更支持个性化定制。</p>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 min-h-0">
-                <div className="lg:col-span-2 flex flex-col">
-                    <Card className="flex-1 flex flex-col overflow-hidden">
-                        <CardHeader><CardTitle className="font-headline flex items-center gap-2"><Bot/> AI购物助手</CardTitle><CardDescription>您好,我是您的专属购物助手。请问您在寻找什么?</CardDescription></CardHeader>
-                        <CardContent className="flex-1 min-h-0"><ScrollArea className="h-full" ref={scrollAreaRef}><div className="space-y-6 pr-4">
-                            {messages.length > 0 && messages.map((msg) => {
-                                if (msg.type === 'user') return <UserMessage key={msg.id} {...msg} />;
-                                if (msg.type === 'ai') return <AIMessage key={msg.id} {...msg} />;
-                                if (msg.type === 'loading') return <LoadingMessage key={msg.id} />;
-                                return null;
-                            })}
-                        </div></ScrollArea></CardContent>
-                        <CardFooter><Form {...form}><form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="w-full space-y-4">
-                            {mediaAsset && ( <div className="relative w-24 h-24">{mediaAsset.mediaType === 'video' ? <video src={mediaAsset.previewUrl} className="w-full h-full rounded-md object-cover"/> : <Image src={mediaAsset.previewUrl!} alt="Preview" layout="fill" className="rounded-md object-cover"/>}<Button variant="ghost" size="icon" className="absolute top-0 right-0 h-6 w-6" onClick={() => setMediaAsset(null)}><X className="h-4 w-4" /></Button></div> )}
-                             <FormField
-                                control={form.control}
-                                name="scenarioId"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <Select onValueChange={field.onChange} value={field.value}>
-                                            <FormControl>
-                                                <SelectTrigger>
-                                                  <div className="flex items-center gap-2">
-                                                      <Puzzle className="w-4 h-4 text-muted-foreground"/>
-                                                      <SelectValue placeholder="-- 优先从默认推荐 --" />
-                                                  </div>
-                                                </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="default">-- 优先从默认推荐 --</SelectItem>
-                                                {scenarios.map(s => (
-                                                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </FormItem>
-                                )}
-                            />
-                            <div className="flex gap-2 items-end">
-                                <FormField
-                                  control={form.control}
-                                  name="description"
-                                  render={({ field }) => (
-                                    <FormItem className="flex-1">
-                                      <FormControl>
-                                        <Textarea placeholder="描述您的需求..." {...field} />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                                <Input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*" className="hidden" onChange={handleMediaUpload}/>
-                                <Button type="button" variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>{isUploading ? <Loader2 className="animate-spin" /> : <Paperclip />}</Button>
-                                <Button type="submit" disabled={isAiSearching || isUploading}>{isAiSearching ? <Loader2 className="animate-spin" /> : <Send />}</Button>
-                            </div>
-                        </form></Form></CardFooter>
-                    </Card>
+        <div className="relative flex h-[calc(100vh-57px)] md:h-screen flex-col p-4 md:p-8 overflow-hidden">
+            <DynamicVideoBackground />
+            <div className="relative z-10">
+                {upcomingAppointments.length > 0 && (
+                    <Alert variant="default" className="mb-4 border-amber-500 bg-amber-50/80 backdrop-blur-sm">
+                    <AlertCircle className="h-4 w-4 text-amber-500" />
+                    <AlertTitle className="font-headline text-amber-600">预约提醒</AlertTitle>
+                    <AlertDescription>
+                        您在24小时内有新的预约：
+                        <ul className="list-disc pl-5 mt-2">
+                        {upcomingAppointments.map(appt => (
+                            <li key={appt.id}>
+                            与创意者的预约在 **{format(appt.appointmentTime.toDate(), 'M月d日 HH:mm', { locale: zhCN })}**
+                            </li>
+                        ))}
+                        </ul>
+                    </AlertDescription>
+                    </Alert>
+                )}
+                <div className='text-center mb-4'>
+                    <h1 className="text-2xl font-headline font-bold text-white shadow-black [text-shadow:_0_1px_10px_var(--tw-shadow-color)]">欢迎光临 Leverage 力维利治</h1>
+                    <p className="text-gray-200 mt-1 shadow-black [text-shadow:_0_1px_3px_var(--tw-shadow-color)]">与AI导购对话,发现为您量身推荐的独特设计,部分商品更支持个性化定制。</p>
                 </div>
-                <div className="flex flex-col gap-8">
-                  {role === 'user' && hasAiResponse && <DemandPoolConnector />}
-                  <CustomServiceConnector />
+                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 min-h-0">
+                    <div className="lg:col-span-2 flex flex-col">
+                        <Card className="flex-1 flex flex-col overflow-hidden bg-card/80 backdrop-blur-sm">
+                            <CardHeader><CardTitle className="font-headline flex items-center gap-2"><Bot/> AI购物助手</CardTitle><CardDescription>您好,我是您的专属购物助手。请问您在寻找什么?</CardDescription></CardHeader>
+                            <CardContent className="flex-1 min-h-0"><ScrollArea className="h-full" ref={scrollAreaRef}><div className="space-y-6 pr-4">
+                                {messages.length > 0 && messages.map((msg) => {
+                                    if (msg.type === 'user') return <UserMessage key={msg.id} {...msg} />;
+                                    if (msg.type === 'ai') return <AIMessage key={msg.id} {...msg} />;
+                                    if (msg.type === 'loading') return <LoadingMessage key={msg.id} />;
+                                    return null;
+                                })}
+                            </div></ScrollArea></CardContent>
+                            <CardFooter><Form {...form}><form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="w-full space-y-4">
+                                {mediaAsset && ( <div className="relative w-24 h-24">{mediaAsset.mediaType === 'video' ? <video src={mediaAsset.previewUrl} className="w-full h-full rounded-md object-cover"/> : <Image src={mediaAsset.previewUrl!} alt="Preview" layout="fill" className="rounded-md object-cover"/>}<Button variant="ghost" size="icon" className="absolute top-0 right-0 h-6 w-6" onClick={() => setMediaAsset(null)}><X className="h-4 w-4" /></Button></div> )}
+                                <FormField
+                                    control={form.control}
+                                    name="scenarioId"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl>
+                                                    <SelectTrigger>
+                                                    <div className="flex items-center gap-2">
+                                                        <Puzzle className="w-4 h-4 text-muted-foreground"/>
+                                                        <SelectValue placeholder="-- 优先从默认推荐 --" />
+                                                    </div>
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="default">-- 优先从默认推荐 --</SelectItem>
+                                                    {scenarios.map(s => (
+                                                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </FormItem>
+                                    )}
+                                />
+                                <div className="flex gap-2 items-end">
+                                    <FormField
+                                    control={form.control}
+                                    name="description"
+                                    render={({ field }) => (
+                                        <FormItem className="flex-1">
+                                        <FormControl>
+                                            <Textarea placeholder="描述您的需求..." {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                        </FormItem>
+                                    )}
+                                    />
+                                    <Input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*" className="hidden" onChange={handleMediaUpload}/>
+                                    <Button type="button" variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>{isUploading ? <Loader2 className="animate-spin" /> : <Paperclip />}</Button>
+                                    <Button type="submit" disabled={isAiSearching || isUploading}>{isAiSearching ? <Loader2 className="animate-spin" /> : <Send />}</Button>
+                                </div>
+                            </form></Form></CardFooter>
+                        </Card>
+                    </div>
+                    <div className="flex flex-col gap-8">
+                    {role === 'user' && hasAiResponse && <DemandPoolConnector />}
+                    <CustomServiceConnector />
+                    </div>
                 </div>
             </div>
         </div>
@@ -318,17 +364,17 @@ const UserMessage = ({ text, mediaPreviewUrl, mediaType }: Message) => (
   </div>
 );
 const AIMessage = ({ profile, recommendations, text, isRawText }: Message) => (
-    <div className="flex items-start gap-3"><Bot className="w-8 h-8 text-accent flex-shrink-0" /><div className="bg-card rounded-lg p-3 border space-y-4 w-full">
+    <div className="flex items-start gap-3"><Bot className="w-8 h-8 text-accent flex-shrink-0" /><div className="bg-card/90 backdrop-blur-sm rounded-lg p-3 border space-y-4 w-full">
         {isRawText ? <p className="text-sm whitespace-pre-wrap">{text}</p> : <> <p className='font-semibold'>这是我根据您的需求分析的结果：</p> {profile && <UserProfileDisplay profile={profile} />} {recommendations && recommendations.length > 0 && <RecommendationsDisplay recommendations={recommendations} />} {(!recommendations || recommendations.length === 0) && <p className="text-sm text-muted-foreground">抱歉，暂时没有找到完全匹配的商品。</p>} </>}
     </div></div>
 );
 const LoadingMessage = () => (
-    <div className="flex items-start gap-3"><Bot className="w-8 h-8 text-accent" /><div className="bg-card rounded-lg p-3 max-w-sm border w-full"><div className="space-y-3"><p className='text-sm font-semibold text-muted-foreground'>AI 正在分析您的需求，请稍候...</p><Skeleton className="h-16 w-full" /><Skeleton className="h-24 w-full" /></div></div></div>
+    <div className="flex items-start gap-3"><Bot className="w-8 h-8 text-accent" /><div className="bg-card/90 backdrop-blur-sm rounded-lg p-3 max-w-sm border w-full"><div className="space-y-3"><p className='text-sm font-semibold text-muted-foreground'>AI 正在分析您的需求，请稍候...</p><Skeleton className="h-16 w-full" /><Skeleton className="h-24 w-full" /></div></div></div>
 );
-const CustomServiceConnector = () => { const router = useRouter(); return (<Card><CardHeader><CardTitle className="font-headline flex items-center gap-2"><Users/> 寻找创意师</CardTitle><CardDescription>浏览平台上的创意人才，查看他们的作品集和专长。</CardDescription></CardHeader><CardContent><Button className="w-full" variant="accent" onClick={() => router.push('/designers')}>寻找创意师 →</Button></CardContent></Card>); };
-const DemandPoolConnector = () => { const router = useRouter(); return (<Card className="bg-accent/10 border-accent"><CardHeader><CardTitle className="font-headline flex items-center gap-2"><FilePlus2/> 没找到满意的？</CardTitle><CardDescription>您可以将您的需求发布到需求池，让更多的供应商和创意者来帮助您。</CardDescription></CardHeader><CardContent><Button className="w-full" onClick={() => router.push('/demand-pool')}>发布到需求池</Button></CardContent></Card>); };
-const UserProfileDisplay = ({ profile }: { profile: UserProfile }) => ( <Card className="bg-background"><CardHeader className="p-3"><CardTitle className="text-base font-semibold flex items-center gap-2"><BrainCircuit className="w-5 h-5 text-accent"/> 用户画像分析</CardTitle></CardHeader><CardContent className="p-3 pt-0"><p className="text-sm text-muted-foreground mb-2">{profile.summary}</p><div className="flex flex-wrap gap-1">{profile.tags.map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}</div></CardContent></Card> );
-const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductService[] }) => ( <div><h4 className="font-semibold mb-2 flex items-center gap-2"><Sparkles className="w-5 h-5 text-amber-500" /> 首要推荐</h4><div className="space-y-3">{recommendations.map((rec) => ( <Card key={rec.id} className="overflow-hidden bg-background"><div className="aspect-video relative w-full"><Image src={rec.imageUrl || `https://picsum.photos/seed/${rec.id}/300/200`} alt={rec.name} fill style={{objectFit: "cover"}}/></div><div className="p-3"><div className='flex justify-between items-start gap-2'><div><h5 className="font-semibold truncate pr-2">{rec.name}</h5>{rec.supplierName && <p className="text-xs text-muted-foreground">由 {rec.supplierName} 提供</p>}</div><p className="font-bold text-right text-primary whitespace-nowrap">¥{rec.price.toLocaleString()}</p></div></div>
+const CustomServiceConnector = () => { const router = useRouter(); return (<Card className="bg-card/80 backdrop-blur-sm"><CardHeader><CardTitle className="font-headline flex items-center gap-2"><Users/> 寻找创意师</CardTitle><CardDescription>浏览平台上的创意人才，查看他们的作品集和专长。</CardDescription></CardHeader><CardContent><Button className="w-full" variant="accent" onClick={() => router.push('/designers')}>寻找创意师 →</Button></CardContent></Card>); };
+const DemandPoolConnector = () => { const router = useRouter(); return (<Card className="bg-accent/10 border-accent backdrop-blur-sm"><CardHeader><CardTitle className="font-headline flex items-center gap-2"><FilePlus2/> 没找到满意的？</CardTitle><CardDescription>您可以将您的需求发布到需求池，让更多的供应商和创意者来帮助您。</CardDescription></CardHeader><CardContent><Button className="w-full" onClick={() => router.push('/demand-pool')}>发布到需求池</Button></CardContent></Card>); };
+const UserProfileDisplay = ({ profile }: { profile: UserProfile }) => ( <Card className="bg-background/80 backdrop-blur-sm"><CardHeader className="p-3"><CardTitle className="text-base font-semibold flex items-center gap-2"><BrainCircuit className="w-5 h-5 text-accent"/> 用户画像分析</CardTitle></CardHeader><CardContent className="p-3 pt-0"><p className="text-sm text-muted-foreground mb-2">{profile.summary}</p><div className="flex flex-wrap gap-1">{profile.tags.map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}</div></CardContent></Card> );
+const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductService[] }) => ( <div><h4 className="font-semibold mb-2 flex items-center gap-2"><Sparkles className="w-5 h-5 text-amber-500" /> 首要推荐</h4><div className="space-y-3">{recommendations.map((rec) => ( <Card key={rec.id} className="overflow-hidden bg-background/80 backdrop-blur-sm"><div className="aspect-video relative w-full"><Image src={rec.imageUrl || `https://picsum.photos/seed/${rec.id}/300/200`} alt={rec.name} fill style={{objectFit: "cover"}}/></div><div className="p-3"><div className='flex justify-between items-start gap-2'><div><h5 className="font-semibold truncate pr-2">{rec.name}</h5>{rec.supplierName && <p className="text-xs text-muted-foreground">由 {rec.supplierName} 提供</p>}</div><p className="font-bold text-right text-primary whitespace-nowrap">¥{rec.price.toLocaleString()}</p></div></div>
     <CardFooter className="p-3 bg-muted/50 flex w-full justify-end gap-2">
         <TooltipProvider>
             <Tooltip>
@@ -366,4 +412,4 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
 
     
 
-
+    
