@@ -105,7 +105,7 @@ export type User = {
   avatar: string;
   gender?: 'male' | 'female' | 'other';
   rating?: number;
-  status?: 'active' | 'inactive';
+  status?: 'active' | 'inactive' | 'suspended';
   aiAssistantEnabled?: boolean;
   alwaysAvailable?: boolean;
   bio?: string;
@@ -297,3 +297,5 @@ export interface IntelligentRoutingStrategy {
     advancedRules: StrategyRule[];
     updatedAt: any; // Firestore Timestamp
 }
+
+    
