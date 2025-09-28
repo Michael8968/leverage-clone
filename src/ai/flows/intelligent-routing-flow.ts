@@ -12,7 +12,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { User, IntelligentRoutingStrategy } from '@/lib/types';
+import type { User, IntelligentRoutingStrategy, StrategyRule } from '@/lib/types';
 import { format } from 'date-fns';
 
 // =================================================================
@@ -75,6 +75,7 @@ async function getRoutingContext(requesterId: string, specificDesignerId?: strin
             strategyText: "Default: Route to the designer with the fewest people in their queue (currentQueueSize).",
             factors: [], 
             factorTemperatures: {},
+            advancedRules: [],
             updatedAt: new Date() 
         };
 

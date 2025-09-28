@@ -230,12 +230,37 @@ export type DecisionFactor = {
     icon: string; // Lucide icon name
 };
 
+export type StrategyRule = {
+    id: string;
+    name: string;
+    priority: number;
+    conditions: {
+        ruleLogic: 'and' | 'or';
+        repetition?: 'none' | 'daily' | 'weekly';
+        daysOfWeek?: ('mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun')[];
+        startTime?: string;
+        endTime?: string;
+        startsAt?: any;
+        expiresAt?: any;
+        targetUserRoles?: { [key in Role]?: number[] };
+    };
+    actions: {
+        type: 'apply_weights'; // For now, only this type
+        factorTemperatures?: { [key: string]: number };
+    } | {
+        type: 'force_route';
+        target: 'designer' | 'skill_group';
+        targetId: string;
+    } | {
+        type: 'force_ai';
+    };
+};
+
 export interface IntelligentRoutingStrategy {
     id: 'main_strategy'; // Singleton document
     strategyText: string;
     factors: DecisionFactor[];
-    factorTemperatures: {
-        [key: string]: number;
-    };
+    factorTemperatures: { [key: string]: number; };
+    advancedRules: StrategyRule[];
     updatedAt: any; // Firestore Timestamp
 }
