@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -281,7 +282,7 @@ function ScenarioEditDialog({
                                                     <Badge key={st.tag} variant="outline" className="cursor-pointer" onClick={() => handleSystemTagClick(st.tag)}>{st.tag}</Badge>
                                                 ))}
                                             </div>
-                                            <FormControl><Input placeholder="e.g., shopping, chat" {...field} /></FormControl>
+                                            <FormControl><Input placeholder="e.g., shopping, chat" {...field} value={field.value || ''} /></FormControl>
                                             <FormDescription className="text-xs">
                                                 特殊系统标签会关联特定功能，如 `shopping` 会显示在AI购物助手中。
                                             </FormDescription>
@@ -307,7 +308,7 @@ function ScenarioEditDialog({
                                                     <Badge key={st.tag} variant="outline" className="cursor-pointer" onClick={() => handleSystemTagClick(st.tag)}>{st.tag}</Badge>
                                                 ))}
                                             </div>
-                                            <FormControl><Input placeholder="e.g., shopping, chat" {...field} /></FormControl>
+                                            <FormControl><Input placeholder="e.g., shopping, chat" {...field} value={field.value || ''} /></FormControl>
                                             <FormDescription className="text-xs">
                                                 特殊系统标签会关联特定功能，如 `shopping` 会显示在AI购物助手中。
                                             </FormDescription>

@@ -104,8 +104,6 @@ export function ShoppingAssistant() {
                      const appointmentsQuery = query(
                         collection(db, 'appointments'), 
                         where('requesterId', '==', user.uid)
-                        // This complex query requires a composite index. We'll remove the orderBy and sort on the client.
-                        // orderBy('appointmentTime', 'asc')
                     );
                     const appointmentsSnapshot = await getDocs(appointmentsQuery);
                     const apptList = appointmentsSnapshot.docs.map(d => ({ ...d.data(), id: d.id } as Appointment));
@@ -267,12 +265,12 @@ export function ShoppingAssistant() {
                                                 <SelectTrigger>
                                                   <div className="flex items-center gap-2">
                                                       <Puzzle className="w-4 h-4 text-muted-foreground"/>
-                                                      <SelectValue placeholder="-- 优先默认推荐逻辑 --" />
+                                                      <SelectValue placeholder="-- 优先从默认推荐 --" />
                                                   </div>
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
-                                                <SelectItem value="default">-- 优先默认推荐逻辑 --</SelectItem>
+                                                <SelectItem value="default">-- 优先从默认推荐 --</SelectItem>
                                                 {scenarios.map(s => (
                                                     <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                                                 ))}
@@ -371,4 +369,5 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
     
 
     
+
 
