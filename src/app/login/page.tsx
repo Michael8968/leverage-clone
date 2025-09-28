@@ -184,6 +184,7 @@ export default function LoginPage() {
         autoPlay
         loop
         muted
+        playsInline
       >
         <source src="/videos/light-bg.mp4" type="video/mp4" />
       </video>
