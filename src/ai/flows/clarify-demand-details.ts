@@ -9,12 +9,12 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 import { executePrompt } from './prompt-execution-flow';
 import { intelligentRoutingFlow } from './intelligent-routing-flow';
-import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { User } from '@/lib/types';
+import type { User, AssistantRule, Role } from '@/lib/types';
 
 
 const ChatMessageSchema = z.object({
@@ -30,6 +30,7 @@ const ClarifyDemandDetailsInputSchema = z.object({
   demandDescription: z.string().describe('The detailed description of the original user demand.'),
   chatHistory: z.array(ChatMessageSchema).describe('The history of the conversation so far.'),
   userId: z.string().describe("The UID of the user initiating the request."),
+  creatorId: z.string().describe("The UID of the creator whose assistant is being invoked."),
 });
 export type ClarifyDemandDetailsInput = z.infer<typeof ClarifyDemandDetailsInputSchema>;
 
@@ -37,6 +38,69 @@ const ClarifyDemandDetailsOutputSchema = z.object({
   clarification: z.string().describe('The next question the AI assistant should ask to further clarify the user\'s needs.'),
 });
 export type ClarifyDemandDetailsOutput = z.infer<typeof ClarifyDemandDetailsOutputSchema>;
+
+
+// Helper to check if a rule is currently valid based on time and user.
+async function isRuleValid(rule: AssistantRule, requester: User): Promise<boolean> {
+    const now = new Date();
+    let timeIsValid = true;
+    let userIsValid = true;
+    const { conditions } = rule;
+
+    // Time-based rule validation
+    if (conditions.repetition === 'none') {
+        const startsAt = conditions.startsAt?.toDate ? conditions.startsAt.toDate() : null;
+        const expiresAt = conditions.expiresAt?.toDate ? conditions.expiresAt.toDate() : null;
+        if (startsAt && now < startsAt) timeIsValid = false;
+        if (expiresAt && now > expiresAt) timeIsValid = false;
+    } else if (conditions.repetition) {
+        const currentDay = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][now.getDay()];
+        if (conditions.repetition === 'weekly' && !conditions.daysOfWeek?.includes(currentDay as any)) {
+            timeIsValid = false;
+        }
+        if (timeIsValid && (conditions.startTime || conditions.endTime)) {
+            const currentTime = now.getHours() * 60 + now.getMinutes();
+            const [startH, startM] = (conditions.startTime || "00:00").split(':').map(Number);
+            const [endH, endM] = (conditions.endTime || "23:59").split(':').map(Number);
+            const startTimeInMinutes = startH * 60 + startM;
+            const endTimeInMinutes = endH * 60 + endM;
+            if (currentTime < startTimeInMinutes || currentTime > endTimeInMinutes) {
+                timeIsValid = false;
+            }
+        }
+    }
+
+    // User-based rule validation
+    const targetRoles = conditions.targetUserRoles;
+    if (targetRoles && Object.keys(targetRoles).length > 0) {
+        const userRole = requester.role;
+        const userRating = requester.rating;
+
+        if (!userRole || !targetRoles[userRole]) {
+            userIsValid = false; // User's role is not in the target list
+        } else {
+            const requiredRatings = targetRoles[userRole];
+            if (requiredRatings && requiredRatings.length > 0) {
+                if (!userRating || !requiredRatings.includes(userRating)) {
+                    userIsValid = false; // User's rating doesn't match
+                }
+            }
+        }
+    }
+
+    // Combine rules
+    if (conditions.ruleLogic === 'or') {
+        const hasTimeRules = conditions.repetition && conditions.repetition !== 'none';
+        const hasUserRules = targetRoles && Object.keys(targetRoles).length > 0;
+        if (!hasTimeRules && !hasUserRules) return false;
+        if (!hasTimeRules) return userIsValid;
+        if (!hasUserRules) return timeIsValid;
+        return timeIsValid || userIsValid;
+    }
+    
+    // Default to AND logic
+    return timeIsValid && userIsValid;
+}
 
 
 export async function clarifyDemandDetails(input: ClarifyDemandDetailsInput): Promise<ClarifyDemandDetailsOutput> {
@@ -60,8 +124,40 @@ const clarifyDemandDetailsFlow = ai.defineFlow(
     `;
 
     try {
+        let promptKeyToUse: string | undefined;
+
+        // Fetch creator and requester data
+        const [creatorSnap, requesterSnap] = await Promise.all([
+            getDoc(doc(db, 'users', input.creatorId)),
+            getDoc(doc(db, 'users', input.userId))
+        ]);
+
+        if (!creatorSnap.exists()) throw new Error("Creator not found.");
+        if (!requesterSnap.exists()) throw new Error("Requester not found.");
+        
+        const creator = creatorSnap.data() as User;
+        const requester = requesterSnap.data() as User;
+
+        // Check creator's custom rules
+        if (creator.assistantRules && creator.assistantRules.length > 0) {
+            const sortedRules = [...creator.assistantRules].sort((a, b) => a.priority - b.priority);
+            for (const rule of sortedRules) {
+                if (await isRuleValid(rule, requester)) {
+                    promptKeyToUse = rule.action.promptKey;
+                    break; // Use the first valid rule
+                }
+            }
+        }
+
+        // If no custom rule matched, use creator's default or platform's default
+        if (!promptKeyToUse) {
+            promptKeyToUse = creator.defaultAssistantPromptKey || undefined;
+        }
+
         const result = await executePrompt({
-            scenario: 'chat-assistant',
+            // If a creator-specific prompt is found, use it. Otherwise, fall back to the platform scenario.
+            promptKey: promptKeyToUse,
+            scenario: promptKeyToUse ? undefined : 'chat-assistant',
             userId: input.userId,
             messages: [{ role: 'user', content: userContent }],
         });

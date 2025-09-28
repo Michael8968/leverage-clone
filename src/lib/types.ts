@@ -71,6 +71,31 @@ export type UserProfile = {
   tags: string[];
 };
 
+// Represents a rule for when a creator's AI assistant should use a specific prompt.
+export type AssistantRule = {
+    id: string;
+    name: string;
+    priority: number;
+    // Conditions for the rule to be active
+    conditions: {
+        ruleLogic: 'and' | 'or';
+        // Time-based conditions
+        repetition?: 'none' | 'daily' | 'weekly';
+        daysOfWeek?: ('mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun')[];
+        startTime?: string; // HH:mm format
+        endTime?: string; // HH:mm format
+        startsAt?: any; // Firestore Timestamp for one-off start
+        expiresAt?: any; // Firestore Timestamp for one-off end
+        // User-based conditions
+        targetUserRoles?: { [key in Role]?: number[] }; // e.g. { user: [4, 5], creator: [] }
+    };
+    // Action to take when conditions are met
+    action: {
+        type: 'use_prompt';
+        promptKey: string; // The key of the prompt to use
+    };
+}
+
 export type User = {
   uid: string;
   name: string;
@@ -86,6 +111,8 @@ export type User = {
   createdAt?: any;
   currentQueueSize?: number;
   maxQueueSize?: number;
+  assistantRules?: AssistantRule[]; // New field for creator-specific AI assistant rules
+  defaultAssistantPromptKey?: string; // New field for creator's default assistant
 };
 
 // Chat-related types

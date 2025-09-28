@@ -46,11 +46,16 @@ export function ChatDialog({ open, onOpenChange, demand, currentUser }: {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [isAiAssistantEnabled, setIsAiAssistantEnabled] = useState(false);
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [isClearConfirmationOpen, setIsClearConfirmationOpen] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  const isDesigner = currentUser.uid === demand.creatorId;
+
+  // This should reflect the designer's setting, not a local state for the user.
+  // We can fetch this once. In a real app, this might be part of the User object in auth store.
+  const [isAiAssistantEnabledForDesigner, setIsAiAssistantEnabledForDesigner] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -70,15 +75,26 @@ export function ChatDialog({ open, onOpenChange, demand, currentUser }: {
       }
     });
 
+    const fetchDesignerStatus = async () => {
+        if(demand.creatorId) {
+            const designerDoc = await getDoc(doc(db, 'users', demand.creatorId));
+            if (designerDoc.exists()) {
+                setIsAiAssistantEnabledForDesigner(!!designerDoc.data().aiAssistantEnabled);
+            }
+        }
+    };
+    fetchDesignerStatus();
+
+
     return () => unsubscribe();
-  }, [open, demand.id]);
+  }, [open, demand.id, demand.creatorId]);
 
   useEffect(() => {
     scrollAreaRef.current?.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() || !demand.creatorId) return;
 
     const message: ChatMessage = {
       id: `msg_${Date.now()}`,
@@ -98,9 +114,9 @@ export function ChatDialog({ open, onOpenChange, demand, currentUser }: {
       });
       setNewMessage('');
       
-      // If AI assistant is enabled, trigger it after user sends a message
-      if (isAiAssistantEnabled && currentUser.uid !== demand.creatorId) {
-          triggerAiAssistant([...messages, message]);
+      // If AI assistant is enabled FOR THE DESIGNER, trigger it after user sends a message
+      if (isAiAssistantEnabledForDesigner && currentUser.uid !== demand.creatorId) {
+          triggerAiAssistant([...messages, message], demand.creatorId);
       }
 
     } catch (error) {
@@ -110,7 +126,7 @@ export function ChatDialog({ open, onOpenChange, demand, currentUser }: {
     }
   };
 
-  const triggerAiAssistant = async (currentMessages: ChatMessage[]) => {
+  const triggerAiAssistant = async (currentMessages: ChatMessage[], creatorId: string) => {
       setIsAiThinking(true);
       try {
           const aiResponse = await clarifyDemandDetails({
@@ -119,14 +135,20 @@ export function ChatDialog({ open, onOpenChange, demand, currentUser }: {
               demandDescription: demand.description,
               chatHistory: currentMessages.map(m => ({...m, text: m.text || ''})),
               userId: currentUser.uid,
+              creatorId: creatorId,
           });
+
+          // If the AI response is empty, it means a handoff happened and a system message was already posted.
+          if (!aiResponse.clarification) {
+              return;
+          }
 
           const aiMessage: ChatMessage = {
               id: `ai_msg_${Date.now()}`,
               text: aiResponse.clarification,
               senderId: 'ai-assistant',
               senderName: 'AI 助理',
-              senderAvatar: '', 
+              senderAvatar: '/bot.png', 
               timestamp: new Date(),
               isAIMessage: true,
           };
@@ -160,8 +182,6 @@ export function ChatDialog({ open, onOpenChange, demand, currentUser }: {
   const otherParticipant = currentUser.uid === demand.requesterId
     ? (demand.creatorId ? { name: "创意者" } : { name: "未知用户" })
     : { name: demand.requesterName };
-
-  const isDesigner = currentUser.uid === demand.creatorId;
 
   return (
     <>
@@ -227,12 +247,6 @@ export function ChatDialog({ open, onOpenChange, demand, currentUser }: {
           </ScrollArea>
           
           <DialogFooter className="flex-col gap-4">
-            {isDesigner && (
-              <div className="flex items-center space-x-2 self-start">
-                  <Switch id="ai-assistant-mode" checked={isAiAssistantEnabled} onCheckedChange={setIsAiAssistantEnabled} />
-                  <Label htmlFor="ai-assistant-mode" className="flex items-center gap-1"><Sparkles className="w-4 h-4 text-accent" />AI 助理模式</Label>
-              </div>
-            )}
             <div className="flex items-center gap-2">
               <Input
                 value={newMessage}

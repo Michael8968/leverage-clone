@@ -149,29 +149,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     await logout();
     router.replace('/login');
   };
-  
-  const handleStatusChange = async (newStatus: 'active' | 'inactive') => {
-      if (!user) return;
-      try {
-          await updateUserStatus({ userId: user.uid, status: newStatus });
-          setUser({ ...user, status: newStatus }, role);
-          toast({ title: '状态已更新', description: `您当前的状态为: ${newStatus === 'active' ? '在线接待' : '挂起示忙'}` });
-      } catch (error) {
-          toast({ title: '更新失败', description: '无法更新您的状态。', variant: 'destructive' });
-      }
-  };
-
-  const handleAIAssistantToggle = async (enabled: boolean) => {
-      if (!user) return;
-      try {
-          await updateUserStatus({ userId: user.uid, aiAssistantEnabled: enabled });
-          setUser({ ...user, aiAssistantEnabled: enabled }, role);
-          toast({ title: 'AI助理模式已更新', description: `AI助理已${enabled ? '启用' : '禁用'}` });
-      } catch (error) {
-          toast({ title: '更新失败', description: '无法更新AI助理设置。', variant: 'destructive' });
-      }
-  };
-
 
   if (!mounted || isLoading) {
     return (
@@ -246,12 +223,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-               {role === 'creator' && (
-                <>
-                  {/* The status toggles are now moved to the creator workbench */}
-                  <DropdownMenuSeparator />
-                </>
-              )}
               <ThemeToggle />
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout}>
