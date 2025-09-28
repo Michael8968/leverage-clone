@@ -1,6 +1,5 @@
 
 
-
 import type { SupplementaryField } from "@/components/features/supplementary-fields-manager";
 import type { Role } from "@/store/auth";
 
@@ -82,6 +81,8 @@ export type User = {
   bio?: string;
   skills?: string[];
   createdAt?: any;
+  currentQueueSize?: number;
+  maxQueueSize?: number;
 };
 
 // Chat-related types

@@ -9,15 +9,18 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import type { User, Demand } from '@/lib/types';
 import { useAuthStore } from '@/store/auth';
-import { MessageSquare, Loader2, CalendarClock } from 'lucide-react';
+import { MessageSquare, Loader2, CalendarClock, Bot, User as UserIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { createPrivateDemand } from '@/ai/flows/demand-matching';
 import { ChatDialog } from '@/components/features/chat-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 
 // =================================================================
 // Designer Card Component
 // =================================================================
-function DesignerCard({ designer, onStartChat, onBook, isStartingChat }: { designer: User; onStartChat: (designerId: string) => void; onBook: (designerId: string) => void; isStartingChat: boolean; }) {
+function DesignerCard({ designer, onStartChat, onBook }: { designer: User; onStartChat: (designer: User) => void; onBook: (designerId: string) => void; }) {
     const isOnline = designer.status === 'active';
     return (
         <Card className="flex flex-col">
@@ -38,9 +41,9 @@ function DesignerCard({ designer, onStartChat, onBook, isStartingChat }: { desig
                 </div>
             </CardContent>
             <CardFooter className="grid grid-cols-2 gap-2">
-                <Button className="w-full" variant={isOnline ? 'default' : 'outline'} disabled={!isOnline || isStartingChat} onClick={() => onStartChat(designer.uid)}>
-                    {isStartingChat ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MessageSquare className="mr-2 h-4 w-4" />}
-                    {isOnline ? '立即交流' : '当前离线'}
+                <Button className="w-full" variant={isOnline ? 'default' : 'outline'} onClick={() => onStartChat(designer)}>
+                    <MessageSquare className="mr-2 h-4 w-4" />
+                    {isOnline ? '立即交流' : '发起交流'}
                 </Button>
                  <Button className="w-full" variant="secondary" onClick={() => onBook(designer.uid)}>
                     <CalendarClock className="mr-2 h-4 w-4" />
@@ -52,38 +55,120 @@ function DesignerCard({ designer, onStartChat, onBook, isStartingChat }: { desig
 }
 
 // =================================================================
+// Communication Dialog Component
+// =================================================================
+function CommunicationDialog({
+    open,
+    onOpenChange,
+    designer,
+    onConfirm,
+    isLoading,
+}: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    designer: User | null;
+    onConfirm: (preferredAgent: 'ai' | 'human') => void;
+    isLoading: boolean;
+}) {
+    const [preferredAgent, setPreferredAgent] = useState<'ai' | 'human'>('ai');
+
+    if (!designer) return null;
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle className="font-headline">沟通需求：与 {designer.name} 的专属沟通</DialogTitle>
+                    <DialogDescription>请选择您希望开始沟通的方式。</DialogDescription>
+                </DialogHeader>
+                <div className="py-6">
+                    <RadioGroup value={preferredAgent} onValueChange={(value) => setPreferredAgent(value as 'ai' | 'human')}>
+                        <Label
+                            htmlFor="agent-ai"
+                            className="flex items-center justify-between rounded-lg border p-4 cursor-pointer has-[:checked]:bg-accent/10 has-[:checked]:border-accent"
+                        >
+                            <div className="flex items-center gap-3">
+                                <Bot className="w-6 h-6 text-accent"/>
+                                <div>
+                                    <p className="font-semibold">与AI助理先沟通</p>
+                                    <p className="text-xs text-muted-foreground">AI会先了解您的初步需求，稍后转接设计师。</p>
+                                </div>
+                            </div>
+                            <RadioGroupItem value="ai" id="agent-ai" />
+                        </Label>
+                         <Label
+                            htmlFor="agent-human"
+                            className="flex items-center justify-between rounded-lg border p-4 cursor-pointer has-[:checked]:bg-primary/10 has-[:checked]:border-primary"
+                        >
+                            <div className="flex items-center gap-3">
+                                <UserIcon className="w-6 h-6 text-primary" />
+                                <div>
+                                    <p className="font-semibold">我想和设计师本人聊</p>
+                                    <p className="text-xs text-muted-foreground">如果设计师繁忙，您可能需要排队等待。</p>
+                                </div>
+                            </div>
+                            <RadioGroupItem value="human" id="agent-human" />
+                        </Label>
+                    </RadioGroup>
+                </div>
+                <DialogFooter>
+                    <Button variant="ghost" onClick={() => onOpenChange(false)}>取消</Button>
+                    <Button onClick={() => onConfirm(preferredAgent)} disabled={isLoading}>
+                        {isLoading ? <Loader2 className="animate-spin" /> : "确认"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+// =================================================================
 // Main Client Component
 // =================================================================
 export function DesignersClient({ initialDesigners }: { initialDesigners: User[] }) {
     const [designers] = useState(initialDesigners);
-    const [isLoading, setIsLoading] = useState<string | null>(null); // Store the ID of the designer being contacted
+    const [isLoading, setIsLoading] = useState(false);
     const [chatDemand, setChatDemand] = useState<Demand | null>(null);
     const [isChatOpen, setIsChatOpen] = useState(false);
+    const [isCommDialogOpen, setIsCommDialogOpen] = useState(false);
+    const [selectedDesigner, setSelectedDesigner] = useState<User | null>(null);
+
     const { user } = useAuthStore();
     const { toast } = useToast();
 
-    const handleStartChat = async (creatorId: string) => {
+    const handleStartChat = (designer: User) => {
         if (!user) {
             toast({ title: "请先登录", description: "您需要登录后才能与设计师交流。", variant: "destructive" });
             return;
         }
-        if (user.uid === creatorId) {
+        if (user.uid === designer.uid) {
             toast({ title: "提示", description: "您不能与自己发起沟通。" });
             return;
         }
+        setSelectedDesigner(designer);
+        setIsCommDialogOpen(true);
+    };
 
-        setIsLoading(creatorId);
+    const handleConfirmCommunication = async (preferredAgent: 'ai' | 'human') => {
+        if (!selectedDesigner || !user) return;
+        
+        setIsLoading(true);
         try {
-            const { demandId } = await createPrivateDemand({ requesterId: user.uid, creatorId });
-            
-            const creator = designers.find(d => d.uid === creatorId);
+            const { demandId, message } = await createPrivateDemand({ 
+                requesterId: user.uid, 
+                creatorId: selectedDesigner.uid,
+                preferredAgent: preferredAgent,
+            });
 
-            // Fetching requester from auth store to ensure it's up to date
+            if (message) {
+                toast({ title: "提示", description: message });
+            }
+            
             const tempDemand: Demand = {
                 id: demandId,
                 requesterId: user.uid,
-                creatorId: creatorId,
-                title: `与 ${creator?.name || ''} 的专属沟通`,
+                creatorId: selectedDesigner.uid,
+                title: `与 ${selectedDesigner?.name || ''} 的专属沟通`,
                 description: '',
                 budget: 0,
                 category: '',
@@ -95,10 +180,12 @@ export function DesignersClient({ initialDesigners }: { initialDesigners: User[]
             };
             setChatDemand(tempDemand);
             setIsChatOpen(true);
+            setIsCommDialogOpen(false);
+
         } catch (error: any) {
             toast({ title: "发起失败", description: error.message, variant: "destructive" });
         } finally {
-            setIsLoading(null);
+            setIsLoading(false);
         }
     };
     
@@ -125,7 +212,6 @@ export function DesignersClient({ initialDesigners }: { initialDesigners: User[]
                         designer={designer} 
                         onStartChat={handleStartChat} 
                         onBook={handleBook}
-                        isStartingChat={isLoading === designer.uid}
                     />
                 ))}
             </div>
@@ -138,6 +224,15 @@ export function DesignersClient({ initialDesigners }: { initialDesigners: User[]
                     currentUser={user}
                 />
             )}
+            
+            <CommunicationDialog
+                open={isCommDialogOpen}
+                onOpenChange={setIsCommDialogOpen}
+                designer={selectedDesigner}
+                onConfirm={handleConfirmCommunication}
+                isLoading={isLoading}
+            />
+
         </div>
     );
 }
