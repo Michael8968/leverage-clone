@@ -235,7 +235,7 @@ const executePromptFlow = ai.defineFlow(
     // 4. Fallback: No manual config found, use default Genkit AI.
     console.log("No valid manual configuration found. Falling back to default Genkit AI.");
     const llmResponse = await ai.generate({
-        prompt: messages.map(m => m.content).join('\n'), // Simple concatenation for fallback
+        prompt: messages.map(msg => ({ role: msg.role === 'assistant' ? 'model' : msg.role, content: msg.content })) as any,
         temperature
     });
     return { text: llmResponse.text() };

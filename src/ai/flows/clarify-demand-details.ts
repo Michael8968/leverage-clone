@@ -43,63 +43,66 @@ export type ClarifyDemandDetailsOutput = z.infer<typeof ClarifyDemandDetailsOutp
 // Helper to check if a rule is currently valid based on time and user.
 async function isRuleValid(rule: AssistantRule, requester: User): Promise<boolean> {
     const now = new Date();
-    let timeIsValid = true;
-    let userIsValid = true;
+    let timeIsValid: boolean | null = null; // null means no time rule is set
+    let userIsValid: boolean | null = null; // null means no user rule is set
     const { conditions } = rule;
 
     // Time-based rule validation
-    if (conditions.repetition === 'none') {
-        const startsAt = conditions.startsAt?.toDate ? conditions.startsAt.toDate() : null;
-        const expiresAt = conditions.expiresAt?.toDate ? conditions.expiresAt.toDate() : null;
-        if (startsAt && now < startsAt) timeIsValid = false;
-        if (expiresAt && now > expiresAt) timeIsValid = false;
-    } else if (conditions.repetition) {
-        const currentDay = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][now.getDay()];
-        if (conditions.repetition === 'weekly' && !conditions.daysOfWeek?.includes(currentDay as any)) {
-            timeIsValid = false;
-        }
-        if (timeIsValid && (conditions.startTime || conditions.endTime)) {
-            const currentTime = now.getHours() * 60 + now.getMinutes();
-            const [startH, startM] = (conditions.startTime || "00:00").split(':').map(Number);
-            const [endH, endM] = (conditions.endTime || "23:59").split(':').map(Number);
-            const startTimeInMinutes = startH * 60 + startM;
-            const endTimeInMinutes = endH * 60 + endM;
-            if (currentTime < startTimeInMinutes || currentTime > endTimeInMinutes) {
+    const hasTimeRules = (conditions.repetition && conditions.repetition !== 'none') || conditions.startsAt || conditions.expiresAt;
+    if (hasTimeRules) {
+        timeIsValid = true; // Assume true until a condition fails
+        if (conditions.repetition === 'none') {
+            const startsAt = conditions.startsAt?.toDate ? conditions.startsAt.toDate() : null;
+            const expiresAt = conditions.expiresAt?.toDate ? conditions.expiresAt.toDate() : null;
+            if ((startsAt && now < startsAt) || (expiresAt && now > expiresAt)) {
                 timeIsValid = false;
             }
-        }
-    }
-
-    // User-based rule validation
-    const targetRoles = conditions.targetUserRoles;
-    if (targetRoles && Object.keys(targetRoles).length > 0) {
-        const userRole = requester.role;
-        const userRating = requester.rating;
-
-        if (!userRole || !targetRoles[userRole]) {
-            userIsValid = false; // User's role is not in the target list
-        } else {
-            const requiredRatings = targetRoles[userRole];
-            if (requiredRatings && requiredRatings.length > 0) {
-                if (!userRating || !requiredRatings.includes(userRating)) {
-                    userIsValid = false; // User's rating doesn't match
+        } else if (conditions.repetition) {
+            const currentDay = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][now.getDay()];
+            if (conditions.repetition === 'weekly' && !conditions.daysOfWeek?.includes(currentDay as any)) {
+                timeIsValid = false;
+            }
+            if (timeIsValid && (conditions.startTime || conditions.endTime)) {
+                const currentTime = now.getHours() * 60 + now.getMinutes();
+                const [startH, startM] = (conditions.startTime || "00:00").split(':').map(Number);
+                const [endH, endM] = (conditions.endTime || "23:59").split(':').map(Number);
+                const startTimeInMinutes = startH * 60 + startM;
+                const endTimeInMinutes = endH * 60 + endM;
+                if (currentTime < startTimeInMinutes || currentTime > endTimeInMinutes) {
+                    timeIsValid = false;
                 }
             }
         }
     }
 
+
+    // User-based rule validation
+    const targetRoles = conditions.targetUserRoles;
+    const hasUserRules = targetRoles && Object.keys(targetRoles).length > 0;
+    if (hasUserRules) {
+        userIsValid = false; // Assume false until a condition passes
+        const userRole = requester.role;
+        const userRating = requester.rating;
+
+        if (userRole && targetRoles[userRole]) {
+            const requiredRatings = targetRoles[userRole];
+            if (!requiredRatings || requiredRatings.length === 0) {
+                userIsValid = true; // Role matches and no specific rating is required
+            } else if (userRating && requiredRatings.includes(userRating)) {
+                userIsValid = true; // Role and rating match
+            }
+        }
+    }
+    
     // Combine rules
     if (conditions.ruleLogic === 'or') {
-        const hasTimeRules = conditions.repetition && conditions.repetition !== 'none';
-        const hasUserRules = targetRoles && Object.keys(targetRoles).length > 0;
-        if (!hasTimeRules && !hasUserRules) return false; // If no rules are set, it's not valid
-        if (!hasTimeRules) return userIsValid; // Only user rules matter
-        if (!hasUserRules) return timeIsValid; // Only time rules matter
-        return timeIsValid || userIsValid; // If both exist, OR them
+        if (!hasTimeRules && !hasUserRules) return false; // If no rules are set, it's not valid for OR logic
+        return (timeIsValid === true) || (userIsValid === true);
     }
     
     // Default to AND logic
-    return timeIsValid && userIsValid;
+    if (timeIsValid === null && userIsValid === null) return false; // No rules set at all, not valid
+    return (timeIsValid !== false) && (userIsValid !== false);
 }
 
 

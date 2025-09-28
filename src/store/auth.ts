@@ -1,20 +1,8 @@
-
 import { create } from 'zustand';
 import { auth } from '@/lib/firebase';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import type { User, Role } from '@/lib/types';
 
-export type Role = 'admin' | 'supplier' | 'user' | 'creator' | 'suspended';
-
-// This is a pure data interface, safe for serialization.
-export interface User {
-  uid: string;
-  name: string;
-  email: string;
-  role: Role;
-  avatar: string;
-  rating?: number;
-  status?: 'active' | 'inactive';
-}
 
 interface AuthState {
   user: User | null;
@@ -25,7 +13,14 @@ interface AuthState {
   logout: () => Promise<void>;
 }
 
-const useAuthStore = create<AuthState>()(
+// Define the state that should be persisted.
+// We only want to persist `user` and `role`. `isLoading` is transient.
+type PersistedState = {
+  user: User | null;
+  role: Role | null;
+};
+
+export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
@@ -39,10 +34,13 @@ const useAuthStore = create<AuthState>()(
       },
     }),
     {
-      name: 'auth-storage', // name of the item in the storage (must be unique)
+      name: 'auth-storage', // name of the item in the storage
+      storage: createJSONStorage(() => sessionStorage), // Use sessionStorage
+      // Only persist user and role. Functions and transient state are excluded.
+      partialize: (state): PersistedState => ({
+        user: state.user,
+        role: state.role,
+      }),
     }
   )
 );
-
-
-export { useAuthStore };
