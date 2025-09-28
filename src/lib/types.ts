@@ -77,6 +77,7 @@ export type User = {
   email: string;
   role: Role;
   avatar: string;
+  gender?: 'male' | 'female' | 'other';
   rating?: number;
   status?: 'active' | 'inactive';
   aiAssistantEnabled?: boolean;

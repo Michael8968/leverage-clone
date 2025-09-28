@@ -31,8 +31,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             uid: firebaseUser.uid,
             name: userDataFromDb.name || firebaseUser.displayName || 'Unnamed User',
             email: firebaseUser.email!,
-            avatar: userDataFromDb.avatar || firebaseUser.photoURL || `https://i.pravatar.cc/150?u=${firebaseUser.uid}`,
+            avatar: userDataFromDb.avatar || `https://avatar.iran.liara.run/public/${userDataFromDb.gender === 'female' ? 'girl' : 'boy'}?username=${encodeURIComponent(userDataFromDb.name)}`,
             role: userDataFromDb.role || 'user',
+            gender: userDataFromDb.gender,
             rating: userDataFromDb.rating, // Include rating if it exists
             status: userDataFromDb.status, // Include status if it exists
           };

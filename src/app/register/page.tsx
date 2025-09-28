@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -23,12 +24,14 @@ import { auth, db } from '@/lib/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "姓名必须至少包含2个字符。" }),
   email: z.string().email({ message: "请输入有效的电子邮件地址。" }),
   password: z.string().min(6, { message: "密码必须至少包含6个字符。" }),
   role: z.enum(["user", "creator", "supplier"], { required_error: "请选择一个角色。" }),
+  gender: z.enum(["male", "female", "other"], { required_error: "请选择您的性别。" }),
   acceptedTerms: z.boolean().default(false).refine(val => val === true, {
     message: '您必须同意用户服务协议和隐私政策才能继续。'
   })
@@ -71,7 +74,8 @@ export default function RegisterPage() {
             email: firebaseUser.email!,
             name: values.name,
             role: values.role,
-            avatar: `https://i.pravatar.cc/150?u=${firebaseUser.uid}`,
+            gender: values.gender,
+            avatar: `https://avatar.iran.liara.run/public/${values.gender === 'female' ? 'girl' : 'boy'}?username=${encodeURIComponent(values.name)}`,
             createdAt: new Date().toISOString(),
         };
         
@@ -160,28 +164,52 @@ export default function RegisterPage() {
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="role"
-                  render={({ field }) => (
-                    <FormItem>
-                      <Label>您的角色</Label>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="请选择您的身份" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="user">用户</SelectItem>
-                          <SelectItem value="creator">创意者</SelectItem>
-                          <SelectItem value="supplier">供应商</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="role"
+                    render={({ field }) => (
+                      <FormItem>
+                        <Label>您的角色</Label>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="请选择您的身份" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="user">用户</SelectItem>
+                            <SelectItem value="creator">创意者</SelectItem>
+                            <SelectItem value="supplier">供应商</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="gender"
+                    render={({ field }) => (
+                      <FormItem>
+                        <Label>性别</Label>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                           <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="请选择您的性别" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="male">男</SelectItem>
+                            <SelectItem value="female">女</SelectItem>
+                             <SelectItem value="other">其他</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
                  <FormField
                   control={form.control}
                   name="acceptedTerms"
