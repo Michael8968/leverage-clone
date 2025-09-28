@@ -6,7 +6,7 @@ import { AppLayout } from '@/components/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuthStore, type Role } from '@/store/auth';
-import { Frown, Bot, Loader2, ArrowRight, Wand2, Send, PackagePlus, Info, UploadCloud, FileImage, CalendarDays, Clock, Trash2, CheckCircle, XCircle, AlertCircle, ToggleLeft, ToggleRight, PlusCircle, Edit, Settings, Star, BrainCircuit } from 'lucide-react';
+import { Frown, Bot, Loader2, ArrowRight, Wand2, Send, PackagePlus, Info, UploadCloud, FileImage, CalendarDays, Clock, Trash2, CheckCircle, XCircle, AlertCircle, ToggleLeft, ToggleRight, PlusCircle, Edit, Settings, Star, BrainCircuit, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
@@ -907,6 +907,7 @@ function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, is
         );
     }, [initialRule]);
     
+    const { toast } = useToast();
     const handleSave = () => {
         if (!rule.name || !rule.action.promptKey) {
             toast({ title: "信息不完整", description: "规则名称和执行动作不能为空。", variant: "destructive" });
@@ -1093,5 +1094,7 @@ export default function CreatorWorkbenchPage() {
     if (role !== 'creator') { return <AppLayout><RestrictedAccess /></AppLayout>; }
     return <AppLayout><CreatorWorkbench /></AppLayout>;
 }
+
+    
 
     
