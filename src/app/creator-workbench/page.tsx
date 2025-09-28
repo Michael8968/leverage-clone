@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -733,10 +732,12 @@ function ScheduleAndAssistantTab() {
             const availablePrompts = promptsData.prompts.filter(p => p.ownerType === 'platform' || p.ownerId === user.uid);
             setPrompts(availablePrompts);
 
-            // Fetch appointments
-            const apptQuery = query(collection(db, 'appointments'), where("creatorId", "==", user.uid), orderBy("appointmentTime", "desc"));
+            // Fetch appointments - REMOVED orderBy to avoid needing an index
+            const apptQuery = query(collection(db, 'appointments'), where("creatorId", "==", user.uid));
             const apptSnapshot = await getDocs(apptQuery);
-            const apptList = apptSnapshot.docs.map(doc => doc.data() as Appointment);
+            let apptList = apptSnapshot.docs.map(doc => doc.data() as Appointment);
+            // Sort on the client
+            apptList.sort((a,b) => b.appointmentTime.toMillis() - a.appointmentTime.toMillis());
             setAppointments(apptList);
             setIsAppointmentsLoading(false);
 
@@ -1247,3 +1248,4 @@ export default function CreatorWorkbenchPage() {
     
 
 
+    
