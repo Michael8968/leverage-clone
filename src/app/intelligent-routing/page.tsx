@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
-import { Route, Loader2, Frown, Save, Wand2, BrainCircuit, Users, Clock, Edit, PlusCircle, Trash2, Settings } from 'lucide-react';
+import { Route, Loader2, Frown, Save, Wand2, BrainCircuit, Users, Clock, Edit, PlusCircle, Trash2, Settings, Hourglass, Star, Briefcase, Repeat } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -136,16 +136,22 @@ export default function IntelligentRoutingModulePage() {
             } else {
                 const defaultStrategyData: IntelligentRoutingStrategy = {
                     id: 'main_strategy',
-                    strategyText: "优先将用户的请求分配给当前最空闲（排队人数最少）且在线的设计师。如果所有设计师都离线，则转给AI助理。",
+                    strategyText: "优先将用户的请求分配给当前最空闲（排队人数最少）且技能最匹配的设计师。如果所有设计师都离线，则转给AI助理。",
                     factors: [
-                        { id: 'problem_category', name: '问题类别匹配度', description: 'AI分析用户问题与设计师技能的匹配程度。', icon: 'BrainCircuit' },
-                        { id: 'busyness', name: '设计师闲忙程度', description: '优先分配给排队人数少的设计师。', icon: 'Clock' },
-                        { id: 'user_priority', name: '用户等级优先度', description: '高星级用户的请求是否应该被优先处理。', icon: 'Users' },
+                        { id: 'problem_category', name: '问题类别匹配度', description: 'AI分析用户问题与设计师技能标签的匹配程度。', icon: 'BrainCircuit' },
+                        { id: 'busyness', name: '设计师闲忙程度', description: '优先分配给排队人数少的设计师。', icon: 'Hourglass' },
+                        { id: 'user_priority', name: '用户等级优先度', description: '高星级用户的请求是否应该被优先处理。', icon: 'Star' },
+                        { id: 'specialty_match', name: '专业特长匹配度', description: 'AI对用户需求的深层理解与设计师专业特长的匹配度。', icon: 'Briefcase' },
+                        { id: 'working_hours', name: '工作时间匹配度', description: '路由决策是否应严格遵守设计师设定的工作时间。', icon: 'Clock' },
+                        { id: 'route_back_preference', name: '首接设计师优先', description: '当对话被转接时，是否优先转回给最初接待该用户的设计师。', icon: 'Repeat' },
                     ],
                     factorTemperatures: {
                         problem_category: 0.8,
                         busyness: 1.0,
                         user_priority: 0.5,
+                        specialty_match: 0.7,
+                        working_hours: 0.4,
+                        route_back_preference: 0.6,
                     },
                     updatedAt: serverTimestamp(),
                 };
@@ -213,8 +219,11 @@ export default function IntelligentRoutingModulePage() {
     const getIconComponent = (iconName: string) => {
         switch (iconName) {
             case 'BrainCircuit': return BrainCircuit;
+            case 'Hourglass': return Hourglass;
+            case 'Star': return Star;
+            case 'Briefcase': return Briefcase;
             case 'Clock': return Clock;
-            case 'Users': return Users;
+            case 'Repeat': return Repeat;
             default: return Settings;
         }
     };
