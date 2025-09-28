@@ -59,18 +59,23 @@ const clarifyDemandDetailsFlow = ai.defineFlow(
 
     // The system prompt is now managed within the 'prompts' collection in Firestore.
     // We just need to pass the business context and let the gateway handle the rest.
-    const result = await executePrompt({
-        scenario: 'chat-assistant', // This is the key to trigger the scenario-based logic
-        userId: input.userId,
-        messages: [
-            { role: 'user', content: userContent }
-        ],
-    });
+    try {
+        const result = await executePrompt({
+            scenario: 'chat-assistant', // This is the key to trigger the scenario-based logic
+            userId: input.userId,
+            messages: [
+                { role: 'user', content: userContent }
+            ],
+        });
 
-    if (!result.text) {
-      throw new Error("AI failed to generate a clarification question.");
+        if (!result.text) {
+          throw new Error("AI failed to generate a clarification question.");
+        }
+        
+        return { clarification: result.text };
+    } catch (error) {
+        console.warn("AI Assistant failed to respond, returning handoff message.", error);
+        return { clarification: "这个问题我暂时无法回答，可能需要设计师亲自为您解答。" };
     }
-    
-    return { clarification: result.text };
   }
 );

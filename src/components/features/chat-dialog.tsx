@@ -213,7 +213,9 @@ export function ChatDialog({ open, onOpenChange, demand, currentUser }: {
               ))}
               {isAiThinking && (
                   <div className="flex items-end gap-2 justify-start">
-                      <Bot className="h-8 w-8 text-accent animate-pulse" />
+                      <Avatar className="h-8 w-8">
+                        <Bot className="h-8 w-8 text-accent animate-pulse" />
+                      </Avatar>
                       <div className="bg-muted rounded-lg px-3 py-2 flex items-center gap-2">
                           <Loader2 className="h-4 w-4 animate-spin"/>
                           <p className="text-sm text-muted-foreground">正在思考...</p>
@@ -236,9 +238,9 @@ export function ChatDialog({ open, onOpenChange, demand, currentUser }: {
                 onChange={(e) => setNewMessage(e.target.value)}
                 placeholder="输入消息..."
                 onKeyPress={(e) => e.key === 'Enter' && !isSending && handleSendMessage()}
-                disabled={isSending}
+                disabled={isSending || isAiThinking}
               />
-              <Button onClick={handleSendMessage} disabled={isSending}>
+              <Button onClick={handleSendMessage} disabled={isSending || isAiThinking}>
                 {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
             </div>
