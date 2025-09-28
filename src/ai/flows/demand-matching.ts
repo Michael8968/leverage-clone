@@ -149,7 +149,7 @@ export const createPrivateDemand = ai.defineFlow(
                     senderName: connectToHuman ? creator.name : 'AI 助理',
                     senderAvatar: connectToHuman ? creator.avatar : '',
                     isAIMessage: !connectToHuman,
-                    timestamp: serverTimestamp(),
+                    timestamp: new Date(), // FIX: Use new Date() instead of serverTimestamp() inside an array
                 }],
             });
             
