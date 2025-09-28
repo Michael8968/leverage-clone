@@ -8,11 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Database, Edit, Filter, PlusCircle, Search, Trash2, Loader2, Library, FileCog, Server } from 'lucide-react';
+import { Database, Edit, Filter, PlusCircle, Search, Trash2, Loader2, Library, FileCog, Server, FileJson } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
-import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { ProductService } from '@/lib/types';
+import type { ProductService, Resource } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
@@ -26,6 +26,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataProcessor } from '@/components/features/data-processor';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import GenerateJson from '../api/generate/generate.json';
 
 
 // =================================================================
@@ -288,6 +291,142 @@ function KnowledgeBaseList() {
     );
 }
 
+function ApiDataFetcher() {
+    const [availableResources, setAvailableResources] = useState<Resource[]>([]);
+    const [selectedResourceId, setSelectedResourceId] = useState<string>('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [isFetching, setIsFetching] = useState(false);
+    const [jsonInput, setJsonInput] = useState(JSON.stringify(GenerateJson, null, 2));
+    const [responseData, setResponseData] = useState<any>(null);
+    const { toast } = useToast();
+
+    useEffect(() => {
+        const fetchAvailableResources = async () => {
+            setIsLoading(true);
+            try {
+                const resourcesCollection = collection(db, 'resources');
+                const q = query(resourcesCollection, where("status", "==", "可用"));
+                const snapshot = await getDocs(q);
+                const resourcesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Resource));
+                setAvailableResources(resourcesList);
+            } catch (error) {
+                toast({ title: '加载失败', description: '无法加载可用的数据源列表。', variant: 'destructive' });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchAvailableResources();
+    }, [toast]);
+
+    useEffect(() => {
+        if (selectedResourceId) {
+            const resource = availableResources.find(r => r.id === selectedResourceId);
+            if (resource) {
+                try {
+                    const parsedJson = JSON.parse(jsonInput);
+                    parsedJson.url = resource.sourceUrl;
+                    if(resource.apiKey) {
+                        parsedJson.headers = {
+                            ...parsedJson.headers,
+                            'Authorization': `Bearer ${resource.apiKey}`,
+                        }
+                    }
+                    setJsonInput(JSON.stringify(parsedJson, null, 2));
+                } catch(e) {
+                    // ignore if json is invalid
+                }
+            }
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedResourceId, availableResources]);
+
+    const handleFetchData = async () => {
+        let payload;
+        try {
+            payload = JSON.parse(jsonInput);
+        } catch (error) {
+            toast({ title: 'JSON 格式错误', description: '请输入有效的JSON配置。', variant: 'destructive'});
+            return;
+        }
+
+        setIsFetching(true);
+        setResponseData(null);
+        try {
+            const response = await fetch('/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                 throw new Error(data.details || 'API请求失败');
+            }
+
+            setResponseData(data);
+            toast({ title: '成功', description: `已成功调用接口。` });
+        } catch (error: any) {
+            console.error("API fetch error:", error);
+            setResponseData({ error: `获取数据失败: ${error.message}` });
+            toast({ title: '获取失败', description: '无法从该接口获取数据，请检查配置和网络连接。', variant: 'destructive' });
+        } finally {
+            setIsFetching(false);
+        }
+    };
+
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="font-headline">通用接口数据调试</CardTitle>
+                <CardDescription>通过构造JSON对象来调用任意RESTful API，实现对多种接口模式的通用解析和调试。</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                    <div className="space-y-2">
+                        <Label>选择数据源 (自动填充 URL/Key)</Label>
+                        <Select onValueChange={setSelectedResourceId} value={selectedResourceId} disabled={isLoading}>
+                            <SelectTrigger>
+                                <SelectValue placeholder={isLoading ? '加载中...' : '选择一个已配置的数据源...'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {availableResources.map(res => (
+                                    <SelectItem key={res.id} value={res.id}>{res.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                     <div className="space-y-2">
+                        <Label>JSON 请求配置</Label>
+                        <Textarea 
+                            value={jsonInput}
+                            onChange={(e) => setJsonInput(e.target.value)}
+                            rows={8}
+                            placeholder='输入JSON格式的请求配置...'
+                            className="font-mono text-xs"
+                        />
+                    </div>
+                </div>
+
+                <Button onClick={handleFetchData} disabled={isFetching} className="w-full">
+                    {isFetching ? <Loader2 className="animate-spin" /> : <Server className="mr-2" />}
+                    发送请求
+                </Button>
+
+                {responseData && (
+                    <div className="space-y-2 pt-4">
+                        <h4 className="font-medium flex items-center gap-2"><FileJson className="w-5 h-5"/> 响应数据</h4>
+                        <pre className="bg-muted p-4 rounded-md text-xs overflow-x-auto max-h-96">
+                            {JSON.stringify(responseData, null, 2)}
+                        </pre>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
 // =================================================================
 // MAIN PAGE COMPONENT
 // =================================================================
@@ -315,15 +454,7 @@ export default function KnowledgeBasePage() {
                         <DataProcessor destination="products" />
                     </TabsContent>
                     <TabsContent value="external" className="mt-6">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="font-headline">对接外部知识库</CardTitle>
-                                <CardDescription>连接到外部API或数据库，实现知识的自动同步和更新。</CardDescription>
-                            </CardHeader>
-                            <CardContent className="h-40 flex items-center justify-center text-muted-foreground">
-                                <p>此功能正在开发中...</p>
-                            </CardContent>
-                        </Card>
+                        <ApiDataFetcher />
                     </TabsContent>
                 </Tabs>
             </div>

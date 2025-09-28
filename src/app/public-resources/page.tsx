@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Download, Edit, Library, Link, PlusCircle, Trash2, Upload, Loader2, Info, Tag, CalendarClock, FileCog, FileJson, Server } from 'lucide-react';
+import { Link, PlusCircle, Trash2, Loader2, Library, CalendarClock, FileCog } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { collection, getDocs, query, orderBy, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -17,7 +17,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Label } from '@/components/ui/label';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -25,27 +24,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataProcessor } from '@/components/features/data-processor';
-import { Textarea } from '@/components/ui/textarea';
-import GenerateJson from '../api/generate/generate.json';
+import type { Resource } from '@/lib/types';
 
 
-// 更新后的 Resource 数据接口，以反映其作为数据源的本质
-export interface Resource {
-    id: string;
-    name: string; // 数据源名称，例如：“科技媒体头条”
-    sourceUrl: string; // 原始数据来源网址
-    category: string; // 资讯类别，例如：“人工智能”, “元宇宙”
-    tags: string[]; // 标签数组
-    updateFrequency: '实时' | '每日' | '每周' | '每月'; // 更新频率
-    status: '可用' | '已停用'; // 状态
-    createdAt?: Timestamp;
-    // Fields from DataProcessor might also be present
-    matchScore?: number;
-    recommendation?: string;
-    apiKey?: string;
-}
-
-// 更新 Zod schema 以匹配新的数据模型
+// Zod schema for Resource
 const resourceSchema = z.object({
   name: z.string().min(2, "数据源名称至少需要2个字符"),
   sourceUrl: z.string().url("请输入有效的来源URL"),
@@ -353,143 +335,6 @@ function ManualResourceManagement() {
     );
 }
 
-function ApiDataFetcher() {
-    const [availableResources, setAvailableResources] = useState<Resource[]>([]);
-    const [selectedResourceId, setSelectedResourceId] = useState<string>('');
-    const [isLoading, setIsLoading] = useState(false);
-    const [isFetching, setIsFetching] = useState(false);
-    const [jsonInput, setJsonInput] = useState(JSON.stringify(GenerateJson, null, 2));
-    const [responseData, setResponseData] = useState<any>(null);
-    const { toast } = useToast();
-
-    useEffect(() => {
-        const fetchAvailableResources = async () => {
-            setIsLoading(true);
-            try {
-                const resourcesCollection = collection(db, 'resources');
-                const q = query(resourcesCollection, where("status", "==", "可用"));
-                const snapshot = await getDocs(q);
-                const resourcesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Resource));
-                setAvailableResources(resourcesList);
-            } catch (error) {
-                toast({ title: '加载失败', description: '无法加载可用的数据源列表。', variant: 'destructive' });
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchAvailableResources();
-    }, [toast]);
-
-    useEffect(() => {
-        if (selectedResourceId) {
-            const resource = availableResources.find(r => r.id === selectedResourceId);
-            if (resource) {
-                try {
-                    const parsedJson = JSON.parse(jsonInput);
-                    parsedJson.url = resource.sourceUrl;
-                    if(resource.apiKey) {
-                        parsedJson.headers = {
-                            ...parsedJson.headers,
-                            'Authorization': `Bearer ${resource.apiKey}`,
-                        }
-                    }
-                    setJsonInput(JSON.stringify(parsedJson, null, 2));
-                } catch(e) {
-                    // ignore if json is invalid
-                }
-            }
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedResourceId, availableResources]);
-
-    const handleFetchData = async () => {
-        let payload;
-        try {
-            payload = JSON.parse(jsonInput);
-        } catch (error) {
-            toast({ title: 'JSON 格式错误', description: '请输入有效的JSON配置。', variant: 'destructive'});
-            return;
-        }
-
-        setIsFetching(true);
-        setResponseData(null);
-        try {
-            const response = await fetch('/api/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                 throw new Error(data.details || 'API请求失败');
-            }
-
-            setResponseData(data);
-            toast({ title: '成功', description: `已成功调用接口。` });
-        } catch (error: any) {
-            console.error("API fetch error:", error);
-            setResponseData({ error: `获取数据失败: ${error.message}` });
-            toast({ title: '获取失败', description: '无法从该接口获取数据，请检查配置和网络连接。', variant: 'destructive' });
-        } finally {
-            setIsFetching(false);
-        }
-    };
-
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="font-headline">通用接口数据调试</CardTitle>
-                <CardDescription>通过构造JSON对象来调用任意RESTful API，实现对多种接口模式的通用解析和调试。</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-                    <div className="space-y-2">
-                        <Label>选择数据源 (自动填充 URL/Key)</Label>
-                        <Select onValueChange={setSelectedResourceId} value={selectedResourceId} disabled={isLoading}>
-                            <SelectTrigger>
-                                <SelectValue placeholder={isLoading ? '加载中...' : '选择一个已配置的数据源...'} />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {availableResources.map(res => (
-                                    <SelectItem key={res.id} value={res.id}>{res.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                     <div className="space-y-2">
-                        <Label>JSON 请求配置</Label>
-                        <Textarea 
-                            value={jsonInput}
-                            onChange={(e) => setJsonInput(e.target.value)}
-                            rows={8}
-                            placeholder='输入JSON格式的请求配置...'
-                            className="font-mono text-xs"
-                        />
-                    </div>
-                </div>
-
-                <Button onClick={handleFetchData} disabled={isFetching} className="w-full">
-                    {isFetching ? <Loader2 className="animate-spin" /> : <Server className="mr-2" />}
-                    发送请求
-                </Button>
-
-                {responseData && (
-                    <div className="space-y-2 pt-4">
-                        <h4 className="font-medium flex items-center gap-2"><FileJson className="w-5 h-5"/> 响应数据</h4>
-                        <pre className="bg-muted p-4 rounded-md text-xs overflow-x-auto max-h-96">
-                            {JSON.stringify(responseData, null, 2)}
-                        </pre>
-                    </div>
-                )}
-            </CardContent>
-        </Card>
-    );
-}
-
-
 export default function PublicResourcesPage() {
      return (
         <AppLayout>
@@ -503,19 +348,15 @@ export default function PublicResourcesPage() {
                 </header>
 
                  <Tabs defaultValue="manual" className="w-full">
-                    <TabsList className="grid w-full grid-cols-3 max-w-xl">
+                    <TabsList className="grid w-full grid-cols-2 max-w-lg">
                         <TabsTrigger value="manual"><Library className="mr-2"/> 数据源列表</TabsTrigger>
                         <TabsTrigger value="batch"><FileCog className="mr-2"/> 批量导入处理</TabsTrigger>
-                        <TabsTrigger value="api"><Server className="mr-2"/> 接口数据调试</TabsTrigger>
                     </TabsList>
                     <TabsContent value="manual" className="mt-6">
                         <ManualResourceManagement />
                     </TabsContent>
                     <TabsContent value="batch" className="mt-6">
                         <DataProcessor className="mt-0" destination="resources" />
-                    </TabsContent>
-                    <TabsContent value="api" className="mt-6">
-                        <ApiDataFetcher />
                     </TabsContent>
                 </Tabs>
             </div>
