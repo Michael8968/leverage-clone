@@ -28,6 +28,8 @@
 | **bio** | `string` | (可选, 针对 'creator') 个人简介。 |
 | **skills** | `Array<string>`| (可选, 针对 'creator') 技能标签。 |
 | **createdAt** | `Timestamp`| 用户创建时间。 |
+| **defaultAssistantPromptKey** | `string` | (可选, 针对 'creator') 默认助理使用的提示词Key。 |
+| **assistantRules** | `Array<Object>`| (可选, 针对 'creator') AI助理的高级行为规则数组。 |
 
 
 ### 1.2. `products` 集合
@@ -225,3 +227,4 @@
 *   **`getDesigners`**: 获取所有角色为`creator`的用户信息。
 *   **`getUploadUrlForMediaAsset` & `analyzeMediaAsset`**: 支持多模态文件的上传和分析。
 *   **`updateUserStatus`**: 更新创作者的在线状态或AI助理模式。
+*   **`updateUserAssistantRules`**: 更新创意者的AI助理规则。

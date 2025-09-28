@@ -111,8 +111,8 @@ export type User = {
   createdAt?: any;
   currentQueueSize?: number;
   maxQueueSize?: number;
-  assistantRules?: AssistantRule[]; // New field for creator-specific AI assistant rules
-  defaultAssistantPromptKey?: string; // New field for creator's default assistant
+  assistantRules?: AssistantRule[];
+  defaultAssistantPromptKey?: string;
 };
 
 // Chat-related types
