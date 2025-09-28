@@ -116,9 +116,7 @@ export const createPrivateDemand = ai.defineFlow(
                     outputMessage = "设计师当前正忙，已为您连接其AI助理，他会先了解您的需求。";
                 }
             } else { // Connect to AI if user chose AI, or if designer has their AI assistant enabled
-                 outputMessage = creator.aiAssistantEnabled 
-                    ? "设计师已开启AI助理模式，由我先来为您服务。" 
-                    : "已为您连接AI助理，他会先了解您的需求。";
+                 outputMessage = "已为您连接设计师的AI助理，他会先了解您的需求。";
             }
             
             if (connectToHuman) {
@@ -139,7 +137,7 @@ export const createPrivateDemand = ai.defineFlow(
                 requesterId: requesterId,
                 requesterName: requester.name,
                 requesterAvatar: requester.avatar || '',
-                creatorId: creatorId,
+                creatorId: creatorId, // The creatorId always points to the initially requested designer
                 createdAt: serverTimestamp(),
                 budget: 0,
                 category: '专属沟通',

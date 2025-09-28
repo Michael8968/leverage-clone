@@ -40,7 +40,7 @@ const IntelligentRoutingOutputSchema = z.object({
  * Fetches all relevant data needed for the AI to make a routing decision.
  */
 async function getRoutingContext(requesterId: string, specificDesignerId?: string) {
-    // If a specific designer is requested, we still fetch all active designers to allow for re-routing.
+    // We fetch all active designers to allow for potential re-routing.
     const designerQuery = query(collection(db, 'users'), where('role', '==', 'creator'), where('status', '==', 'active'));
 
     const [requesterSnap, designersSnap, strategySnap] = await Promise.all([
@@ -53,11 +53,10 @@ async function getRoutingContext(requesterId: string, specificDesignerId?: strin
 
     const requesterInfo = { uid: requesterSnap.id, ...requesterSnap.data() } as User;
     
-    // Sanitize all active designers, but don't filter them based on AI assistant yet.
+    // Sanitize all active designers' data for the prompt
     const allDesigners = designersSnap.docs
         .map(doc => {
             const data = doc.data() as User;
-            // Sanitize designer data for the prompt
             return {
                 uid: doc.id,
                 name: data.name,
@@ -75,11 +74,7 @@ async function getRoutingContext(requesterId: string, specificDesignerId?: strin
             id: 'main_strategy', 
             strategyText: "Default: Route to the designer with the fewest people in their queue (currentQueueSize).",
             factors: [], 
-            factorTemperatures: {
-                problem_category: 0.8,
-                busyness: 1.0,
-                user_priority: 0.5,
-            },
+            factorTemperatures: {},
             updatedAt: new Date() 
         };
 
@@ -97,8 +92,8 @@ async function getRoutingContext(requesterId: string, specificDesignerId?: strin
 // =================================================================
 
 const RoutingDecisionSchema = z.object({
-    designerId: z.string().describe("The ID of the chosen designer. Should be 'fallback_to_ai' if no suitable designer is found."),
-    reason: z.string().describe("A concise explanation for why this designer was chosen or why a fallback to AI was necessary. Mention the chosen designer's name."),
+    designerId: z.string().describe("The ID of the chosen designer. Must be 'fallback_to_ai' if no suitable designer is found."),
+    reason: z.string().describe("A concise explanation for why this designer was chosen or why a fallback was necessary. Mention the chosen designer's name if one was selected."),
 });
 
 const routingPrompt = ai.definePrompt({
@@ -107,11 +102,11 @@ const routingPrompt = ai.definePrompt({
     output: { schema: RoutingDecisionSchema },
     prompt: `
         You are a world-class, hyper-efficient service dispatcher for a high-end design platform.
-        Your task is to analyze an incoming user request and all available real-time data to find the *single best designer* to handle it, or decide to let a generic platform AI assistant handle it.
+        Your task is to analyze an incoming user request and all available real-time data to find the *single best designer* to handle it, or decide to let a generic platform AI assistant handle it if no one is available.
 
-        Strictly follow the routing strategy provided below. Pay close attention to the weights of different decision factors.
+        Strictly follow the routing strategy and factor weights provided below.
 
-        A critical rule: You MUST NOT select a designer if their 'aiAssistantEnabled' flag is true. These designers are not available for direct routing. You must choose another designer or fallback to the generic AI assistant.
+        A CRITICAL RULE: You MUST NOT select a designer if their 'aiAssistantEnabled' flag is true. These designers are not available for direct routing from the global pool. You must choose another designer or fall back to the generic AI assistant.
 
         ==============================
         == PLATFORM ROUTING STRATEGY ==
@@ -122,8 +117,8 @@ const routingPrompt = ai.definePrompt({
         == DECISION FACTOR WEIGHTS ==
         ==================================
         (0.0 means not important, 1.0 means most important)
-        {{#each factorTemperatures}}
-        - {{@key}}: {{this}}
+        {{#each factors}}
+        - {{this.name}}: {{{lookup ../factorTemperatures this.id}}}
         {{/each}}
 
         ==============================
@@ -138,16 +133,16 @@ const routingPrompt = ai.definePrompt({
         "{{{requestDescription}}}"
 
         - List of available designers (Remember, only route to a designer if their status is 'active' AND 'aiAssistantEnabled' is false):
-        {{{json allDesigners}}}
+        {{{json availableDesigners}}}
 
         ==============================
         == YOUR TASK ==
         ==============================
         1.  Analyze all the provided data in light of the platform's routing strategy and factor weights.
-        2.  Consider all factors: designer status, skills, queue size, user rating, and the crucial 'aiAssistantEnabled' flag.
-        3.  Select the single best *available* designer from the list. An available designer MUST have 'status: active' and 'aiAssistantEnabled: false'.
-        4.  If no designer is a good fit, if they are all offline, or if they all have their AI assistant enabled, you MUST decide to fall back to a generic platform AI assistant.
-        5.  Return a JSON object with your decision. The "designerId" must be either a valid designer UID from the list or the exact string "fallback_to_ai". Provide a clear "reason" for your choice.
+        2.  Consider all factors for the available designers: skills, queue size, user rating, and the crucial 'aiAssistantEnabled: false' requirement.
+        3.  Select the single best *available* designer from the list.
+        4.  If no designer is a good fit, or if they are all offline or have their AI assistant enabled, you MUST decide to fall back to a generic platform AI assistant.
+        5.  Return a JSON object with your decision. The 'designerId' must be either a valid designer UID from the list or the exact string 'fallback_to_ai'. Provide a clear 'reason' for your choice.
     `,
 });
 
@@ -168,6 +163,7 @@ export const intelligentRoutingFlow = ai.defineFlow(
             const context = await getRoutingContext(requesterId, specificDesignerId);
 
             // Filter out designers who are not available for routing before sending to AI
+            // An available designer must be 'active' and MUST NOT have their AI assistant enabled.
             const availableDesigners = context.allDesigners.filter(
                 d => d.status === 'active' && !d.aiAssistantEnabled
             );
@@ -184,11 +180,12 @@ export const intelligentRoutingFlow = ai.defineFlow(
             // 2. Call the AI model with the rich context
             const { output } = await routingPrompt({
                 strategyText: context.strategy.strategyText,
+                factors: context.strategy.factors,
                 factorTemperatures: context.strategy.factorTemperatures,
                 currentTime: context.currentTime,
                 requesterInfo: context.requesterInfo,
                 requestDescription: requestDescription,
-                allDesigners: availableDesigners, // Pass only the available designers to the AI
+                availableDesigners: availableDesigners, // Pass only the truly available designers to the AI
             });
 
             if (!output) {
@@ -205,7 +202,6 @@ export const intelligentRoutingFlow = ai.defineFlow(
             }
 
             // 4. Return the decision to route to a specific designer
-            // The reason from the AI will explain why this designer was chosen.
             return {
                 decision: 'route_to_designer',
                 designerId: output.designerId,
@@ -214,7 +210,7 @@ export const intelligentRoutingFlow = ai.defineFlow(
 
         } catch (error: any) {
             console.error("Intelligent routing flow failed:", error);
-            // In case of any catastrophic failure, always fall back to the AI assistant
+            // In case of any catastrophic failure, always fall back to a generic message
             return {
                 decision: 'fallback_to_ai',
                 reason: `Routing system encountered an internal error: ${error.message}`,
