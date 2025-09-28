@@ -112,7 +112,7 @@ export const createPrivateDemand = ai.defineFlow(
             status: '进行中', // Private demands start immediately
             requesterId: requesterId,
             requesterName: requester.name,
-            requesterAvatar: requester.avatar,
+            requesterAvatar: requester.avatar || '',
             creatorId: creatorId,
             createdAt: serverTimestamp(),
             // Set default or empty values for other required fields
