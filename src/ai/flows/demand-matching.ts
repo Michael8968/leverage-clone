@@ -1,3 +1,4 @@
+
 'use server';
 
 import { ai } from '@/ai/genkit';
@@ -102,17 +103,21 @@ export const createPrivateDemand = ai.defineFlow(
             let connectToHuman = false;
             let initialMessageText = '';
 
-            if (preferredAgent === 'human' && !creator.aiAssistantEnabled) { // Only connect to human if they haven't enabled AI assistant
+            // User wants human AND designer is available and not in AI mode
+            if (preferredAgent === 'human' && !creator.aiAssistantEnabled) { 
                 const maxQueue = creator.maxQueueSize ?? 1;
                 const currentQueue = creator.currentQueueSize ?? 0;
+                // Designer must be active and have queue space
                 if (creator.status === 'active' && currentQueue < maxQueue) {
                     connectToHuman = true;
                 } else {
-                    // Automatically route to AI if human is not available or has AI assistant enabled
+                    // Automatically route to AI if human is not available
                     outputMessage = "设计师正在忙，已为您连接AI助理，他会先了解您的需求。";
                 }
             } else { // Connect to AI if user chose AI, or if designer has AI assistant enabled
-                 outputMessage = creator.aiAssistantEnabled ? "设计师已开启AI助理模式，由我先来为您服务。" : undefined;
+                 outputMessage = creator.aiAssistantEnabled 
+                    ? "设计师已开启AI助理模式，由我先来为您服务。" 
+                    : "已为您连接AI助理，他会先了解您的需求。";
             }
             
             if (connectToHuman) {
@@ -147,9 +152,9 @@ export const createPrivateDemand = ai.defineFlow(
                     text: initialMessageText,
                     senderId: connectToHuman ? creatorId : 'ai-assistant',
                     senderName: connectToHuman ? creator.name : 'AI 助理',
-                    senderAvatar: connectToHuman ? creator.avatar || '' : '', // FIX: Provide fallback avatar
+                    senderAvatar: connectToHuman ? creator.avatar || '' : '',
                     isAIMessage: !connectToHuman,
-                    timestamp: new Date(), 
+                    timestamp: new Date(),
                 }],
             });
             
@@ -159,3 +164,4 @@ export const createPrivateDemand = ai.defineFlow(
         return { demandId, message: outputMessage };
     }
 );
+

@@ -59,9 +59,9 @@ export function ChatDialog({ open, onOpenChange, demand, currentUser }: {
     const unsubscribe = onSnapshot(chatDocRef, (doc) => {
       if (doc.exists()) {
         const data = doc.data() as ChatDocument;
-        const formattedMessages = data.messages.map(m => ({
+        const formattedMessages = (data.messages || []).map(m => ({
           ...m,
-          timestamp: (m.timestamp as any).toDate(),
+          timestamp: (m.timestamp as any)?.toDate ? (m.timestamp as any).toDate() : new Date(),
         }));
         setMessages(formattedMessages);
       } else {
@@ -99,7 +99,7 @@ export function ChatDialog({ open, onOpenChange, demand, currentUser }: {
       setNewMessage('');
       
       // If AI assistant is enabled, trigger it after user sends a message
-      if (isAiAssistantEnabled) {
+      if (isAiAssistantEnabled && currentUser.uid !== demand.creatorId) {
           triggerAiAssistant([...messages, message]);
       }
 
@@ -114,6 +114,7 @@ export function ChatDialog({ open, onOpenChange, demand, currentUser }: {
       setIsAiThinking(true);
       try {
           const aiResponse = await clarifyDemandDetails({
+              demandId: demand.id,
               demandTitle: demand.title,
               demandDescription: demand.description,
               chatHistory: currentMessages.map(m => ({...m, text: m.text || ''})),
@@ -197,7 +198,7 @@ export function ChatDialog({ open, onOpenChange, demand, currentUser }: {
                   {msg.senderId !== currentUser.uid && (
                     <Avatar className="h-8 w-8">
                       {msg.isAIMessage ? <Bot className="h-8 w-8 text-accent" /> : <AvatarImage src={msg.senderAvatar} />}
-                      <AvatarFallback>{msg.senderName.charAt(0)}</AvatarFallback>
+                      <AvatarFallback>{msg.senderName?.charAt(0) || 'U'}</AvatarFallback>
                     </Avatar>
                   )}
                   <div className={cn("rounded-lg px-3 py-2 max-w-sm", msg.senderId === currentUser.uid ? "bg-primary text-primary-foreground" : "bg-muted")}>
@@ -206,7 +207,7 @@ export function ChatDialog({ open, onOpenChange, demand, currentUser }: {
                   {msg.senderId === currentUser.uid && (
                     <Avatar className="h-8 w-8">
                       <AvatarImage src={msg.senderAvatar} />
-                      <AvatarFallback>{msg.senderName.charAt(0)}</AvatarFallback>
+                      <AvatarFallback>{currentUser.name.charAt(0)}</AvatarFallback>
                     </Avatar>
                   )}
                 </div>

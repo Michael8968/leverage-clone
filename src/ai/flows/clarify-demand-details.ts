@@ -11,6 +11,9 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { executePrompt } from './prompt-execution-flow';
+import { intelligentRoutingFlow } from './intelligent-routing-flow';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 
 const ChatMessageSchema = z.object({
@@ -21,6 +24,7 @@ const ChatMessageSchema = z.object({
 });
 
 const ClarifyDemandDetailsInputSchema = z.object({
+  demandId: z.string().describe("The ID of the private demand/chat."),
   demandTitle: z.string().describe('The title of the original user demand.'),
   demandDescription: z.string().describe('The detailed description of the original user demand.'),
   chatHistory: z.array(ChatMessageSchema).describe('The history of the conversation so far.'),
@@ -74,8 +78,27 @@ const clarifyDemandDetailsFlow = ai.defineFlow(
         
         return { clarification: result.text };
     } catch (error) {
-        console.warn("AI Assistant failed to respond, returning handoff message.", error);
-        return { clarification: "这个问题我暂时无法回答，可能需要设计师亲自为您解答。" };
+        console.warn("AI Assistant failed to respond, initiating handoff to human agent.", error);
+
+        // Handoff to human agent logic
+        const latestUserMessage = input.chatHistory[input.chatHistory.length - 1]?.text || input.demandDescription;
+        const routingResult = await intelligentRoutingFlow({
+            requesterId: input.userId,
+            requestDescription: `用户在与AI助理对话时遇到问题，请求人工介入。用户最后的问题是：“${latestUserMessage}”`,
+        });
+
+        if (routingResult.decision === 'route_to_designer' && routingResult.designerId) {
+            const demandRef = doc(db, 'demands', input.demandId);
+            await updateDoc(demandRef, {
+                creatorId: routingResult.designerId,
+            });
+            // This message will be sent by the AI to inform the user of the handoff
+            return { clarification: `已为您转接至平台专家【${routingResult.reason}】，他将很快加入对话。` };
+        } else {
+             // If no agent is available even after routing
+            return { clarification: "抱歉，目前所有设计师都在忙，请您稍后再试。" };
+        }
     }
   }
 );
+

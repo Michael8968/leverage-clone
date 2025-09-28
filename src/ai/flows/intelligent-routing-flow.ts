@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An AI-driven flow to intelligently route a user request to the best available human agent (designer).
@@ -112,7 +113,8 @@ const routingPrompt = ai.definePrompt({
 
         Strictly follow the routing strategy provided below. Pay close attention to the weights of different decision factors.
 
-        A critical rule: If a designer has "aiAssistantEnabled: true", you should NOT route the user directly to them. Instead, you should choose "fallback_to_ai" so their AI assistant can handle the request.
+        A critical rule: If a designer has their "aiAssistantEnabled" flag set to true, you should treat them as a valid candidate for routing, but your "reason" should state their AI assistant will handle it. The final routing logic will handle this.
+        Do NOT filter out designers just because their AI assistant is on. The goal is to find the best match, human or AI.
 
         ==============================
         == PLATFORM ROUTING STRATEGY ==
@@ -138,18 +140,17 @@ const routingPrompt = ai.definePrompt({
         - User's Problem/Request:
         "{{{requestDescription}}}"
 
-        - List of All Designers (consider their status and aiAssistantEnabled flag):
+        - List of All Designers (consider their status, skills, queue size and aiAssistantEnabled flag):
         {{{json allDesigners}}}
 
         ==============================
         == YOUR TASK ==
         ==============================
         1.  Analyze all the provided data in light of the platform's routing strategy and factor weights.
-        2.  Consider all factors: designer status (must be 'active'), skills, current queue size, user rating, and crucially, `aiAssistantEnabled`.
-        3.  If the best matching designer has 'aiAssistantEnabled: true', you MUST fall back to the AI assistant.
-        4.  Select the single best *available* designer from the list for a direct human connection.
-        5.  If no designer is a good fit, if they are all busy, or if the best choice has their AI assistant on, decide to fall back to the AI assistant.
-        6.  Return a JSON object with your decision. The "designerId" must be either a valid designer UID from the list or the exact string "fallback_to_ai". Provide a clear "reason" for your choice.
+        2.  Consider all factors: designer status (must be 'active'), skills, current queue size, user rating, and `aiAssistantEnabled`.
+        3.  Select the single best *available* designer from the list. The best match might be someone who has their AI assistant enabled.
+        4.  If no designer is a good fit or if they are all offline, decide to fall back to a generic platform AI assistant.
+        5.  Return a JSON object with your decision. The "designerId" must be either a valid designer UID from the list or the exact string "fallback_to_ai". Provide a clear "reason" for your choice, mentioning the chosen designer's name.
     `,
 });
 
@@ -168,6 +169,15 @@ export const intelligentRoutingFlow = ai.defineFlow(
         try {
             // 1. Aggregate all necessary data
             const context = await getRoutingContext(requesterId, specificDesignerId);
+
+            // If there are no designers at all, fallback immediately.
+            if (context.allDesigners.length === 0) {
+                 return {
+                    decision: 'fallback_to_ai',
+                    reason: 'No designers are currently available on the platform.',
+                    aiAssistantMessage: "抱歉，平台当前没有可用的设计师。请稍后再试。",
+                };
+            }
 
             // 2. Call the AI model with the rich context
             const { output } = await routingPrompt({
@@ -188,11 +198,12 @@ export const intelligentRoutingFlow = ai.defineFlow(
                 return {
                     decision: 'fallback_to_ai',
                     reason: output.reason,
-                    aiAssistantMessage: "目前所有设计师都在忙，或您选择的设计师已开启AI助理，已为您转接AI助理进行服务。",
+                    aiAssistantMessage: "目前所有设计师都在忙，已为您转接平台AI助理进行服务。",
                 };
             }
 
             // 4. Return the decision to route to a specific designer
+            // The reason from the AI will explain why this designer was chosen.
             return {
                 decision: 'route_to_designer',
                 designerId: output.designerId,
@@ -205,8 +216,9 @@ export const intelligentRoutingFlow = ai.defineFlow(
             return {
                 decision: 'fallback_to_ai',
                 reason: `Routing system encountered an internal error: ${error.message}`,
-                aiAssistantMessage: "系统调度遇到问题，已为您转接AI助理进行服务。",
+                aiAssistantMessage: "系统调度遇到问题，已为您转接平台AI助理进行服务。",
             };
         }
     }
 );
+
