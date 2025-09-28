@@ -30,6 +30,7 @@ export type Creative = {
 export type ProductImage = {
   url: string;
   view: '默认' | '前' | '后' | '左' | '右' | '上' | '下' | '整体';
+  mediaAssetId?: string; // To link with the media_assets collection for analysis
 };
 
 

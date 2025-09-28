@@ -146,13 +146,12 @@ const executePromptFlow = ai.defineFlow(
     // 2. Fetch prompt document if a key is determined
     let promptDoc: Prompt | undefined;
     if (finalPromptKey) {
-        // FIX: Fetch all prompts and filter in-memory to avoid needing an index on promptKey
-        const promptsSnapshot = await getDocs(query(collection(db, 'prompts')));
-        const allPrompts = promptsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Prompt));
-        
-        promptDoc = allPrompts.find(p => p.promptKey === finalPromptKey);
+        // This query requires a single-field index on the 'promptKey' field in the 'prompts' collection.
+        const q = query(collection(db, 'prompts'), where('promptKey', '==', finalPromptKey), limit(1));
+        const promptSnapshot = await getDocs(q);
 
-        if (promptDoc) {
+        if (!promptSnapshot.empty) {
+            promptDoc = { id: promptSnapshot.docs[0].id, ...promptSnapshot.docs[0].data() } as Prompt;
             finalSystemPrompt = promptDoc.content; // Override system prompt with content from DB
             if (promptDoc.modelId && !finalModelId) { // Prompt's model overrides if no specific model was passed in
                 finalModelId = promptDoc.modelId;

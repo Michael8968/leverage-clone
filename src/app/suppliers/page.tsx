@@ -4,7 +4,7 @@
 
 import { AppLayout } from '@/components/app-layout';
 import { useState, useEffect, useRef, useCallback, useTransition } from 'react';
-import type { ProductService, SupplementaryField, Supplier, ProductImage } from '@/lib/types';
+import type { ProductService, SupplementaryField, Supplier, ProductImage, MediaAsset } from '@/lib/types';
 import { SupplementaryFieldsManager } from '@/components/features/supplementary-fields-manager';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -413,12 +413,12 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
     const [isTransitioning, startTransition] = useTransition();
 
     const addImage = () => {
-        onImagesChange([...images, { url: undefined as any, view: '默认' }]);
+        onImagesChange([...images, { url: '', view: '默认', mediaAssetId: '' }]);
     };
 
-    const updateImage = (index: number, field: 'url' | 'view', value: string) => {
+    const updateImage = (index: number, data: Partial<ProductImage>) => {
         const newImages = [...images];
-        newImages[index] = { ...newImages[index], [field]: value };
+        newImages[index] = { ...newImages[index], ...data };
         onImagesChange(newImages);
     };
 
@@ -458,7 +458,7 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
             });
             
             const publicUrl = `https://storage.googleapis.com/${process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}/media_assets/${user.uid}/${mediaAssetId}-${file.name}`;
-            updateImage(index, 'url', publicUrl);
+            updateImage(index, { url: publicUrl, mediaAssetId: mediaAssetId });
             
             toast({ title: '上传成功', description: '图片已成功上传并保存。' });
 
@@ -475,20 +475,20 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
     };
 
     const handleAnalyzeImage = async (image: ProductImage, index: number) => {
-        if (!image.url || !user) {
-            toast({ title: '错误', description: '图片URL无效或用户未登录。', variant: 'destructive' });
+        if (!image.mediaAssetId || !user) {
+            toast({ title: '错误', description: '图片资源ID无效或用户未登录。请先上传图片。', variant: 'destructive' });
             return;
         }
         setAnalyzingIndex(index);
         setAnalysisResult(null);
         startTransition(async () => {
             try {
-                // This is a mock analysis as we can't get mediaAssetId from URL easily.
-                // In a real app, `getUploadUrlForMediaAsset` would also store the mapping.
-                // For now, let's just show a simulated response.
-                 const result = await new Promise<string>(resolve => setTimeout(() => resolve(`AI分析建议：\n- 尺寸: 建议使用 1:1 的宽高比, 如 1080x1080 像素，以适应社交媒体展示。\n- 背景: 当前背景较为杂乱，建议使用纯色或渐变背景以突出产品主体。\n- 光照: 光照均匀，但可以尝试增加一个侧面光源，以增强立体感。`), 2000));
+                 const result = await analyzeMediaAsset({
+                    mediaAssetId: image.mediaAssetId!,
+                    prompt: "请分析这张产品图片，并从商业角度提供优化建议，例如构图、光照、背景、卖点展示等方面。"
+                });
 
-                setAnalysisResult({ index, result });
+                setAnalysisResult({ index, result: result.analysis });
 
             } catch (error) {
                 console.error("AI Analysis failed:", error);
@@ -535,7 +535,7 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
                 </div>
                  <Input 
                   value={image.url || ''}
-                  onChange={(e) => updateImage(index, 'url', e.target.value)}
+                  onChange={(e) => updateImage(index, { url: e.target.value })}
                   placeholder="输入图片/视频URL..."
                   className="col-span-2"
                 />
@@ -553,7 +553,7 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
                     )}
                     上传
                   </Button>
-                  <Select value={image.view} onValueChange={(value) => updateImage(index, 'view', value)}>
+                  <Select value={image.view} onValueChange={(value) => updateImage(index, { view: value as ProductImage['view'] })}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -567,7 +567,7 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
                     size="sm" 
                     className="w-full gap-2"
                     onClick={() => handleAnalyzeImage(image, index)}
-                    disabled={analyzingIndex === index || !image.url}
+                    disabled={analyzingIndex === index || !image.mediaAssetId}
                  >
                    {analyzingIndex === index ? <Loader2 className="w-4 h-4 animate-spin"/> : <BrainCircuit className="w-4 h-4"/>}
                     AI分析与建议

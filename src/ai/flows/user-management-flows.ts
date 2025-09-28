@@ -32,9 +32,9 @@ export const batchUpdateUsers = ai.defineFlow(
     },
     async ({ userIds, updates, currentUserId }) => {
         // Prevent admin from changing their own role/status to avoid lock-out
-        if (updates.role || updates.disabled !== undefined) {
+        if (updates.role || updates.disabled !== undefined || updates.starLevel !== undefined) {
             if (userIds.includes(currentUserId)) {
-                throw new Error("为了安全，管理员不能通过批量操作来修改自己的角色或状态。");
+                throw new Error("为了安全，管理员不能通过批量操作来修改自己的角色、状态或星级。");
             }
         }
 
