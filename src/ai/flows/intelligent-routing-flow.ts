@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview An AI-driven flow to intelligently route a user request to the best available human agent (designer).
@@ -55,8 +54,8 @@ async function getRoutingContext(requesterId: string, specificDesignerId?: strin
 
     const requesterInfo = { uid: requesterSnap.id, ...requesterSnap.data() } as User;
     
-    // Filter out designers who have AI assistant enabled. They are not available for direct routing.
-    const availableDesigners = designersSnap.docs
+    // Sanitize all designers, but don't filter them out yet. The AI will decide based on aiAssistantEnabled.
+    const allDesigners = designersSnap.docs
         .map(doc => {
             const data = doc.data() as User;
             // Sanitize designer data for the prompt
@@ -69,25 +68,25 @@ async function getRoutingContext(requesterId: string, specificDesignerId?: strin
                 rating: data.rating || 5,
                 currentQueueSize: data.currentQueueSize || 0,
             };
-        })
-        .filter(designer => !designer.aiAssistantEnabled); // CRITICAL: Exclude designers with AI assistant on
+        });
 
     const strategy: IntelligentRoutingStrategy = strategySnap.exists()
         ? strategySnap.data() as IntelligentRoutingStrategy
         : { 
             id: 'main_strategy', 
-            strategyText: "Default: Route to the designer with the fewest people in their queue (currentQueueSize).", 
+            strategyText: "Default: Route to the designer with the fewest people in their queue (currentQueueSize).",
+            factors: [], 
             factorTemperatures: {
-                problemCategory: 0.8,
+                problem_category: 0.8,
                 busyness: 1.0,
-                userPriority: 0.5,
+                user_priority: 0.5,
             },
             updatedAt: new Date() 
         };
 
     return {
         requesterInfo,
-        availableDesigners,
+        allDesigners, // Return all designers for the AI to consider
         strategy,
         currentTime: format(new Date(), "yyyy-MM-dd HH:mm:ss 'Weekday:' EEEE"),
     };
@@ -113,6 +112,8 @@ const routingPrompt = ai.definePrompt({
 
         Strictly follow the routing strategy provided below. Pay close attention to the weights of different decision factors.
 
+        A critical rule: If a designer has "aiAssistantEnabled: true", you should NOT route the user directly to them. Instead, you should choose "fallback_to_ai" so their AI assistant can handle the request.
+
         ==============================
         == PLATFORM ROUTING STRATEGY ==
         ==============================
@@ -137,17 +138,18 @@ const routingPrompt = ai.definePrompt({
         - User's Problem/Request:
         "{{{requestDescription}}}"
 
-        - List of Available Designers (Note: Designers with 'aiAssistantEnabled: true' have already been filtered out):
-        {{{json availableDesigners}}}
+        - List of All Designers (consider their status and aiAssistantEnabled flag):
+        {{{json allDesigners}}}
 
         ==============================
         == YOUR TASK ==
         ==============================
         1.  Analyze all the provided data in light of the platform's routing strategy and factor weights.
-        2.  Consider all factors: designer status (must be 'active'), skills, current queue size, user rating, time of day, etc.
-        3.  Select the single best designer from the list.
-        4.  If no designer is a good fit or if the strategy dictates it (e.g., off-hours or all available designers are busy), decide to fall back to the AI assistant.
-        5.  Return a JSON object with your decision. The "designerId" must be either a valid designer UID from the list or the exact string "fallback_to_ai". Provide a clear "reason" for your choice.
+        2.  Consider all factors: designer status (must be 'active'), skills, current queue size, user rating, and crucially, `aiAssistantEnabled`.
+        3.  If the best matching designer has 'aiAssistantEnabled: true', you MUST fall back to the AI assistant.
+        4.  Select the single best *available* designer from the list for a direct human connection.
+        5.  If no designer is a good fit, if they are all busy, or if the best choice has their AI assistant on, decide to fall back to the AI assistant.
+        6.  Return a JSON object with your decision. The "designerId" must be either a valid designer UID from the list or the exact string "fallback_to_ai". Provide a clear "reason" for your choice.
     `,
 });
 
@@ -167,15 +169,6 @@ export const intelligentRoutingFlow = ai.defineFlow(
             // 1. Aggregate all necessary data
             const context = await getRoutingContext(requesterId, specificDesignerId);
 
-            // If a specific designer was requested but they have AI assistant enabled, fallback immediately.
-            if (specificDesignerId && context.availableDesigners.length === 0) {
-                 return {
-                    decision: 'fallback_to_ai',
-                    reason: `设计师 ${specificDesignerId} 已开启AI助理模式，无法直接接入。`,
-                    aiAssistantMessage: `您想联系的设计师当前正由AI助理代为接待，已为您转接。`,
-                };
-            }
-
             // 2. Call the AI model with the rich context
             const { output } = await routingPrompt({
                 strategyText: context.strategy.strategyText,
@@ -183,7 +176,7 @@ export const intelligentRoutingFlow = ai.defineFlow(
                 currentTime: context.currentTime,
                 requesterInfo: context.requesterInfo,
                 requestDescription: requestDescription,
-                availableDesigners: context.availableDesigners,
+                allDesigners: context.allDesigners,
             });
 
             if (!output) {
@@ -195,7 +188,7 @@ export const intelligentRoutingFlow = ai.defineFlow(
                 return {
                     decision: 'fallback_to_ai',
                     reason: output.reason,
-                    aiAssistantMessage: "目前所有设计师都在忙，已为您转接AI助理，他会先来了解您的需求。",
+                    aiAssistantMessage: "目前所有设计师都在忙，或您选择的设计师已开启AI助理，已为您转接AI助理进行服务。",
                 };
             }
 

@@ -1,5 +1,3 @@
-
-
 'use server';
 
 import { ai } from '@/ai/genkit';
@@ -44,8 +42,8 @@ export const testLlmConnection = ai.defineFlow(
             const assets = await getPlatformAssets(null);
             const providerInfo = assets.providers.find(p => p.providerName.toLowerCase() === provider.toLowerCase());
             
-            if (!providerInfo || !providerInfo.apiBaseUrl) {
-                throw new Error(`API base URL for provider "${provider}" is not configured.`);
+            if (!providerInfo) { // FIX: Check if providerInfo is found
+                throw new Error(`Provider "${provider}" is not configured or supported.`);
             }
             
             // Construct request based on provider type
