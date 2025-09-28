@@ -11,3 +11,4 @@ import '@/ai/flows/generate-nanobanana-image.ts';
 import '@/ai/flows/admin-management-flows.ts';
 import '@/ai/flows/prompt-execution-flow.ts';
 import '@/ai/flows/multimodal-flows.ts';
+import '@/ai/flows/user-management-flows.ts';
