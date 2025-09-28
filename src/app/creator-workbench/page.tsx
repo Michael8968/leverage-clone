@@ -6,7 +6,7 @@ import { AppLayout } from '@/components/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuthStore, type Role } from '@/store/auth';
-import { Frown, Bot, Loader2, ArrowRight, Wand2, Send, PackagePlus, Info, UploadCloud, FileImage, CalendarDays, Clock, Trash2, CheckCircle, XCircle, AlertCircle, ToggleLeft, ToggleRight, PlusCircle, Edit, Settings, Star, BrainCircuit, Users } from 'lucide-react';
+import { Frown, Bot, Loader2, ArrowRight, Wand2, Send, PackagePlus, Info, UploadCloud, FileImage, CalendarDays, Clock, Trash2, CheckCircle, XCircle, AlertCircle, ToggleLeft, ToggleRight, PlusCircle, Edit, Settings, Star, BrainCircuit, Users, Power, PowerOff } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
@@ -713,7 +713,6 @@ const ROLE_NAMES: Record<Role, string> = { admin: '管理员', creator: '创意�
 function ScheduleAndAssistantTab() {
     const { user, setUser } = useAuthStore();
     const { toast } = useToast();
-    const [isSaving, setIsSaving] = useState(false);
     
     // UI state
     const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
@@ -805,7 +804,7 @@ function ScheduleAndAssistantTab() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <Card className="p-4 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <ToggleLeft className="w-6 h-6 text-muted-foreground" />
+                                    {user.status === 'active' ? <Power className="w-6 h-6 text-green-500" /> : <PowerOff className="w-6 h-6 text-red-500" />}
                                     <div>
                                         <Label htmlFor="online-status" className="font-semibold">在线接待</Label>
                                         <p className="text-xs text-muted-foreground">开启后可接收平台分配的实时请求。</p>
@@ -941,7 +940,7 @@ function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, is
         const currentRatings = currentRoles[role] || [];
         const newRatings = currentRatings.includes(rating) ? currentRatings.filter(r => r !== rating) : [...currentRatings, rating];
         currentRoles[role] = newRatings;
-        handleConditionChange('targetUserRoles', currentRoles);
+        handleConditionChange('targetUserRoles', currentRatings);
     };
     
     const { conditions } = rule;

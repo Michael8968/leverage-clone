@@ -60,6 +60,7 @@ import {
   ToggleLeft,
   ToggleRight,
   Power,
+  PowerOff,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
@@ -138,6 +139,40 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const handleStatusToggle = async () => {
+    if (!user || role !== 'creator') return;
+
+    const newStatus = user.status === 'active' ? 'inactive' : 'active';
+    const optimisticUser = { ...user, status: newStatus };
+    setUser(optimisticUser, user.role);
+
+    try {
+        await updateUserStatus({ userId: user.uid, status: newStatus });
+        toast({ title: '状态已更新', description: `您现在处于“${newStatus === 'active' ? '在线接待' : '挂起示忙'}”状态。` });
+    } catch (error) {
+        toast({ title: '更新失败', description: '无法更新您的状态，请重试。', variant: 'destructive' });
+        // Revert optimistic update
+        setUser(user, user.role);
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === 's') {
+        if (role === 'creator') {
+          event.preventDefault();
+          handleStatusToggle();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, user]); // Depend on user to get the latest status for toggling
 
   useEffect(() => {
     if (mounted && !isLoading && !user) {
@@ -223,6 +258,24 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+               {role === 'creator' && (
+                <>
+                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center">
+                        {user.status === 'active' ? <Power className="mr-2 h-4 w-4 text-green-500" /> : <PowerOff className="mr-2 h-4 w-4 text-red-500" />}
+                        <span>{user.status === 'active' ? '在线接待' : '挂起示忙'}</span>
+                      </div>
+                      <Switch
+                        checked={user.status === 'active'}
+                        onCheckedChange={handleStatusToggle}
+                        className="h-5 w-9"
+                      />
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <ThemeToggle />
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout}>
