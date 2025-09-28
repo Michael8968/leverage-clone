@@ -17,7 +17,7 @@ import { ChatDialog } from '@/components/features/chat-dialog';
 // =================================================================
 // Designer Card Component
 // =================================================================
-function DesignerCard({ designer, onStartChat, onBook }: { designer: User; onStartChat: (designerId: string) => void; onBook: (designerId: string) => void; }) {
+function DesignerCard({ designer, onStartChat, onBook, isStartingChat }: { designer: User; onStartChat: (designerId: string) => void; onBook: (designerId: string) => void; isStartingChat: boolean; }) {
     const isOnline = designer.status === 'active';
     return (
         <Card className="flex flex-col">
@@ -38,8 +38,8 @@ function DesignerCard({ designer, onStartChat, onBook }: { designer: User; onSta
                 </div>
             </CardContent>
             <CardFooter className="grid grid-cols-2 gap-2">
-                <Button className="w-full" variant={isOnline ? 'default' : 'outline'} disabled={!isOnline} onClick={() => onStartChat(designer.uid)}>
-                    <MessageSquare className="mr-2 h-4 w-4" />
+                <Button className="w-full" variant={isOnline ? 'default' : 'outline'} disabled={!isOnline || isStartingChat} onClick={() => onStartChat(designer.uid)}>
+                    {isStartingChat ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MessageSquare className="mr-2 h-4 w-4" />}
                     {isOnline ? '立即交流' : '当前离线'}
                 </Button>
                  <Button className="w-full" variant="secondary" onClick={() => onBook(designer.uid)}>
@@ -56,7 +56,7 @@ function DesignerCard({ designer, onStartChat, onBook }: { designer: User; onSta
 // =================================================================
 export function DesignersClient({ initialDesigners }: { initialDesigners: User[] }) {
     const [designers] = useState(initialDesigners);
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState<string | null>(null); // Store the ID of the designer being contacted
     const [chatDemand, setChatDemand] = useState<Demand | null>(null);
     const [isChatOpen, setIsChatOpen] = useState(false);
     const { user } = useAuthStore();
@@ -72,17 +72,18 @@ export function DesignersClient({ initialDesigners }: { initialDesigners: User[]
             return;
         }
 
-        setIsLoading(true);
+        setIsLoading(creatorId);
         try {
             const { demandId } = await createPrivateDemand({ requesterId: user.uid, creatorId });
             
             const creator = designers.find(d => d.uid === creatorId);
 
+            // Fetching requester from auth store to ensure it's up to date
             const tempDemand: Demand = {
                 id: demandId,
                 requesterId: user.uid,
                 creatorId: creatorId,
-                title: `与设计师 ${creator?.name || ''} 的专属沟通`,
+                title: `与 ${creator?.name || ''} 的专属沟通`,
                 description: '',
                 budget: 0,
                 category: '',
@@ -96,7 +97,7 @@ export function DesignersClient({ initialDesigners }: { initialDesigners: User[]
         } catch (error: any) {
             toast({ title: "发起失败", description: error.message, variant: "destructive" });
         } finally {
-            setIsLoading(false);
+            setIsLoading(null);
         }
     };
     
@@ -116,11 +117,15 @@ export function DesignersClient({ initialDesigners }: { initialDesigners: User[]
                 </p>
             </header>
 
-            {isLoading && <div className="flex justify-center"><Loader2 className="h-8 w-8 animate-spin"/></div>}
-
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {designers.map(designer => (
-                    <DesignerCard key={designer.uid} designer={designer} onStartChat={handleStartChat} onBook={handleBook} />
+                    <DesignerCard 
+                        key={designer.uid} 
+                        designer={designer} 
+                        onStartChat={handleStartChat} 
+                        onBook={handleBook}
+                        isStartingChat={isLoading === designer.uid}
+                    />
                 ))}
             </div>
 
