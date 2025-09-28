@@ -49,6 +49,20 @@ const ROLE_NAMES: Record<Role, string> = {
     suspended: '已禁用',
 };
 
+// Moved to module scope to be accessible by all components in this file
+const getIconComponent = (iconName: string) => {
+    switch (iconName) {
+        case 'BrainCircuit': return BrainCircuit;
+        case 'Hourglass': return Hourglass;
+        case 'Star': return Star;
+        case 'Briefcase': return Briefcase;
+        case 'Clock': return Clock;
+        case 'Repeat': return Repeat;
+        case 'Route': return Route;
+        default: return Settings;
+    }
+};
+
 
 // =================================================================
 // STRATEGY RULE DIALOG
@@ -122,7 +136,7 @@ function StrategyRuleDialog({
         const currentRatings = currentRoles[role] || [];
         const newRatings = currentRatings.includes(rating) ? currentRatings.filter(r => r !== rating) : [...currentRatings, rating];
         currentRoles[role] = newRatings;
-        handleConditionChange('targetUserRoles', currentRoles);
+        handleConditionChange('targetUserRoles', currentRatings);
     };
 
     const handleActionTemperatureChange = (factorId: string, value: number) => {
@@ -373,8 +387,18 @@ export default function IntelligentRoutingModulePage() {
                         { id: 'problem_category', name: '问题类别匹配度', description: 'AI分析用户问题与设计师技能标签的匹配程度。', icon: 'BrainCircuit' },
                         { id: 'busyness', name: '设计师闲忙程度', description: '优先分配给排队人数少的设计师。', icon: 'Hourglass' },
                         { id: 'user_priority', name: '用户等级优先度', description: '高星级用户的请求是否应该被优先处理。', icon: 'Star' },
+                        { id: 'specialty_match', name: '专业特长匹配度', description: 'AI对用户需求的深层理解与设计师专业特长的匹配度。', icon: 'Briefcase' },
+                        { id: 'working_hours', name: '工作时间匹配度', description: '路由决策是否应严格遵守设计师设定的工作时间。', icon: 'Clock' },
+                        { id: 'route_back_preference', name: '首接设计师优先', description: '当一个对话被转接时，是否优先转回给最初接待该用户但当前正忙的设计师。', icon: 'Repeat' },
                     ],
-                    factorTemperatures: { problem_category: 0.8, busyness: 1.0, user_priority: 0.5 },
+                    factorTemperatures: { 
+                        problem_category: 0.8, 
+                        busyness: 1.0, 
+                        user_priority: 0.5,
+                        specialty_match: 0.7,
+                        working_hours: 0.3,
+                        route_back_preference: 0.6,
+                    },
                     advancedRules: [],
                     updatedAt: serverTimestamp(),
                 };
@@ -445,15 +469,6 @@ export default function IntelligentRoutingModulePage() {
 
     const handleDeleteRule = (ruleId: string) => {
         setAdvancedRules(advancedRules.filter(r => r.id !== ruleId));
-    };
-
-    const getIconComponent = (iconName: string) => {
-        switch (iconName) {
-            case 'BrainCircuit': return BrainCircuit; case 'Hourglass': return Hourglass;
-            case 'Star': return Star; case 'Briefcase': return Briefcase;
-            case 'Clock': return Clock; case 'Repeat': return Repeat;
-            default: return Settings;
-        }
     };
 
     const formatRuleSummary = (rule: StrategyRule): string => {
@@ -544,4 +559,3 @@ export default function IntelligentRoutingModulePage() {
         </AppLayout>
     );
 }
-
