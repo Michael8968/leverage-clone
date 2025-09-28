@@ -4,26 +4,26 @@
 
 @layer base {
   :root {
-    /* Base styles, can be considered the default light theme */
-    --background: 220 40% 96.1%;
+    /* Default to Light Theme as the base */
+    --background: 220 20% 97%;      /* #f5f7fa */
     --foreground: 222.2 84% 4.9%;
-    --card: 220 40% 100%;
+    --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
-    --popover: 220 40% 100%;
+    --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 217 91% 60%;
+    --primary: 217 89% 51%;         /* #1a73e8 - bright blue */
     --primary-foreground: 210 40% 98%;
-    --secondary: 220 14.3% 95.9%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 220 14.3% 95.9%;
-    --muted-foreground: 220 8.9% 46.1%;
-    --accent: 142.1 76.2% 36.3%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 215.4 16.3% 46.9%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 142 60% 45%;           /* #34a853 - green */
     --accent-foreground: 210 40% 98%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 217 91% 60%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 217 89% 51%;
     --radius: 0.5rem;
   }
 
@@ -34,13 +34,13 @@
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 217 89% 51%;     /* #1a73e8 */
+    --primary: 217 89% 51%;         /* #1a73e8 - bright blue */
     --primary-foreground: 210 40% 98%;
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 215.4 16.3% 46.9%;
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 142 60% 45%;      /* #34a853 */
+    --accent: 142 60% 45%;           /* #34a853 - green */
     --accent-foreground: 210 40% 98%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
@@ -62,7 +62,7 @@
     --secondary-foreground: 210 40% 98%;
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
-    --accent: 251 100% 64%; /* #6b48ff */
+    --accent: 265 89% 78%; /* #C183FF - purple */
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
@@ -72,25 +72,25 @@
   }
   
   .gradient {
-    --background: 216 34% 97%;   /* #f5f7fa */
+    --background: 210 30% 98%; /* A very light, almost white color as a base */
     --foreground: 224 15% 18%;   /* #2e2e38 */
     --card: 0 0% 100%;
     --card-foreground: 224 15% 18%;
     --popover: 0 0% 100%;
     --popover-foreground: 224 15% 18%;
-    --primary: 214 65% 35%;    /* #1a3c5e */
+    --primary: 4 84% 60%;    /* #e74c3c - red */
     --primary-foreground: 0 0% 100%;
     --secondary: 216 34% 92%;  /* #e2e8f0 */
     --secondary-foreground: 215 28% 17%;
     --muted: 216 34% 92%;
     --muted-foreground: 217 19% 51%; /* #71717a */
-    --accent: 212 58% 40%;     /* #2a5a8a */
-    --accent-foreground: 210 20% 98%;
+    --accent: 45 90% 55%;     /* #f1c40f - yellow */
+    --accent-foreground: 240 10% 15%;
     --destructive: 0 72% 51%;      /* #e53e3e */
     --destructive-foreground: 210 20% 98%;
     --border: 216 34% 88%;
     --input: 216 34% 88%;
-    --ring: 212 58% 30%;
+    --ring: 4 84% 60%;
   }
 }
 
@@ -101,6 +101,9 @@
   body {
     @apply bg-background text-foreground;
   }
+  html.gradient body {
+    background: linear-gradient(135deg, hsl(210, 22%, 32%), hsl(206, 70%, 54%)); /* #2c3e50 to #3498db */
+  }
   html, body {
     transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
@@ -109,10 +112,40 @@
 }
 
 @layer utilities {
-  .bg-gradient-primary {
+  .gradient .bg-gradient-primary {
     @apply bg-gradient-to-r from-primary to-accent;
   }
-  .bg-gradient-secondary {
+  .dark .bg-gradient-primary {
      @apply bg-gradient-to-r from-secondary to-muted;
   }
+}
+
+/* Accordion Animation */
+@keyframes accordion-down {
+  from { height: 0; }
+  to { height: var(--radix-accordion-content-height); }
+}
+@keyframes accordion-up {
+  from { height: var(--radix-accordion-content-height); }
+  to { height: 0; }
+}
+
+.gradient [data-state='open'][data-radix-collection-item] {
+  animation: accordion-down 200ms ease-out;
+}
+.gradient [data-state='closed'][data-radix-collection-item] {
+  animation: accordion-up 200ms ease-out;
+}
+
+/* Card hover animation for dark theme */
+.dark .card-animated-shadow {
+    transition: box-shadow 0.3s ease-in-out;
+}
+.dark .card-animated-shadow:hover {
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+/* Button gradient hover for dark theme */
+.dark .button-gradient-hover:hover {
+    background-image: linear-gradient(to right, hsl(var(--primary)), hsl(var(--accent)));
 }
