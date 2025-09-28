@@ -91,6 +91,7 @@ export function DesignersClient({ initialDesigners }: { initialDesigners: User[]
                 createdAt: new Date(),
                 requesterName: user.name,
                 requesterAvatar: user.avatar,
+                type: 'private',
             };
             setChatDemand(tempDemand);
             setIsChatOpen(true);

@@ -84,7 +84,7 @@ const GetDesignersOutputSchema = z.object({
 export const getDesigners = ai.defineFlow(
     {
         name: 'getDesigners',
-        inputSchema: z.null(),
+        inputSchema: z.null().optional(),
         outputSchema: GetDesignersOutputSchema,
     },
     async () => {
