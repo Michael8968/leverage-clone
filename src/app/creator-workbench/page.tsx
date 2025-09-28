@@ -940,7 +940,7 @@ function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, is
         const currentRatings = currentRoles[role] || [];
         const newRatings = currentRatings.includes(rating) ? currentRatings.filter(r => r !== rating) : [...currentRatings, rating];
         currentRoles[role] = newRatings;
-        handleConditionChange('targetUserRoles', currentRatings);
+        handleConditionChange('targetUserRoles', currentRoles);
     };
     
     const { conditions } = rule;
@@ -1097,3 +1097,4 @@ export default function CreatorWorkbenchPage() {
     
 
     
+
