@@ -73,7 +73,7 @@ function DynamicVideoBackground() {
         break;
       default:
         // Fallback for system theme or initial load
-        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
           setVideoSrc('/videos/dark-bg.mp4');
         } else {
           setVideoSrc('/videos/light-bg.mp4');
