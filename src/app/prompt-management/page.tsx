@@ -87,9 +87,11 @@ export default function PromptManagementPage() {
             const promptsCollection = collection(db, 'prompts');
             let q;
             if (role === 'admin') {
-                q = query(promptsCollection, orderBy('name'));
+                // For admin, fetch all prompts and sort later
+                q = query(promptsCollection);
             } else { // creator
-                q = query(promptsCollection, where("ownerId", "==", user.uid), orderBy('name'));
+                // For creators, filter by ownerId and sort later
+                q = query(promptsCollection, where("ownerId", "==", user.uid));
             }
             const promptsSnapshot = await getDocs(q);
             const promptsList = promptsSnapshot.docs.map(doc => {
@@ -100,6 +102,9 @@ export default function PromptManagementPage() {
                     createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : data.createdAt
                 } as Prompt
             });
+            
+            // Perform client-side sorting
+            promptsList.sort((a, b) => a.name.localeCompare(b.name));
             setPrompts(promptsList);
 
             // Fetch active LLMs for the dropdown
