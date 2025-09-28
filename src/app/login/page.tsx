@@ -179,14 +179,14 @@ export default function LoginPage() {
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center bg-background p-4">
        <video
-        key="/public/videos/light-bg.mp4"
+        key="/videos/light-bg.mp4"
         className="absolute top-0 left-0 w-full h-full object-cover -z-10"
         autoPlay
         loop
         muted
         playsInline
       >
-        <source src="/public/videos/light-bg.mp4" type="video/mp4" />
+        <source src="/videos/light-bg.mp4" type="video/mp4" />
       </video>
       <div className="w-full max-w-sm relative z-10">
         <div className="mb-8 flex flex-col items-center gap-2 text-2xl font-headline font-semibold whitespace-nowrap">
