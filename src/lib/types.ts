@@ -143,9 +143,10 @@ export interface LlmConnection {
     priority: number;
     status: '活跃' | '已禁用';
     scope?: '通用' | '专属';
-    category?: '文本' | '图像' | '多模态';
+    category?: '文本' | '图像' | '多模态' | '推理';
     lastTestStatus?: 'success' | 'failed' | 'untested';
     lastTestTimestamp?: any; // Firestore Timestamp
+    createdAt?: any;
 }
 
 export interface LlmProvider {
@@ -167,6 +168,7 @@ export interface Prompt {
     priority?: number;
     querySources?: QuerySources;
     sourceTemperatures?: SourceTemperatures;
+    createdAt?: any;
 }
 
 export type QuerySources = {
@@ -239,7 +241,6 @@ export interface Resource {
 export interface Availability {
   creatorId: string;
   slots: Timestamp[]; // Array of Firestore Timestamps
-  alwaysAvailable?: boolean;
 }
 
 export interface Appointment {
