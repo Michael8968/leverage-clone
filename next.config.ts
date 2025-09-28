@@ -61,6 +61,14 @@ const nextConfig: NextConfig = {
     });
     return config;
   },
+  serverRuntimeConfig: {
+    // Will only be available on the server side
+    FIREBASE_SERVICE_ACCOUNT_KEY: process.env.FIREBASE_SERVICE_ACCOUNT_KEY,
+  },
+  publicRuntimeConfig: {
+    // Will be available on both server and client
+    NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: process.env.FIREBASE_STORAGE_BUCKET,
+  },
 };
 
 export default nextConfig;
