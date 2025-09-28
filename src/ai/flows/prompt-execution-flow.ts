@@ -33,8 +33,8 @@ async function isRuleSetValid(rules: AIScenario, userId?: string): Promise<boole
 
     // Time-based rule validation
     if (rules.repetition === 'none') {
-        const startsAt = rules.startsAt?.toDate();
-        const expiresAt = rules.expiresAt?.toDate();
+        const startsAt = rules.startsAt?.toDate ? rules.startsAt.toDate() : null;
+        const expiresAt = rules.expiresAt?.toDate ? rules.expiresAt.toDate() : null;
         if (startsAt && now < startsAt) timeIsValid = false;
         if (expiresAt && now > expiresAt) timeIsValid = false;
     } else {
@@ -74,10 +74,19 @@ async function isRuleSetValid(rules: AIScenario, userId?: string): Promise<boole
         } else {
             userIsValid = false; // User not found
         }
+    } else if (targetRoles && Object.keys(targetRoles).length > 0 && !userId) {
+        // If roles are specified but no user is provided, the rule is invalid.
+        userIsValid = false;
     }
 
     // Combine rules
     if (rules.ruleLogic === 'or') {
+        // if no user/time rules, it should not be valid
+        const hasTimeRules = rules.repetition || rules.startsAt || rules.expiresAt;
+        const hasUserRules = targetRoles && Object.keys(targetRoles).length > 0;
+        if (!hasTimeRules && !hasUserRules) return false;
+        if (!hasTimeRules) return userIsValid;
+        if (!hasUserRules) return timeIsValid;
         return timeIsValid || userIsValid;
     }
     return timeIsValid && userIsValid;
@@ -122,10 +131,12 @@ const executePromptFlow = ai.defineFlow(
 
     // 1. Scenario-based configuration override (Highest Priority)
     if (scenario) {
-        const q = query(collection(db, 'ai_scenarios'), where("id", "==", scenario));
-        const scenarioSnapshot = await getDocs(q);
-        if (!scenarioSnapshot.empty) {
-            const scenarioDoc = scenarioSnapshot.docs[0].data() as AIScenario;
+        // Scenario ID is now the document ID
+        const scenarioDocRef = doc(db, 'ai_scenarios', scenario);
+        const scenarioDocSnap = await getDoc(scenarioDocRef);
+        
+        if (scenarioDocSnap.exists()) {
+            const scenarioDoc = { id: scenarioDocSnap.id, ...scenarioDocSnap.data() } as AIScenario;
             if (await isRuleSetValid(scenarioDoc, userId)) {
                 finalPromptKey = scenarioDoc.configuredPromptKey;
             }

@@ -166,11 +166,11 @@ function ScenarioEditDialog({
                 targetUserRoles,
                 ruleLogic: ruleLogic,
                 repetition: isRepetitionEnabled ? repetition : 'none',
-                startsAt: isRepetitionEnabled ? undefined : (startsAt ? Timestamp.fromDate(startsAt) : undefined),
-                expiresAt: isRepetitionEnabled ? undefined : (expiresAt ? Timestamp.fromDate(expiresAt) : undefined),
+                startsAt: isRepetitionEnabled ? null : (startsAt ? Timestamp.fromDate(startsAt) : null),
+                expiresAt: isRepetitionEnabled ? null : (expiresAt ? Timestamp.fromDate(expiresAt) : null),
                 daysOfWeek: isRepetitionEnabled && repetition === 'weekly' ? daysOfWeek : [],
-                startTime: isRepetitionEnabled && startTime ? format(startTime, 'HH:mm') : undefined,
-                endTime: isRepetitionEnabled && endTime ? format(endTime, 'HH:mm') : undefined,
+                startTime: isRepetitionEnabled && startTime ? format(startTime, 'HH:mm') : null,
+                endTime: isRepetitionEnabled && endTime ? format(endTime, 'HH:mm') : null,
             };
             
             const cleanedDataToSave = Object.fromEntries(
