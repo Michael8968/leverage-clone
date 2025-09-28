@@ -155,8 +155,21 @@
 | **targetUserRoles**| `Object`| (可选) 目标用户角色及星级。 |
 | **ruleLogic** | `string` | (可选) "时间"与"用户"规则的组合逻辑 (`and`, `or`)。 |
 
+### 1.9. `intelligent_routing_strategy` 集合
 
-### 1.9. `resources` 集合
+存储用于实时服务分配的智能路由策略。这是一个只有一个文档的单例集合。
+
+| 字段名 | 数据类型 | 描述 |
+| :--- | :--- | :--- |
+| **id** | `string` | 文档ID, 永远是 `main_strategy`。 |
+| **strategyText** | `string` | 管理员用自然语言定义的全局默认策略。 |
+| **factors** | `Array<Object>` | 可动态配置的影响决策的因子数组。 |
+| **factorTemperatures**|`Object` | 全局默认的、各因子的权重（温度）对象。 |
+| **advancedRules** | `Array<Object>` | **(新增)** 包含多条带有生效条件和执行动作的优先策略规则。 |
+| **updatedAt** | `Timestamp` | 最后更新时间。 |
+
+
+### 1.10. `resources` 集合
 
 存储外部行业资讯的数据源配置。
 
@@ -172,7 +185,7 @@
 | **status** | `string` | 状态 (`可用`, `已停用`)。 |
 | **createdAt** | `Timestamp`| 创建时间。 |
 
-### 1.10. `availabilities` & `appointments` 集合 (新增)
+### 1.11. `availabilities` & `appointments` 集合
 
 用于支持创意者排班和用户预约功能。
 
