@@ -6,12 +6,12 @@ import { AppLayout } from '@/components/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuthStore } from '@/store/auth';
-import { Frown, Bot, Loader2, ArrowRight, Wand2, Send, PackagePlus, Info, UploadCloud, FileImage, CalendarDays, Clock, Trash2, CheckCircle, XCircle } from 'lucide-react';
+import { Frown, Bot, Loader2, ArrowRight, Wand2, Send, PackagePlus, Info, UploadCloud, FileImage, CalendarDays, Clock, Trash2, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { collection, getDocs, query, where, doc, updateDoc, addDoc, serverTimestamp, getDoc, deleteDoc, Timestamp, setDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, updateDoc, addDoc, serverTimestamp, getDoc, deleteDoc, Timestamp, setDoc, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Demand, ProductService, LlmConnection, Appointment, Availability } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -27,7 +27,7 @@ import { getUploadUrlForMediaAsset } from '@/ai/flows/multimodal-flows';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import Image from 'next/image';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow, differenceInHours } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
 import { useForm } from 'react-hook-form';
@@ -699,6 +699,7 @@ function ScheduleTab() {
   const { toast } = useToast();
   const [availability, setAvailability] = useState<Availability | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [upcomingAppointments, setUpcomingAppointments] = useState<Appointment[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [isLoading, setIsLoading] = useState(true);
 
@@ -714,9 +715,21 @@ function ScheduleTab() {
         setAvailability({ creatorId: user.uid, slots: [] });
       }
 
-      const appointmentsQuery = query(collection(db, 'appointments'), where('creatorId', '==', user.uid));
+      const appointmentsQuery = query(
+          collection(db, 'appointments'), 
+          where('creatorId', '==', user.uid),
+          orderBy('appointmentTime', 'asc')
+      );
       const appointmentsSnapshot = await getDocs(appointmentsQuery);
       const apptList = appointmentsSnapshot.docs.map(d => ({ ...d.data(), id: d.id } as Appointment));
+      
+      const now = new Date();
+      const upcoming = apptList.filter(appt => 
+          appt.status === 'confirmed' && 
+          differenceInHours(appt.appointmentTime.toDate(), now) > 0 &&
+          differenceInHours(appt.appointmentTime.toDate(), now) <= 24
+      );
+      setUpcomingAppointments(upcoming);
       setAppointments(apptList);
 
     } catch (error) {
@@ -768,7 +781,7 @@ function ScheduleTab() {
                   // Add the slot back to availability
                    const availRef = doc(db, 'availabilities', user.uid);
                    await updateDoc(availRef, {
-                       slots: [...(availability?.slots || []), appt.appointmentTime]
+                       slots: arrayUnion(appt.appointmentTime)
                    });
               }
           }
@@ -795,80 +808,98 @@ function ScheduleTab() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="font-headline">我的排班与预约</CardTitle>
-        <CardDescription>管理您的空闲时间，并处理收到的预约请求。</CardDescription>
-      </CardHeader>
-      <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-1">
-          <h4 className="font-semibold mb-2">添加空闲时间</h4>
-          <Calendar
-            mode="single"
-            selected={selectedDate}
-            onSelect={setSelectedDate}
-            className="rounded-md border"
-            disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))}
-          />
-           <div className="flex items-center gap-2 mt-4">
-              <TimePicker date={selectedDate} setDate={setSelectedDate}/>
-              <Button onClick={handleAddTimeSlot} disabled={!selectedDate}>添加</Button>
-           </div>
-        </div>
-        <div className="md:col-span-2">
-            <h4 className="font-semibold mb-2">
-                {selectedDate ? format(selectedDate, 'yyyy年M月d日') : '选择日期'} 的日程
-            </h4>
-            <div className="border rounded-md p-4 min-h-[200px]">
-                {isLoading ? (
-                    <div className="space-y-2">
-                        <Skeleton className="h-12 w-full" />
-                        <Skeleton className="h-12 w-full" />
-                    </div>
-                ) : dailySlots.length === 0 && !appointments.some(app => app.appointmentTime.toDate().toDateString() === selectedDate?.toDateString()) ? (
-                    <p className="text-sm text-center text-muted-foreground py-10">当天没有排班或预约</p>
-                ) : (
-                    <ul className="space-y-2">
-                        {dailySlots.map(slot => (
-                            <li key={slot.toISOString()} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-                                <div className="flex items-center gap-2">
-                                    <Clock className="w-4 h-4"/>
-                                    <span className="font-mono">{format(slot, 'HH:mm')}</span>
-                                    <Badge variant="secondary">空闲</Badge>
-                                </div>
-                                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleRemoveSlot(Timestamp.fromDate(slot))}>
-                                    <Trash2 className="w-4 h-4"/>
-                                </Button>
-                            </li>
-                        ))}
-                        {appointments.filter(app => app.appointmentTime.toDate().toDateString() === selectedDate?.toDateString()).map(appointment => (
-                            <li key={appointment.id} className="flex items-center justify-between p-2 rounded-md bg-blue-500/10">
-                                <div className="flex items-center gap-2">
-                                    <Clock className="w-4 h-4"/>
-                                    <span className="font-mono">{format(appointment.appointmentTime.toDate(), 'HH:mm')}</span>
-                                    <div className="flex flex-col items-start">
-                                        <span className="font-semibold text-sm">{appointment.requesterName}</span>
-                                        {getStatusBadge(appointment.status)}
-                                    </div>
-                                </div>
-                                {appointment.status === 'pending' && (
-                                    <div className="flex gap-1">
-                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600" onClick={() => handleAppointmentAction(appointment.id, 'confirmed')}>
-                                            <CheckCircle className="w-5 h-5"/>
-                                        </Button>
-                                         <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleAppointmentAction(appointment.id, 'cancelled')}>
-                                            <XCircle className="w-5 h-5"/>
-                                        </Button>
-                                    </div>
-                                )}
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </div>
-        </div>
-      </CardContent>
-    </Card>
+    <>
+      {upcomingAppointments.length > 0 && (
+        <Alert variant="default" className="mb-6 border-amber-500">
+          <AlertCircle className="h-4 w-4 text-amber-500" />
+          <AlertTitle className="font-headline text-amber-600">预约提醒</AlertTitle>
+          <AlertDescription>
+            您在24小时内有新的预约：
+            <ul className="list-disc pl-5 mt-2">
+              {upcomingAppointments.map(appt => (
+                <li key={appt.id}>
+                  与 **{appt.requesterName}** 在 **{format(appt.appointmentTime.toDate(), 'M月d日 HH:mm', { locale: zhCN })}**
+                </li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      )}
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-headline">我的排班与预约</CardTitle>
+          <CardDescription>管理您的空闲时间，并处理收到的预约请求。</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-span-1">
+            <h4 className="font-semibold mb-2">添加空闲时间</h4>
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={setSelectedDate}
+              className="rounded-md border"
+              disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))}
+            />
+             <div className="flex items-center gap-2 mt-4">
+                <TimePicker date={selectedDate} setDate={setSelectedDate}/>
+                <Button onClick={handleAddTimeSlot} disabled={!selectedDate}>添加</Button>
+             </div>
+          </div>
+          <div className="md:col-span-2">
+              <h4 className="font-semibold mb-2">
+                  {selectedDate ? format(selectedDate, 'yyyy年M月d日', { locale: zhCN }) : '选择日期'} 的日程
+              </h4>
+              <div className="border rounded-md p-4 min-h-[200px]">
+                  {isLoading ? (
+                      <div className="space-y-2">
+                          <Skeleton className="h-12 w-full" />
+                          <Skeleton className="h-12 w-full" />
+                      </div>
+                  ) : dailySlots.length === 0 && !appointments.some(app => app.appointmentTime.toDate().toDateString() === selectedDate?.toDateString()) ? (
+                      <p className="text-sm text-center text-muted-foreground py-10">当天没有排班或预约</p>
+                  ) : (
+                      <ul className="space-y-2">
+                          {appointments.filter(app => app.appointmentTime.toDate().toDateString() === selectedDate?.toDateString()).sort((a, b) => a.appointmentTime.toDate().getTime() - b.appointmentTime.toDate().getTime()).map(appointment => (
+                              <li key={appointment.id} className="flex items-center justify-between p-2 rounded-md bg-blue-500/10">
+                                  <div className="flex items-center gap-2">
+                                      <Clock className="w-4 h-4"/>
+                                      <span className="font-mono">{format(appointment.appointmentTime.toDate(), 'HH:mm')}</span>
+                                      <div className="flex flex-col items-start">
+                                          <span className="font-semibold text-sm">{appointment.requesterName}</span>
+                                          {getStatusBadge(appointment.status)}
+                                      </div>
+                                  </div>
+                                  {appointment.status === 'pending' && (
+                                      <div className="flex gap-1">
+                                          <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600" onClick={() => handleAppointmentAction(appointment.id, 'confirmed')}>
+                                              <CheckCircle className="w-5 h-5"/>
+                                          </Button>
+                                           <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleAppointmentAction(appointment.id, 'cancelled')}>
+                                              <XCircle className="w-5 h-5"/>
+                                          </Button>
+                                      </div>
+                                  )}
+                              </li>
+                          ))}
+                          {dailySlots.map(slot => (
+                              <li key={slot.toISOString()} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
+                                  <div className="flex items-center gap-2">
+                                      <Clock className="w-4 h-4"/>
+                                      <span className="font-mono">{format(slot, 'HH:mm')}</span>
+                                      <Badge variant="secondary">空闲</Badge>
+                                  </div>
+                                  <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleRemoveSlot(Timestamp.fromDate(slot))}>
+                                      <Trash2 className="w-4 h-4"/>
+                                  </Button>
+                              </li>
+                          ))}
+                      </ul>
+                  )}
+              </div>
+          </div>
+        </CardContent>
+      </Card>
+    </>
   );
 }
 

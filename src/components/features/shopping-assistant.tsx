@@ -13,21 +13,23 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormMessage, FormLabel } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Paperclip, Send, X, Bot, User, BrainCircuit, Sparkles, Building, Loader2, FilePlus2, ExternalLink, Workflow, Puzzle, Users } from 'lucide-react';
+import { Paperclip, Send, X, Bot, User, BrainCircuit, Sparkles, Building, Loader2, FilePlus2, ExternalLink, Workflow, Puzzle, Users, AlertCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, where } from 'firebase/firestore';
-import type { ProductService, Supplier, UserProfile, MediaAsset, AIScenario } from '@/lib/types';
+import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import type { ProductService, Supplier, UserProfile, MediaAsset, AIScenario, Appointment } from '@/lib/types';
 import { getProductRecommendations } from '@/ai/flows/shopping-assistant';
 import { useAuthStore } from '@/store/auth';
 import { executePrompt } from '@/ai/flows/prompt-execution-flow';
 import { getUploadUrlForMediaAsset, analyzeMediaAsset } from '@/ai/flows/multimodal-flows';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { differenceInHours, format } from 'date-fns';
+import { zhCN } from 'date-fns/locale';
 
 // Type definitions for chat messages
 type Message = {
@@ -59,6 +61,7 @@ export function ShoppingAssistant() {
     const [suppliers, setSuppliers]     = useState<Supplier[]>([]);
     const [scenarios, setScenarios]     = useState<AIScenario[]>([]);
     const [mediaAsset, setMediaAsset]   = useState<Partial<MediaAsset> & { previewUrl: string } | null>(null);
+    const [upcomingAppointments, setUpcomingAppointments] = useState<Appointment[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const [isAiSearching, startAiSearch] = useTransition();
     const scrollAreaRef                 = useRef<HTMLDivElement>(null);
@@ -97,6 +100,24 @@ export function ShoppingAssistant() {
                 const shoppingScenarios = scenariosSnapshot.docs.map(doc => ({id: doc.id, ...doc.data() } as AIScenario));
                 setScenarios(shoppingScenarios);
 
+                if (user) {
+                     const appointmentsQuery = query(
+                        collection(db, 'appointments'), 
+                        where('requesterId', '==', user.uid),
+                        orderBy('appointmentTime', 'asc')
+                    );
+                    const appointmentsSnapshot = await getDocs(appointmentsQuery);
+                    const apptList = appointmentsSnapshot.docs.map(d => ({ ...d.data(), id: d.id } as Appointment));
+                    const now = new Date();
+                    const upcoming = apptList.filter(appt => 
+                        appt.status === 'confirmed' && 
+                        differenceInHours(appt.appointmentTime.toDate(), now) > 0 &&
+                        differenceInHours(appt.appointmentTime.toDate(), now) <= 24
+                    );
+                    setUpcomingAppointments(upcoming);
+                }
+
+
             } catch (error) {
                 console.error("Failed to fetch initial data:", error);
                 toast({
@@ -108,7 +129,7 @@ export function ShoppingAssistant() {
         };
 
         fetchInitialData();
-    }, [toast]);
+    }, [toast, user]);
     
     useEffect(() => { scrollAreaRef.current?.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' }); }, [messages]);
 
@@ -197,6 +218,22 @@ export function ShoppingAssistant() {
 
     return (
         <div className="flex h-[calc(100vh-57px)] md:h-screen flex-col p-4 md:p-8">
+            {upcomingAppointments.length > 0 && (
+                <Alert variant="default" className="mb-4 border-amber-500">
+                <AlertCircle className="h-4 w-4 text-amber-500" />
+                <AlertTitle className="font-headline text-amber-600">预约提醒</AlertTitle>
+                <AlertDescription>
+                    您在24小时内有新的预约：
+                    <ul className="list-disc pl-5 mt-2">
+                    {upcomingAppointments.map(appt => (
+                        <li key={appt.id}>
+                        与创意者的预约在 **{format(appt.appointmentTime.toDate(), 'M月d日 HH:mm', { locale: zhCN })}**
+                        </li>
+                    ))}
+                    </ul>
+                </AlertDescription>
+                </Alert>
+            )}
             <div className='text-center mb-4'>
                 <h1 className="text-2xl font-headline font-bold">欢迎光临 Leverage 力维利治</h1>
                 <p className="text-muted-foreground">与AI导购对话,发现为您量身推荐的独特设计,部分商品更支持个性化定制。</p>

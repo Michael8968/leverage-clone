@@ -2,12 +2,12 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import type { User, Demand } from '@/lib/types';
+import type { User, Demand, Appointment, Availability } from '@/lib/types';
 import { useAuthStore } from '@/store/auth';
 import { MessageSquare, Loader2, CalendarClock, Bot, User as UserIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -16,11 +16,15 @@ import { ChatDialog } from '@/components/features/chat-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
+import { getDoc, doc, collection, addDoc, updateDoc, arrayRemove, serverTimestamp, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { format } from 'date-fns';
+import { zhCN } from 'date-fns/locale';
 
 // =================================================================
 // Designer Card Component
 // =================================================================
-function DesignerCard({ designer, onStartChat, onBook }: { designer: User; onStartChat: (designer: User) => void; onBook: (designerId: string) => void; }) {
+function DesignerCard({ designer, onStartChat, onBook }: { designer: User; onStartChat: (designer: User) => void; onBook: (designer: User) => void; }) {
     const isOnline = designer.status === 'active';
     return (
         <Card className="flex flex-col">
@@ -45,7 +49,7 @@ function DesignerCard({ designer, onStartChat, onBook }: { designer: User; onSta
                     <MessageSquare className="mr-2 h-4 w-4" />
                     {isOnline ? '立即交流' : '发起交流'}
                 </Button>
-                 <Button className="w-full" variant="secondary" onClick={() => onBook(designer.uid)}>
+                 <Button className="w-full" variant="secondary" onClick={() => onBook(designer)}>
                     <CalendarClock className="mr-2 h-4 w-4" />
                     立即预约
                 </Button>
@@ -123,6 +127,132 @@ function CommunicationDialog({
 }
 
 // =================================================================
+// Booking Dialog Component (New)
+// =================================================================
+function BookingDialog({
+    open,
+    onOpenChange,
+    designer,
+}: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    designer: User | null;
+}) {
+    const { user } = useAuthStore();
+    const { toast } = useToast();
+    const [isLoading, setIsLoading] = useState(true);
+    const [isBooking, setIsBooking] = useState(false);
+    const [availableSlots, setAvailableSlots] = useState<Timestamp[]>([]);
+    const [selectedSlot, setSelectedSlot] = useState<Timestamp | null>(null);
+
+    useEffect(() => {
+        const fetchAvailability = async () => {
+            if (!designer) return;
+            setIsLoading(true);
+            try {
+                const availRef = doc(db, 'availabilities', designer.uid);
+                const availSnap = await getDoc(availRef);
+                if (availSnap.exists()) {
+                    const data = availSnap.data() as Availability;
+                    // Filter for future slots only
+                    const futureSlots = (data.slots || []).filter(slot => slot.toDate() > new Date());
+                    setAvailableSlots(futureSlots);
+                }
+            } catch (error) {
+                toast({ title: '加载失败', description: '无法加载设计师的可用时间。', variant: 'destructive' });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        if (open) {
+            fetchAvailability();
+        }
+    }, [open, designer, toast]);
+
+    const handleConfirmBooking = async () => {
+        if (!user || !designer || !selectedSlot) {
+            toast({ title: '错误', description: '请选择一个预约时间。', variant: 'destructive' });
+            return;
+        }
+
+        setIsBooking(true);
+        try {
+            // Add to appointments
+            await addDoc(collection(db, 'appointments'), {
+                creatorId: designer.uid,
+                requesterId: user.uid,
+                requesterName: user.name,
+                appointmentTime: selectedSlot,
+                status: 'pending',
+                createdAt: serverTimestamp(),
+            });
+
+            // Remove from availability
+            const availRef = doc(db, 'availabilities', designer.uid);
+            await updateDoc(availRef, {
+                slots: arrayRemove(selectedSlot)
+            });
+
+            toast({ title: '预约成功', description: '您的预约请求已发送，等待设计师确认。' });
+            onOpenChange(false);
+        } catch (error) {
+            toast({ title: '预约失败', description: '创建预约时发生错误。', variant: 'destructive' });
+        } finally {
+            setIsBooking(false);
+        }
+    };
+    
+    if (!designer) return null;
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle className="font-headline">预约 {designer.name}</DialogTitle>
+                    <DialogDescription>请选择一个可用的时间段进行预约。</DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                    {isLoading ? (
+                        <div className="flex justify-center items-center h-24">
+                            <Loader2 className="animate-spin" />
+                        </div>
+                    ) : availableSlots.length === 0 ? (
+                        <p className="text-center text-muted-foreground">该设计师暂无可用预约时间。</p>
+                    ) : (
+                        <RadioGroup onValueChange={(value) => setSelectedSlot(availableSlots.find(s => s.toMillis().toString() === value) || null)}>
+                             <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
+                                {availableSlots.map(slot => {
+                                    const slotDate = slot.toDate();
+                                    return (
+                                        <Label key={slot.toMillis()}
+                                            htmlFor={slot.toMillis().toString()}
+                                            className="flex items-center justify-between rounded-lg border p-3 cursor-pointer has-[:checked]:bg-primary/10 has-[:checked]:border-primary"
+                                        >
+                                            <div>
+                                                <p className="font-semibold">{format(slotDate, 'M月d日 EEEE', { locale: zhCN })}</p>
+                                                <p className="text-lg">{format(slotDate, 'HH:mm')}</p>
+                                            </div>
+                                            <RadioGroupItem value={slot.toMillis().toString()} id={slot.toMillis().toString()} />
+                                        </Label>
+                                    )
+                                })}
+                            </div>
+                        </RadioGroup>
+                    )}
+                </div>
+                <DialogFooter>
+                    <Button variant="ghost" onClick={() => onOpenChange(false)}>取消</Button>
+                    <Button onClick={handleConfirmBooking} disabled={isBooking || !selectedSlot}>
+                        {isBooking ? <Loader2 className="animate-spin" /> : "确认预约"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+// =================================================================
 // Main Client Component
 // =================================================================
 export function DesignersClient({ initialDesigners }: { initialDesigners: User[] }) {
@@ -131,6 +261,7 @@ export function DesignersClient({ initialDesigners }: { initialDesigners: User[]
     const [chatDemand, setChatDemand] = useState<Demand | null>(null);
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isCommDialogOpen, setIsCommDialogOpen] = useState(false);
+    const [isBookingDialogOpen, setIsBookingDialogOpen] = useState(false);
     const [selectedDesigner, setSelectedDesigner] = useState<User | null>(null);
 
     const { user } = useAuthStore();
@@ -189,11 +320,17 @@ export function DesignersClient({ initialDesigners }: { initialDesigners: User[]
         }
     };
     
-    const handleBook = (designerId: string) => {
-        toast({
-            title: "功能开发中",
-            description: "预约功能即将上线，敬请期待！"
-        });
+    const handleBook = (designer: User) => {
+        if (!user) {
+            toast({ title: "请先登录", description: "您需要登录后才能预约设计师。", variant: "destructive" });
+            return;
+        }
+        if (user.uid === designer.uid) {
+            toast({ title: "提示", description: "您不能预约自己。" });
+            return;
+        }
+        setSelectedDesigner(designer);
+        setIsBookingDialogOpen(true);
     };
 
     return (
@@ -231,6 +368,12 @@ export function DesignersClient({ initialDesigners }: { initialDesigners: User[]
                 designer={selectedDesigner}
                 onConfirm={handleConfirmCommunication}
                 isLoading={isLoading}
+            />
+
+            <BookingDialog
+                open={isBookingDialogOpen}
+                onOpenChange={setIsBookingDialogOpen}
+                designer={selectedDesigner}
             />
 
         </div>

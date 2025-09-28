@@ -2,6 +2,7 @@
 
 import type { SupplementaryField } from "@/components/features/supplementary-fields-manager";
 import type { Role } from "@/store/auth";
+import type { Timestamp } from 'firebase/firestore';
 
 export type Demand = {
   id: string;
@@ -208,7 +209,7 @@ export interface Resource {
 // New types for Appointment scheduling
 export interface Availability {
   creatorId: string;
-  slots: any[]; // Array of Firestore Timestamps
+  slots: Timestamp[]; // Array of Firestore Timestamps
 }
 
 export interface Appointment {
@@ -216,7 +217,7 @@ export interface Appointment {
   creatorId: string;
   requesterId: string;
   requesterName: string;
-  appointmentTime: any; // Firestore Timestamp
+  appointmentTime: Timestamp; // Firestore Timestamp
   status: 'pending' | 'confirmed' | 'cancelled';
   notes?: string;
   createdAt: any; // Firestore Timestamp
