@@ -101,22 +101,18 @@ export function ShoppingAssistant() {
                 setScenarios(shoppingScenarios);
 
                 if (user) {
-                     const appointmentsQuery = query(
-                        collection(db, 'appointments'), 
-                        where('requesterId', '==', user.uid)
-                    );
-                    const appointmentsSnapshot = await getDocs(appointmentsQuery);
-                    const apptList = appointmentsSnapshot.docs.map(d => ({ ...d.data(), id: d.id } as Appointment));
+                     const appointmentsQuery = query(collection(db, 'appointments'), where('requesterId', '==', user.uid));
+                     const appointmentsSnapshot = await getDocs(appointmentsQuery);
+                     
+                     const apptList = appointmentsSnapshot.docs.map(d => ({ ...d.data(), id: d.id } as Appointment));
                     
-                    // Sort on the client side
-                    apptList.sort((a, b) => a.appointmentTime.toMillis() - b.appointmentTime.toMillis());
+                     const now = new Date();
+                     const upcoming = apptList.filter(appt => 
+                         appt.status === 'confirmed' && 
+                         appt.appointmentTime.toDate() > now &&
+                         differenceInHours(appt.appointmentTime.toDate(), now) <= 24
+                     ).sort((a, b) => a.appointmentTime.toMillis() - b.appointmentTime.toMillis());
 
-                    const now = new Date();
-                    const upcoming = apptList.filter(appt => 
-                        appt.status === 'confirmed' && 
-                        differenceInHours(appt.appointmentTime.toDate(), now) > 0 &&
-                        differenceInHours(appt.appointmentTime.toDate(), now) <= 24
-                    );
                     setUpcomingAppointments(upcoming);
                 }
 
@@ -369,5 +365,4 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
     
 
     
-
 

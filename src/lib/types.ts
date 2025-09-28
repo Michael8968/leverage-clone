@@ -106,6 +106,7 @@ export type User = {
   rating?: number;
   status?: 'active' | 'inactive';
   aiAssistantEnabled?: boolean;
+  alwaysAvailable?: boolean;
   bio?: string;
   skills?: string[];
   createdAt?: any;

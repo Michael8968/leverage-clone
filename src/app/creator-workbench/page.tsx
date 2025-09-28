@@ -705,11 +705,6 @@ function SubmissionsTab({ refreshKey }: { refreshKey: number }) {
 // =================================================================
 // SCHEDULE AND ASSISTANT TAB (NEW)
 // =================================================================
-type DayOfWeek = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
-const DAYS_OF_WEEK: { id: DayOfWeek; label: string }[] = [ { id: 'mon', label: '一' }, { id: 'tue', label: '二' }, { id: 'wed', label: '三' }, { id: 'thu', label: '四' }, { id: 'fri', label: '五' }, { id: 'sat', label: '六' }, { id: 'sun', label: '日' } ];
-const ALL_ROLES: Role[] = ['admin', 'creator', 'supplier', 'user'];
-const ROLE_NAMES: Record<Role, string> = { admin: '管理员', creator: '创意者', supplier: '供应商', user: '普通用户', suspended: '已禁用' };
-
 function ScheduleAndAssistantTab() {
     const { user, setUser } = useAuthStore();
     const { toast } = useToast();
@@ -718,33 +713,64 @@ function ScheduleAndAssistantTab() {
     const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
     const [editingRule, setEditingRule] = useState<AssistantRule | null>(null);
     const [prompts, setPrompts] = useState<Prompt[]>([]);
+    const [isAppointmentsLoading, setIsAppointmentsLoading] = useState(true);
+    const [appointments, setAppointments] = useState<Appointment[]>([]);
+    const [availableSlots, setAvailableSlots] = useState<Timestamp[]>([]);
+    const [isSlotsLoading, setIsSlotsLoading] = useState(true);
+    const [newSlotDate, setNewSlotDate] = useState<Date | undefined>(new Date());
+    const [isAddingSlot, setIsAddingSlot] = useState(false);
 
-    const [isSubmitting, startTransition] = useTransition();
+    const [isTransitioning, startTransition] = useTransition();
 
-    useEffect(() => {
-        const fetchCreatorPrompts = async () => {
-            if (!user) return;
-            const promptsData = await getPrompts(null);
-            // Creators can use platform-wide prompts and their own prompts.
-            const availablePrompts = promptsData.prompts.filter(p => p.ownerType === 'platform' || p.ownerId === user.uid);
-            setPrompts(availablePrompts);
-        };
-        fetchCreatorPrompts();
-    }, [user]);
-
-    const handleStatusChange = async (type: 'status' | 'aiAssistantEnabled', value: any) => {
+    const fetchCreatorData = useCallback(async () => {
         if (!user) return;
-        
-        const optimisticUser = { ...user, [type]: value };
-        setUser(optimisticUser, user.role);
+        setIsAppointmentsLoading(true);
+        setIsSlotsLoading(true);
 
         try {
-            await updateUserStatus({ userId: user.uid, [type]: value });
+            // Fetch prompts
+            const promptsData = await getPrompts(null);
+            const availablePrompts = promptsData.prompts.filter(p => p.ownerType === 'platform' || p.ownerId === user.uid);
+            setPrompts(availablePrompts);
+
+            // Fetch appointments
+            const apptQuery = query(collection(db, 'appointments'), where("creatorId", "==", user.uid), orderBy("appointmentTime", "desc"));
+            const apptSnapshot = await getDocs(apptQuery);
+            const apptList = apptSnapshot.docs.map(doc => doc.data() as Appointment);
+            setAppointments(apptList);
+            setIsAppointmentsLoading(false);
+
+            // Fetch available slots
+            const availRef = doc(db, 'availabilities', user.uid);
+            const availSnap = await getDoc(availRef);
+            if (availSnap.exists()) {
+                const data = availSnap.data() as Availability;
+                setAvailableSlots(data.slots || []);
+            }
+            setIsSlotsLoading(false);
+
+        } catch (error) {
+            console.error(error);
+            toast({ title: "加载失败", description: "无法加载您的排班和预约信息。", variant: "destructive" });
+            setIsAppointmentsLoading(false);
+            setIsSlotsLoading(false);
+        }
+    }, [user, toast]);
+    
+    useEffect(() => {
+        fetchCreatorData();
+    }, [fetchCreatorData]);
+
+    const handleStatusChange = async (type: 'status' | 'aiAssistantEnabled' | 'alwaysAvailable', value: any) => {
+        if (!user) return;
+        const optimisticUser = { ...user, [type]: value };
+        setUser(optimisticUser, user.role);
+        try {
+            await updateDoc(doc(db, 'users', user.uid), { [type]: value });
             toast({ title: '状态已更新' });
         } catch (error) {
-            toast({ title: '更新失败', description: '无法更新您的状态，请重试。', variant: 'destructive' });
-            // Revert optimistic update
-            setUser(user, user.role);
+            toast({ title: '更新失败', variant: 'destructive' });
+            setUser(user, user.role); // Revert
         }
     };
     
@@ -787,6 +813,54 @@ function ScheduleAndAssistantTab() {
         });
     };
     
+    const handleAppointmentStatus = async (appointmentId: string, status: 'confirmed' | 'cancelled') => {
+        try {
+            await updateDoc(doc(db, 'appointments', appointmentId), { status });
+            toast({ title: "操作成功", description: `预约已${status === 'confirmed' ? '确认' : '取消'}` });
+            fetchCreatorData();
+        } catch (error) {
+            toast({ title: "操作失败", variant: "destructive" });
+        }
+    };
+
+    const handleAddSlot = async () => {
+        if (!newSlotDate || !user) return;
+        setIsAddingSlot(true);
+        const newSlotTimestamp = Timestamp.fromDate(newSlotDate);
+        try {
+            const availRef = doc(db, 'availabilities', user.uid);
+            await updateDoc(availRef, { slots: arrayUnion(newSlotTimestamp) });
+            setAvailableSlots(prev => [...prev, newSlotTimestamp]);
+            toast({ title: '成功', description: '新的空闲时间已添加。' });
+        } catch (error) {
+             // If doc doesn't exist, create it
+            if ((error as any).code === 'not-found') {
+                try {
+                    await setDoc(doc(db, 'availabilities', user.uid), { slots: [newSlotTimestamp] });
+                    setAvailableSlots([newSlotTimestamp]);
+                } catch (e) {
+                    toast({ title: '失败', variant: 'destructive'});
+                }
+            } else {
+               toast({ title: '失败', variant: 'destructive'});
+            }
+        } finally {
+            setIsAddingSlot(false);
+        }
+    };
+
+    const handleDeleteSlot = async (slot: Timestamp) => {
+        if (!user) return;
+        try {
+            const availRef = doc(db, 'availabilities', user.uid);
+            await updateDoc(availRef, { slots: arrayRemove(slot) });
+            setAvailableSlots(prev => prev.filter(s => s.toMillis() !== slot.toMillis()));
+            toast({ title: '成功', description: '时间段已删除。' });
+        } catch(error) {
+            toast({ title: '失败', variant: 'destructive' });
+        }
+    };
+    
     if (!user) return null;
 
     const assistantRules = (user.assistantRules || []).sort((a, b) => a.priority - b.priority);
@@ -821,6 +895,76 @@ function ScheduleAndAssistantTab() {
                                     </div>
                                 </div>
                                 <Switch id="ai-assistant-status" checked={!!user.aiAssistantEnabled} onCheckedChange={(checked) => handleStatusChange('aiAssistantEnabled', checked)} />
+                            </Card>
+                        </div>
+                    </div>
+                     <div className="space-y-4">
+                        <h4 className="font-semibold">我的排班与预约</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-lg font-medium">可预约时间段</CardTitle>
+                                    <div className="flex items-center space-x-2 pt-2">
+                                        <Checkbox id="always-available" checked={!!user.alwaysAvailable} onCheckedChange={(checked) => handleStatusChange('alwaysAvailable', Boolean(checked))} />
+                                        <label htmlFor="always-available" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">全时空闲</label>
+                                    </div>
+                                </CardHeader>
+                                {!user.alwaysAvailable && (
+                                     <CardContent className="space-y-4">
+                                        <div>
+                                            <Label>添加新时段</Label>
+                                            <div className="flex items-center gap-2">
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !newSlotDate && "text-muted-foreground")}>
+                                                            <CalendarDays className="mr-2 h-4 w-4" />
+                                                            {newSlotDate ? format(newSlotDate, "yyyy-MM-dd") : <span>选择日期</span>}
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={newSlotDate} onSelect={setNewSlotDate} initialFocus/></PopoverContent>
+                                                </Popover>
+                                                <TimePicker date={newSlotDate} setDate={setNewSlotDate} />
+                                                <Button onClick={handleAddSlot} disabled={isAddingSlot}>{isAddingSlot ? <Loader2 className="animate-spin" /> : "添加"}</Button>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                                            {isSlotsLoading ? <Skeleton className="h-10 w-full" /> : 
+                                             availableSlots.sort((a,b) => a.toMillis() - b.toMillis()).map(slot => (
+                                                <div key={slot.toMillis()} className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
+                                                     <span className="text-sm">{format(slot.toDate(), 'M月d日 HH:mm')}</span>
+                                                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDeleteSlot(slot)}><Trash2 className="w-4 h-4 text-destructive"/></Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </CardContent>
+                                )}
+                            </Card>
+                            <Card>
+                                 <CardHeader><CardTitle className="text-lg font-medium">待处理的预约</CardTitle></CardHeader>
+                                <CardContent className="max-h-72 overflow-y-auto">
+                                    {isAppointmentsLoading ? <Skeleton className="h-20 w-full"/> : 
+                                    appointments.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">暂无预约</p> :
+                                    <Table>
+                                        <TableHeader><TableRow><TableHead>预约人</TableHead><TableHead>时间</TableHead><TableHead>状态</TableHead></TableRow></TableHeader>
+                                        <TableBody>
+                                            {appointments.map(appt => (
+                                                <TableRow key={appt.id}>
+                                                    <TableCell>{appt.requesterName}</TableCell>
+                                                    <TableCell className="text-xs">{format(appt.appointmentTime.toDate(), 'MM/dd HH:mm')}</TableCell>
+                                                    <TableCell>
+                                                        {appt.status === 'pending' ? (
+                                                            <div className="flex gap-1">
+                                                                <Button size="xs" onClick={() => handleAppointmentStatus(appt.id, 'confirmed')}><CheckCircle className="w-3 h-3 mr-1"/>确认</Button>
+                                                                <Button size="xs" variant="ghost" onClick={() => handleAppointmentStatus(appt.id, 'cancelled')}><XCircle className="w-3 h-3 mr-1"/>拒绝</Button>
+                                                            </div>
+                                                        ) : ( <Badge variant={appt.status === 'confirmed' ? 'default' : 'destructive'}>{appt.status}</Badge> )}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                    }
+                                </CardContent>
                             </Card>
                         </div>
                     </div>
@@ -865,7 +1009,7 @@ function ScheduleAndAssistantTab() {
                 rule={editingRule}
                 onSave={handleSaveRule}
                 prompts={prompts}
-                isSaving={isSubmitting}
+                isSaving={isTransitioning}
             />
         </>
     );
@@ -874,6 +1018,10 @@ function ScheduleAndAssistantTab() {
 // =================================================================
 // ASSISTANT RULE DIALOG (NEW)
 // =================================================================
+type DayOfWeek = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+const DAYS_OF_WEEK: { id: DayOfWeek; label: string }[] = [ { id: 'mon', label: '一' }, { id: 'tue', label: '二' }, { id: 'wed', label: '三' }, { id: 'thu', label: '四' }, { id: 'fri', label: '五' }, { id: 'sat', label: '六' }, { id: 'sun', label: '日' } ];
+const ALL_ROLES: Role[] = ['admin', 'creator', 'supplier', 'user'];
+const ROLE_NAMES: Record<Role, string> = { admin: '管理员', creator: '创意者', supplier: '供应商', user: '普通用户', suspended: '已禁用' };
 
 function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, isSaving }: {
     open: boolean;
@@ -1097,4 +1245,5 @@ export default function CreatorWorkbenchPage() {
     
 
     
+
 

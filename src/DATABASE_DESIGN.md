@@ -23,6 +23,7 @@
 | **rating** | `number` | (可选) 平台为用户评定的星级 (1-10)。 |
 | **status** | `string` | 用户状态 (`active`, `inactive`)。`active`为在线/可用，`inactive`为离线。 |
 | **aiAssistantEnabled**| `boolean`| (可选, 针对 'creator') 是否启用AI助理模式。 |
+| **alwaysAvailable**| `boolean`| (可选, 针对 'creator') 是否总是接受预约。 |
 | **currentQueueSize**| `number`| (可选, 针对 'creator') 当前排队人数。 |
 | **maxQueueSize**| `number` | (可选, 针对 'creator') 最大可接待排队人数。 |
 | **bio** | `string` | (可选, 针对 'creator') 个人简介。 |
@@ -187,7 +188,7 @@
 | **status** | `string` | 状态 (`可用`, `已停用`)。 |
 | **createdAt** | `Timestamp`| 创建时间。 |
 
-### 1.11. `availabilities` & `appointments` 集合
+### 1.11. `availabilities` & `appointments` 集合 (新增)
 
 用于支持创意者排班和用户预约功能。
 
@@ -228,3 +229,4 @@
 *   **`getUploadUrlForMediaAsset` & `analyzeMediaAsset`**: 支持多模态文件的上传和分析。
 *   **`updateUserStatus`**: 更新创作者的在线状态或AI助理模式。
 *   **`updateUserAssistantRules`**: 更新创意者的AI助理规则。
+

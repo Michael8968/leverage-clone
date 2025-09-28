@@ -157,6 +157,14 @@ function BookingDialog({
                     // Filter for future slots only
                     const futureSlots = (data.slots || []).filter(slot => slot.toDate() > new Date());
                     setAvailableSlots(futureSlots);
+                } else if(designer.alwaysAvailable) {
+                    // If always available and no doc, generate some slots for today
+                    const now = new Date();
+                    const slots: Timestamp[] = [];
+                    for(let i=9; i<18; i++) {
+                        slots.push(Timestamp.fromDate(new Date(now.getFullYear(), now.getMonth(), now.getDate(), i, 0, 0)));
+                    }
+                     setAvailableSlots(slots);
                 }
             } catch (error) {
                 toast({ title: '加载失败', description: '无法加载设计师的可用时间。', variant: 'destructive' });
@@ -188,11 +196,13 @@ function BookingDialog({
                 createdAt: serverTimestamp(),
             });
 
-            // Remove from availability
-            const availRef = doc(db, 'availabilities', designer.uid);
-            await updateDoc(availRef, {
-                slots: arrayRemove(selectedSlot)
-            });
+            if (!designer.alwaysAvailable) {
+                // Remove from availability only if not always available
+                const availRef = doc(db, 'availabilities', designer.uid);
+                await updateDoc(availRef, {
+                    slots: arrayRemove(selectedSlot)
+                });
+            }
 
             toast({ title: '预约成功', description: '您的预约请求已发送，等待设计师确认。' });
             onOpenChange(false);
