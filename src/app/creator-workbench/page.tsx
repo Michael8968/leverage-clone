@@ -5,15 +5,15 @@
 import { AppLayout } from '@/components/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAuthStore } from '@/store/auth';
-import { Frown, Bot, Loader2, ArrowRight, Wand2, Send, PackagePlus, Info, UploadCloud, FileImage, CalendarDays, Clock, Trash2, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { useAuthStore, type Role } from '@/store/auth';
+import { Frown, Bot, Loader2, ArrowRight, Wand2, Send, PackagePlus, Info, UploadCloud, FileImage, CalendarDays, Clock, Trash2, CheckCircle, XCircle, AlertCircle, ToggleLeft, ToggleRight, PlusCircle, Edit, Settings, Star, BrainCircuit } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { collection, getDocs, query, where, doc, updateDoc, addDoc, serverTimestamp, getDoc, deleteDoc, Timestamp, setDoc, orderBy, arrayUnion } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, updateDoc, addDoc, serverTimestamp, getDoc, deleteDoc, Timestamp, setDoc, orderBy, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Demand, ProductService, LlmConnection, Appointment, Availability } from '@/lib/types';
+import type { Demand, ProductService, LlmConnection, Appointment, Availability, AssistantRule, Prompt } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -22,6 +22,8 @@ import { generateTripo3dModel } from '@/ai/flows/generate-tripo3d-model';
 import { getTripo3dModelStatus } from '@/ai/flows/get-tripo3d-model-status';
 import { generateNanoBananaImage } from '@/ai/flows/generate-nanobanana-image';
 import { getUploadUrlForMediaAsset } from '@/ai/flows/multimodal-flows';
+import { updateUserStatus, updateUserAssistantRules } from '@/ai/flows/user-management-flows';
+import { getPrompts } from '@/ai/flows/admin-management-flows';
 
 
 import { Input } from '@/components/ui/input';
@@ -40,6 +42,15 @@ import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { TimePicker } from '@/components/ui/time-picker';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { cn } from '@/lib/utils';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+
 
 
 // =================================================================
@@ -692,242 +703,308 @@ function SubmissionsTab({ refreshKey }: { refreshKey: number }) {
 }
 
 // =================================================================
-// SCHEDULE TAB (New)
+// SCHEDULE AND ASSISTANT TAB (NEW)
+// =================================================================
+type DayOfWeek = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+const DAYS_OF_WEEK: { id: DayOfWeek; label: string }[] = [ { id: 'mon', label: '一' }, { id: 'tue', label: '二' }, { id: 'wed', label: '三' }, { id: 'thu', label: '四' }, { id: 'fri', label: '五' }, { id: 'sat', label: '六' }, { id: 'sun', label: '日' } ];
+const ALL_ROLES: Role[] = ['admin', 'creator', 'supplier', 'user'];
+const ROLE_NAMES: Record<Role, string> = { admin: '管理员', creator: '创意者', supplier: '供应商', user: '普通用户', suspended: '已禁用' };
+
+function ScheduleAndAssistantTab() {
+    const { user, setUser } = useAuthStore();
+    const { toast } = useToast();
+    const [isSaving, setIsSaving] = useState(false);
+    
+    // UI state
+    const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
+    const [editingRule, setEditingRule] = useState<AssistantRule | null>(null);
+    const [prompts, setPrompts] = useState<Prompt[]>([]);
+
+    const [isSubmitting, startTransition] = useTransition();
+
+    useEffect(() => {
+        const fetchCreatorPrompts = async () => {
+            if (!user) return;
+            const promptsData = await getPrompts(null);
+            // Creators can use platform-wide prompts and their own prompts.
+            const availablePrompts = promptsData.prompts.filter(p => p.ownerType === 'platform' || p.ownerId === user.uid);
+            setPrompts(availablePrompts);
+        };
+        fetchCreatorPrompts();
+    }, [user]);
+
+    const handleStatusChange = async (type: 'status' | 'aiAssistantEnabled', value: any) => {
+        if (!user) return;
+        
+        const optimisticUser = { ...user, [type]: value };
+        setUser(optimisticUser, user.role);
+
+        try {
+            await updateUserStatus({ userId: user.uid, [type]: value });
+            toast({ title: '状态已更新' });
+        } catch (error) {
+            toast({ title: '更新失败', description: '无法更新您的状态，请重试。', variant: 'destructive' });
+            // Revert optimistic update
+            setUser(user, user.role);
+        }
+    };
+    
+    const handleSaveRule = async (ruleToSave: AssistantRule) => {
+        if (!user) return;
+        const currentRules = user.assistantRules || [];
+        const index = currentRules.findIndex(r => r.id === ruleToSave.id);
+        let newRules;
+        if (index > -1) {
+            newRules = [...currentRules];
+            newRules[index] = ruleToSave;
+        } else {
+            newRules = [...currentRules, ruleToSave];
+        }
+
+        startTransition(async () => {
+            try {
+                await updateUserAssistantRules({ userId: user.uid, rules: newRules });
+                setUser({ ...user, assistantRules: newRules }, user.role);
+                toast({ title: '成功', description: `规则“${ruleToSave.name}”已保存。` });
+                setIsRuleDialogOpen(false);
+                setEditingRule(null);
+            } catch (error) {
+                toast({ title: '保存失败', description: '保存规则时发生错误。', variant: 'destructive' });
+            }
+        });
+    };
+
+    const handleDeleteRule = async (ruleId: string) => {
+        if (!user) return;
+        const newRules = (user.assistantRules || []).filter(r => r.id !== ruleId);
+        startTransition(async () => {
+             try {
+                await updateUserAssistantRules({ userId: user.uid, rules: newRules });
+                setUser({ ...user, assistantRules: newRules }, user.role);
+                toast({ title: '成功', description: '规则已删除。' });
+            } catch (error) {
+                toast({ title: '删除失败', variant: 'destructive' });
+            }
+        });
+    };
+    
+    if (!user) return null;
+
+    const assistantRules = (user.assistantRules || []).sort((a, b) => a.priority - b.priority);
+
+    return (
+        <>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline">排班与AI助理</CardTitle>
+                    <CardDescription>管理您的在线状态、可预约时间，并为您的人工智能助理配置工作规则。</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-8">
+                     <div className="space-y-4">
+                        <h4 className="font-semibold">在线状态与接待设置</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <Card className="p-4 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <ToggleLeft className="w-6 h-6 text-muted-foreground" />
+                                    <div>
+                                        <Label htmlFor="online-status" className="font-semibold">在线接待</Label>
+                                        <p className="text-xs text-muted-foreground">开启后可接收平台分配的实时请求。</p>
+                                    </div>
+                                </div>
+                                <Switch id="online-status" checked={user.status === 'active'} onCheckedChange={(checked) => handleStatusChange('status', checked ? 'active' : 'inactive')} />
+                            </Card>
+                             <Card className="p-4 flex items-center justify-between">
+                                 <div className="flex items-center gap-3">
+                                    <Bot className="w-6 h-6 text-muted-foreground" />
+                                    <div>
+                                        <Label htmlFor="ai-assistant-status" className="font-semibold">默认AI助理</Label>
+                                        <p className="text-xs text-muted-foreground">开启后，所有请求将优先由AI助理接待。</p>
+                                    </div>
+                                </div>
+                                <Switch id="ai-assistant-status" checked={!!user.aiAssistantEnabled} onCheckedChange={(checked) => handleStatusChange('aiAssistantEnabled', checked)} />
+                            </Card>
+                        </div>
+                    </div>
+                     <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h4 className="font-semibold">高级助理规则</h4>
+                            <Button onClick={() => { setEditingRule(null); setIsRuleDialogOpen(true); }}>
+                                <PlusCircle className="w-4 h-4 mr-2" /> 新增规则
+                            </Button>
+                        </div>
+                        <Card>
+                            <Table>
+                                <TableHeader><TableRow><TableHead>优先级</TableHead><TableHead>规则名称</TableHead><TableHead>触发条件</TableHead><TableHead>执行动作 (提示词)</TableHead><TableHead className="text-right">操作</TableHead></TableRow></TableHeader>
+                                <TableBody>
+                                    {assistantRules.length === 0 ? (
+                                        <TableRow><TableCell colSpan={5} className="text-center h-24">暂无高级规则。</TableCell></TableRow>
+                                    ) : (
+                                        assistantRules.map(rule => (
+                                            <TableRow key={rule.id}>
+                                                <TableCell><Badge>{rule.priority}</Badge></TableCell>
+                                                <TableCell className="font-medium">{rule.name}</TableCell>
+                                                <TableCell><Badge variant="outline">{(rule.conditions.repetition && rule.conditions.repetition !== 'none') ? '有时间规则' : '无时间规则'}</Badge></TableCell>
+                                                <TableCell><Badge variant="secondary">{prompts.find(p => p.promptKey === rule.action.promptKey)?.name || '未知'}</Badge></TableCell>
+                                                <TableCell className="text-right">
+                                                    <Button variant="ghost" size="icon" onClick={() => { setEditingRule(rule); setIsRuleDialogOpen(true); }}><Edit className="w-4 h-4" /></Button>
+                                                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteRule(rule.id)}><Trash2 className="w-4 h-4" /></Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </Card>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <RuleDialog
+                key={editingRule?.id || 'new'}
+                open={isRuleDialogOpen}
+                onOpenChange={setIsRuleDialogOpen}
+                rule={editingRule}
+                onSave={handleSaveRule}
+                prompts={prompts}
+                isSaving={isSubmitting}
+            />
+        </>
+    );
+}
+
+// =================================================================
+// ASSISTANT RULE DIALOG (NEW)
 // =================================================================
 
-function ScheduleTab() {
-  const { user } = useAuthStore();
-  const { toast } = useToast();
-  const [availability, setAvailability] = useState<Availability | null>(null);
-  const [isAlwaysAvailable, setIsAlwaysAvailable] = useState(false);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [upcomingAppointments, setUpcomingAppointments] = useState<Appointment[]>([]);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [isLoading, setIsLoading] = useState(true);
+function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, isSaving }: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    rule: AssistantRule | null;
+    onSave: (rule: AssistantRule) => void;
+    prompts: Prompt[];
+    isSaving: boolean;
+}) {
+    const isEditing = !!initialRule;
+    const [rule, setRule] = useState<AssistantRule>(
+        initialRule || {
+            id: `rule_${Date.now()}`,
+            name: '',
+            priority: 10,
+            conditions: { ruleLogic: 'and' },
+            action: { type: 'use_prompt', promptKey: '' }
+        }
+    );
 
-  const fetchScheduleData = useCallback(async () => {
-    if (!user) return;
-    setIsLoading(true);
-    try {
-      const availRef = doc(db, 'availabilities', user.uid);
-      const availSnap = await getDoc(availRef);
-      if (availSnap.exists()) {
-        const data = availSnap.data() as Availability;
-        setAvailability(data);
-        setIsAlwaysAvailable(data.alwaysAvailable || false);
-      } else {
-        setAvailability({ creatorId: user.uid, slots: [], alwaysAvailable: false });
-        setIsAlwaysAvailable(false);
-      }
+    useEffect(() => {
+        setRule(
+            initialRule || {
+                id: `rule_${Date.now()}`,
+                name: '',
+                priority: 10,
+                conditions: { ruleLogic: 'and' },
+                action: { type: 'use_prompt', promptKey: '' }
+            }
+        );
+    }, [initialRule]);
+    
+    const handleSave = () => {
+        if (!rule.name || !rule.action.promptKey) {
+            toast({ title: "信息不完整", description: "规则名称和执行动作不能为空。", variant: "destructive" });
+            return;
+        }
+        onSave(rule);
+    };
 
-      const appointmentsQuery = query(
-          collection(db, 'appointments'), 
-          where('creatorId', '==', user.uid)
-      );
-      const appointmentsSnapshot = await getDocs(appointmentsQuery);
-      const apptList = appointmentsSnapshot.docs.map(d => ({ ...d.data(), id: d.id } as Appointment));
-      
-      // Client-side sorting
-      apptList.sort((a,b) => a.appointmentTime.toDate().getTime() - b.appointmentTime.toDate().getTime());
+    const handleConditionChange = (field: keyof AssistantRule['conditions'], value: any) => {
+        setRule(prev => ({...prev, conditions: { ...prev.conditions, [field]: value }}));
+    };
+    
+    const handleDayToggle = (day: DayOfWeek) => {
+        const currentDays = rule.conditions.daysOfWeek || [];
+        const newDays = currentDays.includes(day) ? currentDays.filter(d => d !== day) : [...currentDays, day];
+        handleConditionChange('daysOfWeek', newDays);
+    };
 
-      const now = new Date();
-      const upcoming = apptList.filter(appt => 
-          appt.status === 'confirmed' && 
-          differenceInHours(appt.appointmentTime.toDate(), now) > 0 &&
-          differenceInHours(appt.appointmentTime.toDate(), now) <= 24
-      );
-      setUpcomingAppointments(upcoming);
-      setAppointments(apptList);
+    const handleRoleToggle = (role: Role) => {
+        const currentRoles = { ...(rule.conditions.targetUserRoles || {}) };
+        if (currentRoles[role]) {
+            delete currentRoles[role];
+        } else {
+            currentRoles[role] = [];
+        }
+        handleConditionChange('targetUserRoles', currentRoles);
+    };
 
-    } catch (error) {
-      console.error("Failed to load schedule data:", error);
-      toast({ title: "加载失败", description: "无法加载您的排班和预约信息。", variant: "destructive" });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user, toast]);
+    const handleRatingToggle = (role: Role, rating: number) => {
+        const currentRoles = { ...(rule.conditions.targetUserRoles || {}) };
+        const currentRatings = currentRoles[role] || [];
+        const newRatings = currentRatings.includes(rating) ? currentRatings.filter(r => r !== rating) : [...currentRatings, rating];
+        currentRoles[role] = newRatings;
+        handleConditionChange('targetUserRoles', currentRoles);
+    };
+    
+    const { conditions } = rule;
 
-  useEffect(() => {
-    fetchScheduleData();
-  }, [fetchScheduleData]);
-
-  const handleAlwaysAvailableToggle = async (checked: boolean) => {
-      if (!user) return;
-      setIsAlwaysAvailable(checked);
-      try {
-        const availRef = doc(db, 'availabilities', user.uid);
-        await setDoc(availRef, { alwaysAvailable: checked }, { merge: true });
-        toast({ title: "设置已更新", description: `您已${checked ? '开启' : '关闭'}“全时空闲”。` });
-      } catch (error) {
-        toast({ title: "失败", description: "更新设置失败。", variant: "destructive" });
-        setIsAlwaysAvailable(!checked); // Revert on error
-      }
-  };
-
-  const handleAddTimeSlot = async () => {
-    if (!user || !selectedDate || !availability) return;
-    const newSlots = [...(availability.slots || []), Timestamp.fromDate(selectedDate)];
-    try {
-      const availRef = doc(db, 'availabilities', user.uid);
-      await setDoc(availRef, { creatorId: user.uid, slots: newSlots }, { merge: true });
-      fetchScheduleData(); // Refresh data
-      toast({ title: "成功", description: "新的空闲时间已添加。" });
-    } catch (error) {
-      toast({ title: "失败", description: "添加空闲时间失败。", variant: "destructive" });
-    }
-  };
-
-  const handleRemoveSlot = async (slotToRemove: Timestamp) => {
-    if (!user || !availability) return;
-    const newSlots = (availability.slots || []).filter(slot => !slot.isEqual(slotToRemove));
-    try {
-      const availRef = doc(db, 'availabilities', user.uid);
-      await setDoc(availRef, { creatorId: user.uid, slots: newSlots }, { merge: true });
-      fetchScheduleData(); // Refresh data
-      toast({ title: "成功", description: "时间段已移除。" });
-    } catch (error) {
-      toast({ title: "失败", description: "移除时间段失败。", variant: "destructive" });
-    }
-  };
-
-  const handleAppointmentAction = async (appointmentId: string, newStatus: 'confirmed' | 'cancelled') => {
-      if(!user) return;
-      const appointmentRef = doc(db, 'appointments', appointmentId);
-      try {
-          await updateDoc(appointmentRef, { status: newStatus });
-
-          if (newStatus === 'cancelled') {
-              const appt = appointments.find(a => a.id === appointmentId);
-              if (appt) {
-                  // Add the slot back to availability
-                   const availRef = doc(db, 'availabilities', user.uid);
-                   await updateDoc(availRef, {
-                       slots: arrayUnion(appt.appointmentTime)
-                   });
-              }
-          }
-
-          toast({ title: '操作成功', description: `预约已${newStatus === 'confirmed' ? '确认' : '拒绝'}。` });
-          fetchScheduleData();
-      } catch (error) {
-          toast({ title: '操作失败', description: '更新预约状态失败。', variant: 'destructive' });
-      }
-  };
-  
-  const dailySlots = availability?.slots
-    ?.map(s => s.toDate())
-    .filter(d => d.toDateString() === selectedDate?.toDateString())
-    .sort((a,b) => a.getTime() - b.getTime()) || [];
-
-  const getStatusBadge = (status: Appointment['status']) => {
-      switch (status) {
-          case 'pending': return <Badge variant="secondary">待确认</Badge>;
-          case 'confirmed': return <Badge className="bg-green-500 hover:bg-green-600">已确认</Badge>;
-          case 'cancelled': return <Badge variant="destructive">已拒绝</Badge>;
-          default: return <Badge variant="outline">未知</Badge>;
-      }
-  };
-
-  return (
-    <>
-      {upcomingAppointments.length > 0 && (
-        <Alert variant="default" className="mb-6 border-amber-500">
-          <AlertCircle className="h-4 w-4 text-amber-500" />
-          <AlertTitle className="font-headline text-amber-600">预约提醒</AlertTitle>
-          <AlertDescription>
-            您在24小时内有新的预约：
-            <ul className="list-disc pl-5 mt-2">
-              {upcomingAppointments.map(appt => (
-                <li key={appt.id}>
-                  与 **{appt.requesterName}** 在 **{format(appt.appointmentTime.toDate(), 'M月d日 HH:mm', { locale: zhCN })}**
-                </li>
-              ))}
-            </ul>
-          </AlertDescription>
-        </Alert>
-      )}
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-headline">我的排班与预约</CardTitle>
-          <CardDescription>管理您的空闲时间，并处理收到的预约请求。</CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-1">
-            <h4 className="font-semibold mb-2">添加空闲时间</h4>
-            <div className="flex items-center space-x-2 mb-4 p-3 border rounded-md">
-                <Checkbox id="always-available" checked={isAlwaysAvailable} onCheckedChange={(checked) => handleAlwaysAvailableToggle(Boolean(checked))} />
-                <Label htmlFor="always-available">全时空闲</Label>
-            </div>
-            <div className={isAlwaysAvailable ? 'opacity-50 pointer-events-none' : ''}>
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={setSelectedDate}
-                  className="rounded-md border"
-                  disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))}
-                />
-                 <div className="flex items-center gap-2 mt-4">
-                    <TimePicker date={selectedDate} setDate={setSelectedDate}/>
-                    <Button onClick={handleAddTimeSlot} disabled={!selectedDate}>添加</Button>
-                 </div>
-            </div>
-          </div>
-          <div className="md:col-span-2">
-              <h4 className="font-semibold mb-2">
-                  {selectedDate ? format(selectedDate, 'yyyy年M月d日', { locale: zhCN }) : '选择日期'} 的日程
-              </h4>
-              <div className="border rounded-md p-4 min-h-[200px]">
-                  {isLoading ? (
-                      <div className="space-y-2">
-                          <Skeleton className="h-12 w-full" />
-                          <Skeleton className="h-12 w-full" />
-                      </div>
-                  ) : dailySlots.length === 0 && !appointments.some(app => app.appointmentTime.toDate().toDateString() === selectedDate?.toDateString()) ? (
-                      <p className="text-sm text-center text-muted-foreground py-10">当天没有排班或预约</p>
-                  ) : (
-                      <ul className="space-y-2">
-                          {appointments.filter(app => app.appointmentTime.toDate().toDateString() === selectedDate?.toDateString()).sort((a, b) => a.appointmentTime.toDate().getTime() - b.appointmentTime.toDate().getTime()).map(appointment => (
-                              <li key={appointment.id} className="flex items-center justify-between p-2 rounded-md bg-blue-500/10">
-                                  <div className="flex items-center gap-2">
-                                      <Clock className="w-4 h-4"/>
-                                      <span className="font-mono">{format(appointment.appointmentTime.toDate(), 'HH:mm')}</span>
-                                      <div className="flex flex-col items-start">
-                                          <span className="font-semibold text-sm">{appointment.requesterName}</span>
-                                          {getStatusBadge(appointment.status)}
-                                      </div>
-                                  </div>
-                                  {appointment.status === 'pending' && (
-                                      <div className="flex gap-1">
-                                          <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600" onClick={() => handleAppointmentAction(appointment.id, 'confirmed')}>
-                                              <CheckCircle className="w-5 h-5"/>
-                                          </Button>
-                                           <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleAppointmentAction(appointment.id, 'cancelled')}>
-                                              <XCircle className="w-5 h-5"/>
-                                          </Button>
-                                      </div>
-                                  )}
-                              </li>
-                          ))}
-                          {dailySlots.map(slot => (
-                              <li key={slot.toISOString()} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-                                  <div className="flex items-center gap-2">
-                                      <Clock className="w-4 h-4"/>
-                                      <span className="font-mono">{format(slot, 'HH:mm')}</span>
-                                      <Badge variant="secondary">空闲</Badge>
-                                  </div>
-                                  <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleRemoveSlot(Timestamp.fromDate(slot))}>
-                                      <Trash2 className="w-4 h-4"/>
-                                  </Button>
-                              </li>
-                          ))}
-                      </ul>
-                  )}
-              </div>
-          </div>
-        </CardContent>
-      </Card>
-    </>
-  );
+    return (
+         <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle className="font-headline">{isEditing ? '编辑助理规则' : '新增助理规则'}</DialogTitle>
+                    <DialogDescription>创建一条带有优先级的规则，以在特定条件下自动启用具有特定能力的AI助理。</DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1"><Label htmlFor="rule-name">规则名称</Label><Input id="rule-name" value={rule.name} onChange={e => setRule(prev => ({ ...prev, name: e.target.value }))} placeholder="例如：夜间自动回复" /></div>
+                        <div className="space-y-1"><Label htmlFor="rule-priority">优先级 (1-100, 数字越小越高)</Label><Input id="rule-priority" type="number" value={rule.priority} onChange={e => setRule(prev => ({ ...prev, priority: parseInt(e.target.value) || 10 }))} /></div>
+                    </div>
+                     <Accordion type="multiple" className="w-full" defaultValue={['conditions', 'action']}>
+                        <AccordionItem value="conditions"><AccordionTrigger><div className="flex items-center gap-2 font-semibold"><Settings className="w-4 h-4"/> 触发条件</div></AccordionTrigger>
+                            <AccordionContent className="space-y-4 pt-4">
+                                <Accordion type="multiple" className="w-full">
+                                    <AccordionItem value="time"><AccordionTrigger><div className="flex items-center gap-2"><Clock className="w-4 h-4"/> 时间维度</div></AccordionTrigger>
+                                        <AccordionContent className="space-y-4 pt-2">
+                                            <div className="p-4 border rounded-md space-y-4">
+                                                <div className="grid grid-cols-2 gap-4 items-center">
+                                                    <div>
+                                                        <Label>重复频率</Label>
+                                                        <Select value={conditions.repetition || 'none'} onValueChange={(v) => handleConditionChange('repetition', v as any)}>
+                                                            <SelectTrigger><SelectValue/></SelectTrigger>
+                                                            <SelectContent><SelectItem value="none">不重复</SelectItem><SelectItem value="daily">每天</SelectItem><SelectItem value="weekly">每周</SelectItem></SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    {conditions.repetition === 'weekly' && (
+                                                        <div><Label>选择星期</Label><div className="flex flex-wrap gap-x-2 gap-y-1 mt-2">{DAYS_OF_WEEK.map(day => (<div key={day.id} className="flex items-center space-x-1"><Checkbox id={`day-${day.id}`} checked={conditions.daysOfWeek?.includes(day.id)} onCheckedChange={() => handleDayToggle(day.id)} /><Label htmlFor={`day-${day.id}`} className="text-xs font-normal">{day.label}</Label></div>))}</div></div>
+                                                    )}
+                                                </div>
+                                                {(conditions.repetition && conditions.repetition !== 'none') && <div><Label>生效时间窗口</Label><div className="flex items-center gap-2"><TimePicker date={conditions.startTime ? new Date(`1970-01-01T${conditions.startTime}`) : undefined} setDate={(d) => handleConditionChange('startTime', d ? format(d, 'HH:mm') : undefined)} /><span>-</span><TimePicker date={conditions.endTime ? new Date(`1970-01-01T${conditions.endTime}`) : undefined} setDate={(d) => handleConditionChange('endTime', d ? format(d, 'HH:mm') : undefined)} /></div></div>}
+                                            </div>
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                     <div className="flex items-center justify-center py-2"><RadioGroup value={conditions.ruleLogic} onValueChange={(v) => handleConditionChange('ruleLogic', v as any)} className="flex items-center space-x-4 border p-2 rounded-lg bg-muted/30"><RadioGroupItem value="and" id="logic-and" /><Label htmlFor="logic-and">同时满足 (与)</Label><RadioGroupItem value="or" id="logic-or" /><Label htmlFor="logic-or">满足任意一个 (或)</Label></RadioGroup></div>
+                                    <AccordionItem value="user"><AccordionTrigger><div className="flex items-center gap-2"><Users className="w-4 h-4"/> 用户维度</div></AccordionTrigger>
+                                        <AccordionContent className="pt-4 space-y-4"><p className="text-sm text-muted-foreground">限定目标用户。若不配置，则对所有用户生效。</p><div className="space-y-3">{ALL_ROLES.map(role => (<div key={role} className="p-3 border rounded-md"><div className="flex items-center space-x-2"><Checkbox id={`role-${role}`} checked={!!conditions.targetUserRoles?.[role]} onCheckedChange={() => handleRoleToggle(role)} /><Label htmlFor={`role-${role}`} className="text-sm font-medium">{ROLE_NAMES[role]}</Label></div>{conditions.targetUserRoles?.[role] && (<div className="pt-3 mt-3 border-t"><Label className="text-xs text-muted-foreground flex items-center gap-1 mb-2"><Star className="w-3 h-3"/> 限定星级 (不选则对该角色所有星级生效)</Label><div className="flex flex-wrap gap-x-3 gap-y-1">{Array.from({length: 10}, (_, i) => i + 1).map(rating => (<div key={rating} className="flex items-center space-x-1"><Checkbox id={`rating-${role}-${rating}`} checked={conditions.targetUserRoles?.[role]?.includes(rating)} onCheckedChange={() => handleRatingToggle(role, rating)}/><Label htmlFor={`rating-${role}-${rating}`} className="text-xs font-normal">{rating}星</Label></div>))}</div></div>)}</div>))}</div></AccordionContent>
+                                    </AccordionItem>
+                                </Accordion>
+                            </AccordionContent>
+                        </AccordionItem>
+                        <AccordionItem value="action"><AccordionTrigger><div className="flex items-center gap-2 font-semibold"><BrainCircuit className="w-4 h-4"/> 执行动作</div></AccordionTrigger>
+                            <AccordionContent className="pt-4 space-y-2">
+                                <Label>选择AI助理能力 (提示词)</Label>
+                                <Select value={rule.action.promptKey} onValueChange={v => setRule(p => ({...p, action: { ...p.action, promptKey: v }}))}>
+                                    <SelectTrigger><SelectValue placeholder="请选择一个提示词..." /></SelectTrigger>
+                                    <SelectContent>{prompts.map(p => <SelectItem key={p.promptKey} value={p.promptKey}>{p.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                            </AccordionContent>
+                        </AccordionItem>
+                    </Accordion>
+                </div>
+                 <DialogFooter>
+                    <Button variant="ghost" onClick={() => onOpenChange(false)}>取消</Button>
+                    <Button onClick={handleSave} disabled={isSaving}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} 保存规则</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
 }
 
 // =================================================================
@@ -966,7 +1043,7 @@ function CreationsTab({ onSubmissionSuccess }: { onSubmissionSuccess: () => void
 // Parent Component and Page Entrypoint
 // =================================================================
 function CreatorWorkbench() {
-  const [activeTab, setActiveTab] = useState("tasks");
+  const [activeTab, setActiveTab] = useState("schedule-assistant");
   const [submissionsRefreshKey, setSubmissionsRefreshKey] = useState(0);
 
   const handleSubmissionSuccess = () => {
@@ -985,12 +1062,12 @@ function CreatorWorkbench() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4 max-w-2xl mx-auto">
           <TabsTrigger value="tasks">任务与需求</TabsTrigger>
-          <TabsTrigger value="schedule">我的排班</TabsTrigger>
+          <TabsTrigger value="schedule-assistant">排班与助理</TabsTrigger>
           <TabsTrigger value="3d-creation">AI 创作</TabsTrigger>
           <TabsTrigger value="submissions">我的提交</TabsTrigger>
         </TabsList>
         <TabsContent value="tasks" className="mt-6"><TasksTab /></TabsContent>
-        <TabsContent value="schedule" className="mt-6"><ScheduleTab /></TabsContent>
+        <TabsContent value="schedule-assistant" className="mt-6"><ScheduleAndAssistantTab /></TabsContent>
         <TabsContent value="3d-creation" className="mt-6"><CreationsTab onSubmissionSuccess={handleSubmissionSuccess}/></TabsContent>
         <TabsContent value="submissions" className="mt-6"><SubmissionsTab refreshKey={submissionsRefreshKey} /></TabsContent>
       </Tabs>

@@ -92,10 +92,10 @@ async function isRuleValid(rule: AssistantRule, requester: User): Promise<boolea
     if (conditions.ruleLogic === 'or') {
         const hasTimeRules = conditions.repetition && conditions.repetition !== 'none';
         const hasUserRules = targetRoles && Object.keys(targetRoles).length > 0;
-        if (!hasTimeRules && !hasUserRules) return false;
-        if (!hasTimeRules) return userIsValid;
-        if (!hasUserRules) return timeIsValid;
-        return timeIsValid || userIsValid;
+        if (!hasTimeRules && !hasUserRules) return false; // If no rules are set, it's not valid
+        if (!hasTimeRules) return userIsValid; // Only user rules matter
+        if (!hasUserRules) return timeIsValid; // Only time rules matter
+        return timeIsValid || userIsValid; // If both exist, OR them
     }
     
     // Default to AND logic

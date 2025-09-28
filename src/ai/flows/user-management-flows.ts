@@ -6,7 +6,7 @@ import { z } from 'genkit';
 import { collection, doc, writeBatch, getDocs, query, where, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { auth } from '@/lib/firebase-admin';
-import type { User } from '@/lib/types';
+import type { User, AssistantRule } from '@/lib/types';
 
 
 // =================================================================
@@ -145,5 +145,27 @@ export const updateUserStatus = ai.defineFlow(
         if (Object.keys(dataToUpdate).length > 0) {
             await updateDoc(userRef, dataToUpdate);
         }
+    }
+);
+
+// =================================================================
+// Flow to update a user's AI assistant rules
+// =================================================================
+const UpdateAssistantRulesInputSchema = z.object({
+    userId: z.string(),
+    rules: z.array(z.any()), // z.any() because AssistantRule contains Timestamps
+});
+
+export const updateUserAssistantRules = ai.defineFlow(
+    {
+        name: 'updateUserAssistantRules',
+        inputSchema: UpdateAssistantRulesInputSchema,
+        outputSchema: z.void(),
+    },
+    async ({ userId, rules }) => {
+        const userRef = doc(db, 'users', userId);
+        await updateDoc(userRef, {
+            assistantRules: rules,
+        });
     }
 );
