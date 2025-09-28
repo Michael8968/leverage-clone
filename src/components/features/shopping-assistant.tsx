@@ -103,11 +103,16 @@ export function ShoppingAssistant() {
                 if (user) {
                      const appointmentsQuery = query(
                         collection(db, 'appointments'), 
-                        where('requesterId', '==', user.uid),
-                        orderBy('appointmentTime', 'asc')
+                        where('requesterId', '==', user.uid)
+                        // This complex query requires a composite index. We'll remove the orderBy and sort on the client.
+                        // orderBy('appointmentTime', 'asc')
                     );
                     const appointmentsSnapshot = await getDocs(appointmentsQuery);
                     const apptList = appointmentsSnapshot.docs.map(d => ({ ...d.data(), id: d.id } as Appointment));
+                    
+                    // Sort on the client side
+                    apptList.sort((a, b) => a.appointmentTime.toMillis() - b.appointmentTime.toMillis());
+
                     const now = new Date();
                     const upcoming = apptList.filter(appt => 
                         appt.status === 'confirmed' && 
@@ -366,3 +371,4 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
     
 
     
+
