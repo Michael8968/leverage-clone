@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useTransition, Suspense } from 'react';
@@ -103,7 +102,7 @@ function LoginContent() {
   };
 
   return (
-      <Card>
+      <Card className="bg-card/80 backdrop-blur-sm">
         <CardHeader>
           <CardTitle className="font-headline text-2xl">登录您的账户</CardTitle>
           <CardDescription>输入您的凭据以访问平台。</CardDescription>
@@ -177,11 +176,23 @@ function LoginFormSkeleton() {
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-      <div className="w-full max-w-sm">
+    <div className="relative flex min-h-screen flex-col items-center justify-center bg-background p-4">
+       <video
+        key="/videos/light-bg.mp4"
+        className="absolute top-0 left-0 w-full h-full object-cover -z-10"
+        autoPlay
+        loop
+        muted
+        playsInline
+      >
+        <source src="/videos/light-bg.mp4" type="video/mp4" />
+      </video>
+      <div className="w-full max-w-sm relative z-10">
         <div className="mb-8 flex flex-col items-center gap-2 text-2xl font-headline font-semibold whitespace-nowrap">
-            <Logo />
-            <h1 className="font-headline text-3xl">Leverage&nbsp;力维利治</h1>
+            <div className="p-3 rounded-full bg-background/50 backdrop-blur-sm">
+              <Logo />
+            </div>
+            <h1 className="font-headline text-3xl text-white shadow-black [text-shadow:_0_1px_10px_var(--tw-shadow-color)]">Leverage&nbsp;力维利治</h1>
         </div>
         <Suspense fallback={<LoginFormSkeleton />}>
             <LoginContent />
