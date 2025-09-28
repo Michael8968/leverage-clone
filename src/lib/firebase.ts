@@ -18,8 +18,9 @@ const firebaseConfig = {
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// Explicitly connect to the 'a001' database instance.
-const db = getFirestore(app);
+// Explicitly connect to the 'a001' database instance. This is the correct way
+// to connect to a non-default Firestore database.
+const db = getFirestore(app, 'a001');
 console.log("Attempting to connect to Firestore database: a001");
 
 
