@@ -9,6 +9,7 @@ const firebaseConfig = {
   "storageBucket": "studio-1968664538-7b455.firebasestorage.app",
   "apiKey": "AIzaSyB8XChQPO2LLOGoZu4UpF7AQ6_BjSto1Zo",
   "authDomain": "studio-1968664538-7b455.firebaseapp.com",
+  "databaseURL": "https://studio-1968664538-7b455-a001.firebaseio.com",
   "measurementId": "",
   "messagingSenderId": "813896547402",
   vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
@@ -18,10 +19,10 @@ const firebaseConfig = {
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// Explicitly connect to the 'a001' database instance.
-const databaseId = "a001";
-console.log(`Attempting to connect to Firestore database: ${databaseId}`);
-const db = getFirestore(app, databaseId);
+// By specifying the databaseURL in the config, getFirestore() will connect to the correct instance.
+const db = getFirestore(app);
+console.log("Attempting to connect to Firestore database specified in config.");
+
 
 // The offline persistence feature remains commented out for stability.
 /*
