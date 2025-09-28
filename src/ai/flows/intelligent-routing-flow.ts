@@ -22,6 +22,7 @@ import { format } from 'date-fns';
 const IntelligentRoutingInputSchema = z.object({
   requesterId: z.string().describe("The ID of the user making the request."),
   requestDescription: z.string().describe("The user's latest message or problem description."),
+  specificDesignerId: z.string().optional().describe("A specific designer the user wants to talk to, if any."),
 });
 
 const IntelligentRoutingOutputSchema = z.object({
@@ -38,10 +39,15 @@ const IntelligentRoutingOutputSchema = z.object({
 /**
  * Fetches all relevant data needed for the AI to make a routing decision.
  */
-async function getRoutingContext(requesterId: string) {
+async function getRoutingContext(requesterId: string, specificDesignerId?: string) {
+    // If a specific designer is requested, we only need their data. Otherwise, fetch all.
+    const designerQuery = specificDesignerId
+        ? query(collection(db, 'users'), where('__name__', '==', specificDesignerId))
+        : query(collection(db, 'users'), where('role', '==', 'creator'));
+
     const [requesterSnap, designersSnap, strategySnap] = await Promise.all([
         getDoc(doc(db, 'users', requesterId)),
-        getDocs(query(collection(db, 'users'), where('role', '==', 'creator'))),
+        getDocs(designerQuery),
         getDoc(doc(db, 'intelligent_routing_strategy', 'main_strategy'))
     ]);
 
@@ -49,18 +55,22 @@ async function getRoutingContext(requesterId: string) {
 
     const requesterInfo = { uid: requesterSnap.id, ...requesterSnap.data() } as User;
     
-    const availableDesigners = designersSnap.docs.map(doc => {
-        const data = doc.data();
-        // Sanitize designer data for the prompt
-        return {
-            uid: doc.id,
-            name: data.name,
-            status: data.status,
-            skills: data.skills || [],
-            rating: data.rating || 5,
-            currentQueueSize: data.currentQueueSize || 0,
-        };
-    });
+    // Filter out designers who have AI assistant enabled. They are not available for direct routing.
+    const availableDesigners = designersSnap.docs
+        .map(doc => {
+            const data = doc.data() as User;
+            // Sanitize designer data for the prompt
+            return {
+                uid: doc.id,
+                name: data.name,
+                status: data.status,
+                aiAssistantEnabled: data.aiAssistantEnabled || false,
+                skills: data.skills || [],
+                rating: data.rating || 5,
+                currentQueueSize: data.currentQueueSize || 0,
+            };
+        })
+        .filter(designer => !designer.aiAssistantEnabled); // CRITICAL: Exclude designers with AI assistant on
 
     const strategy: IntelligentRoutingStrategy = strategySnap.exists()
         ? strategySnap.data() as IntelligentRoutingStrategy
@@ -69,8 +79,8 @@ async function getRoutingContext(requesterId: string) {
             strategyText: "Default: Route to the designer with the fewest people in their queue (currentQueueSize).", 
             factorTemperatures: {
                 problemCategory: 0.8,
-                userPriority: 0.5,
                 busyness: 1.0,
+                userPriority: 0.5,
             },
             updatedAt: new Date() 
         };
@@ -127,7 +137,7 @@ const routingPrompt = ai.definePrompt({
         - User's Problem/Request:
         "{{{requestDescription}}}"
 
-        - List of Available Designers:
+        - List of Available Designers (Note: Designers with 'aiAssistantEnabled: true' have already been filtered out):
         {{{json availableDesigners}}}
 
         ==============================
@@ -136,7 +146,7 @@ const routingPrompt = ai.definePrompt({
         1.  Analyze all the provided data in light of the platform's routing strategy and factor weights.
         2.  Consider all factors: designer status (must be 'active'), skills, current queue size, user rating, time of day, etc.
         3.  Select the single best designer from the list.
-        4.  If no designer is a good fit or if the strategy dictates it (e.g., off-hours), decide to fall back to the AI assistant.
+        4.  If no designer is a good fit or if the strategy dictates it (e.g., off-hours or all available designers are busy), decide to fall back to the AI assistant.
         5.  Return a JSON object with your decision. The "designerId" must be either a valid designer UID from the list or the exact string "fallback_to_ai". Provide a clear "reason" for your choice.
     `,
 });
@@ -152,10 +162,19 @@ export const intelligentRoutingFlow = ai.defineFlow(
         inputSchema: IntelligentRoutingInputSchema,
         outputSchema: IntelligentRoutingOutputSchema,
     },
-    async ({ requesterId, requestDescription }) => {
+    async ({ requesterId, requestDescription, specificDesignerId }) => {
         try {
             // 1. Aggregate all necessary data
-            const context = await getRoutingContext(requesterId);
+            const context = await getRoutingContext(requesterId, specificDesignerId);
+
+            // If a specific designer was requested but they have AI assistant enabled, fallback immediately.
+            if (specificDesignerId && context.availableDesigners.length === 0) {
+                 return {
+                    decision: 'fallback_to_ai',
+                    reason: `设计师 ${specificDesignerId} 已开启AI助理模式，无法直接接入。`,
+                    aiAssistantMessage: `您想联系的设计师当前正由AI助理代为接待，已为您转接。`,
+                };
+            }
 
             // 2. Call the AI model with the rich context
             const { output } = await routingPrompt({

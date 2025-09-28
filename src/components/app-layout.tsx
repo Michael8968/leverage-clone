@@ -56,11 +56,17 @@ import {
   Palette,
   Sparkles,
   Route,
+  ToggleLeft,
+  ToggleRight,
+  Power,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
+import { Switch } from './ui/switch';
+import { useToast } from '@/hooks/use-toast';
+import { updateUserStatus } from '@/ai/flows/user-management-flows';
 
 
 interface NavItem {
@@ -121,11 +127,12 @@ function ThemeToggle() {
 }
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
-  const { role, user, isLoading, logout } = useAuthStore();
+  const { role, user, isLoading, logout, setUser } = useAuthStore();
   const { theme } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     setMounted(true);
@@ -141,6 +148,29 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     await logout();
     router.replace('/login');
   };
+  
+  const handleStatusChange = async (newStatus: 'active' | 'inactive') => {
+      if (!user) return;
+      try {
+          await updateUserStatus({ userId: user.uid, status: newStatus });
+          setUser({ ...user, status: newStatus }, role);
+          toast({ title: '状态已更新', description: `您当前的状态为: ${newStatus === 'active' ? '在线接待' : '挂起示忙'}` });
+      } catch (error) {
+          toast({ title: '更新失败', description: '无法更新您的状态。', variant: 'destructive' });
+      }
+  };
+
+  const handleAIAssistantToggle = async (enabled: boolean) => {
+      if (!user) return;
+      try {
+          await updateUserStatus({ userId: user.uid, aiAssistantEnabled: enabled });
+          setUser({ ...user, aiAssistantEnabled: enabled }, role);
+          toast({ title: 'AI助理模式已更新', description: `AI助理已${enabled ? '启用' : '禁用'}` });
+      } catch (error) {
+          toast({ title: '更新失败', description: '无法更新AI助理设置。', variant: 'destructive' });
+      }
+  };
+
 
   if (!mounted || isLoading) {
     return (
@@ -215,6 +245,42 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+               {role === 'creator' && (
+                <>
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      {user.status === 'active' ? (
+                        <ToggleRight className="mr-2 h-4 w-4 text-green-500" />
+                      ) : (
+                        <ToggleLeft className="mr-2 h-4 w-4 text-muted-foreground" />
+                      )}
+                      <span>接待状态</span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuPortal>
+                        <DropdownMenuSubContent>
+                          <DropdownMenuItem onClick={() => handleStatusChange('active')}>
+                              <Power className="mr-2 h-4 w-4 text-green-500" />
+                              <span>在线接待</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleStatusChange('inactive')}>
+                              <Power className="mr-2 h-4 w-4 text-red-500"/>
+                              <span>挂起示忙</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuSubContent>
+                    </DropdownMenuPortal>
+                  </DropdownMenuSub>
+                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                    <Bot className="mr-2 h-4 w-4" />
+                    <span>AI助理模式</span>
+                    <Switch 
+                        checked={user.aiAssistantEnabled}
+                        onCheckedChange={handleAIAssistantToggle}
+                        className="ml-auto"
+                    />
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <ThemeToggle />
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout}>

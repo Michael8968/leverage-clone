@@ -3,7 +3,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { collection, doc, writeBatch, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, writeBatch, getDocs, query, where, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { auth } from '@/lib/firebase-admin';
 import type { User } from '@/lib/types';
@@ -75,6 +75,7 @@ const DesignerProfileSchema = z.object({
     bio: z.string().optional(),
     skills: z.array(z.string()).optional(),
     status: z.enum(['active', 'inactive']).optional(),
+    aiAssistantEnabled: z.boolean().optional(),
 });
 
 const GetDesignersOutputSchema = z.object({
@@ -105,9 +106,44 @@ export const getDesigners = ai.defineFlow(
                 bio: user.bio,
                 skills: user.skills,
                 status: user.status,
+                aiAssistantEnabled: user.aiAssistantEnabled || false,
             };
         });
 
         return { designers };
+    }
+);
+
+
+// =================================================================
+// Flow to update a user's status or AI assistant setting
+// =================================================================
+
+const UpdateUserStatusInputSchema = z.object({
+    userId: z.string(),
+    status: z.enum(['active', 'inactive']).optional(),
+    aiAssistantEnabled: z.boolean().optional(),
+});
+
+export const updateUserStatus = ai.defineFlow(
+    {
+        name: 'updateUserStatus',
+        inputSchema: UpdateUserStatusInputSchema,
+        outputSchema: z.void(),
+    },
+    async ({ userId, status, aiAssistantEnabled }) => {
+        const userRef = doc(db, 'users', userId);
+        const dataToUpdate: Partial<User> = {};
+
+        if (status !== undefined) {
+            dataToUpdate.status = status;
+        }
+        if (aiAssistantEnabled !== undefined) {
+            dataToUpdate.aiAssistantEnabled = aiAssistantEnabled;
+        }
+
+        if (Object.keys(dataToUpdate).length > 0) {
+            await updateDoc(userRef, dataToUpdate);
+        }
     }
 );
