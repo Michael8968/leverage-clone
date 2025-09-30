@@ -8,7 +8,7 @@
     --background: 220 20% 97%;      /* #f5f7fa */
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 224 15% 18%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
     --primary: 217 89% 51%;         /* #1a73e8 - bright blue */
@@ -125,11 +125,15 @@
       box-shadow: 0 5px 15px rgba(0,0,0,0.3);
   }
 
-  /* Enhanced Gradient Button Hover Effect */
   .variant-primary-gradient {
     transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
   }
   .variant-primary-gradient:hover {
+    transform: scale(1.05);
+    box-shadow: 0 8px 25px -5px hsl(var(--primary) / 0.6), 0 4px 10px -6px hsl(var(--accent) / 0.5);
+  }
+  
+  [data-sidebar='menu-button']:hover, .variant-primary-gradient:hover {
     transform: scale(1.05);
     box-shadow: 0 8px 25px -5px hsl(var(--primary) / 0.6), 0 4px 10px -6px hsl(var(--accent) / 0.5);
   }
