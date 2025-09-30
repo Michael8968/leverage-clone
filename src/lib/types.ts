@@ -65,6 +65,8 @@ export type Supplier = {
   creditCode?: string | null;
   email?: string;
   supplementaryFields?: SupplementaryField[];
+  category?: string; // Added to satisfy schema, populated from name.
+  matchScore?: number;
 }
 
 export type UserProfile = {
@@ -297,5 +299,7 @@ export interface IntelligentRoutingStrategy {
     advancedRules: StrategyRule[];
     updatedAt: any; // Firestore Timestamp
 }
+
+    
 
     

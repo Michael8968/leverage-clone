@@ -135,9 +135,13 @@ export function ShoppingAssistant() {
                 });
                 setProducts(productsList);
 
-                // Process suppliers
-                const suppliersList = suppliersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Supplier));
+                // Process suppliers and add the required 'category' field
+                const suppliersList = suppliersSnapshot.docs.map(doc => {
+                    const data = doc.data() as Omit<Supplier, 'category'>;
+                    return { ...data, id: doc.id, category: data.name } as Supplier;
+                });
                 setSuppliers(suppliersList);
+
 
                 // Process scenarios
                 const shoppingScenarios = scenariosSnapshot.docs.map(doc => ({id: doc.id, ...doc.data() } as AIScenario));
@@ -405,6 +409,8 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
         </TooltipProvider>
     </CardFooter>
 </Card>))}</div></div> );
+
+    
 
     
 
