@@ -10,15 +10,27 @@ import type { LlmConnection, Prompt } from '@/lib/types';
 // Hardcoded platform assets. In a real-world scenario, this might come from a configuration file or a database.
 const PLATFORM_ASSETS = {
     providers: [
-        { providerName: "Google", models: ["gemini-1.5-pro-latest", "gemini-1.5-flash-latest"], apiBaseUrl: "https://generativelanguage.googleapis.com/v1beta/models" },
-        { providerName: "OpenAI", models: ["gpt-4", "gpt-4-turbo", "gpt-3.5-turbo"], apiBaseUrl: "https://api.openai.com/v1" },
-        { providerName: "DeepSeek", models: ["deepseek-chat"], apiBaseUrl: "https://api.deepseek.com/v1" },
+        { providerName: "Google", models: ["gemini-1.5-pro-latest", "gemini-1.5-flash-latest", "gemini-pro", "gemini-pro-vision"], apiBaseUrl: "https://generativelanguage.googleapis.com/v1beta/models" },
+        { providerName: "OpenAI", models: ["gpt-4o", "gpt-4-turbo", "gpt-4", "gpt-4-turbo-preview", "gpt-3.5-turbo", "gpt-3.5-turbo-instruct"], apiBaseUrl: "https://api.openai.com/v1" },
+        { providerName: "DeepSeek", models: ["deepseek-chat", "deepseek-coder"], apiBaseUrl: "https://api.deepseek.com/v1" },
         { providerName: "Tencent", models: ["hunyuan-standard", "hunyuan-pro"], apiBaseUrl: "https://hunyuan.tencentcloudapi.com" },
         { 
             providerName: "LiteLLM", 
-            models: ["groq/llama3-70b-8192", "ollama/llama3", "anthropic/claude-3-haiku-20240307"], 
+            models: [
+                "groq/llama3-70b-8192", 
+                "groq/llama3-8b-8192",
+                "groq/gemma-7b-it",
+                "ollama/llama3", 
+                "anthropic/claude-3-opus-20240229",
+                "anthropic/claude-3-sonnet-20240229",
+                "anthropic/claude-3-haiku-20240307"
+            ], 
             apiBaseUrl: process.env.LITELLM_PROXY_URL || "http://localhost:4000/v1" 
         },
+        { providerName: "Moonshot", models: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"], apiBaseUrl: "https://api.moonshot.cn/v1" },
+        { providerName: "Baichuan", models: ["Baichuan2-Turbo", "Baichuan2-Turbo-192k", "Baichuan-Text-Embedding"], apiBaseUrl: "https://api.baichuan-ai.com/v1" },
+        { providerName: "Zhipu", models: ["glm-4", "glm-3-turbo"], apiBaseUrl: "https://open.bigmodel.cn/api/paas/v4" },
+        { providerName: "Alibaba", models: ["qwen-turbo", "qwen-plus", "qwen-max", "qwen-max-longcontext"], apiBaseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
     ]
 };
 
