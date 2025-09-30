@@ -72,12 +72,12 @@
   }
   
   .gradient {
-    --background: 210 30% 98%; /* A very light, almost white color for card backgrounds */
-    --foreground: 224 15% 18%;   /* Dark text for high contrast on light backgrounds */
+    --background: 210 30% 98%;
+    --foreground: 224 15% 18%;   
     --card: 0 0% 100%;
-    --card-foreground: 224 15% 18%; /* Dark text for cards */
+    --card-foreground: 224 15% 18%; 
     --popover: 0 0% 100%;
-    --popover-foreground: 224 15% 18%; /* Dark text for popovers */
+    --popover-foreground: 224 15% 18%; 
     --primary: 4 84% 60%;    /* #e74c3c - red */
     --primary-foreground: 0 0% 100%;
     --secondary: 216 34% 92%;  /* #e2e8f0 */
@@ -102,6 +102,7 @@
     @apply bg-background text-foreground;
   }
   html.gradient body {
+    @apply text-card-foreground;
     background: linear-gradient(135deg, hsl(210, 22%, 32%), hsl(206, 70%, 54%)); /* #2c3e50 to #3498db */
   }
   html, body {
@@ -112,9 +113,6 @@
 }
 
 @layer utilities {
-  .gradient .bg-gradient-primary {
-    @apply bg-gradient-to-r from-primary to-accent;
-  }
   .dark .bg-gradient-primary {
      @apply bg-gradient-to-r from-secondary to-muted;
   }
@@ -127,9 +125,13 @@
       box-shadow: 0 5px 15px rgba(0,0,0,0.3);
   }
 
-  /* Button gradient hover for dark theme */
-  .dark .button-gradient-hover:hover {
-      background-image: linear-gradient(to right, hsl(var(--primary)), hsl(var(--accent)));
+  /* Enhanced Gradient Button Hover Effect */
+  .variant-primary-gradient {
+    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+  }
+  .variant-primary-gradient:hover {
+    transform: scale(1.05);
+    box-shadow: 0 8px 25px -5px hsl(var(--primary) / 0.6), 0 4px 10px -6px hsl(var(--accent) / 0.5);
   }
 }
 
