@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useRef, useEffect, useTransition } from 'react';
@@ -263,7 +264,7 @@ export function ShoppingAssistant() {
     const hasAiResponse = messages.some(m => m.type === 'ai');
 
     return (
-        <div className="relative flex min-h-[calc(100vh-57px)] md:min-h-screen flex-col p-4 md:p-8">
+        <div className="relative flex flex-col p-4 md:p-8 min-h-[calc(100vh-57px)] md:min-h-screen">
             <DynamicVideoBackground />
             <div className="relative z-10">
                 {upcomingAppointments.length > 0 && (
@@ -339,7 +340,7 @@ export function ShoppingAssistant() {
                                     />
                                     <Input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*" className="hidden" onChange={handleMediaUpload}/>
                                     <Button type="button" variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>{isUploading ? <Loader2 className="animate-spin" /> : <Paperclip />}</Button>
-                                    <Button type="submit" disabled={isAiSearching || isUploading}>{isAiSearching ? <Loader2 className="animate-spin" /> : <Send />}</Button>
+                                    <Button type="submit" variant="primary-gradient" disabled={isAiSearching || isUploading}>{isAiSearching ? <Loader2 className="animate-spin" /> : <Send />}</Button>
                                 </div>
                             </form></Form></CardFooter>
                         </Card>
@@ -376,7 +377,7 @@ const LoadingMessage = () => (
     <div className="flex items-start gap-3"><Bot className="w-8 h-8 text-accent" /><div className="bg-card/90 backdrop-blur-sm rounded-lg p-3 max-w-sm border w-full"><div className="space-y-3"><p className='text-sm font-semibold text-muted-foreground'>AI 正在分析您的需求，请稍候...</p><Skeleton className="h-16 w-full" /><Skeleton className="h-24 w-full" /></div></div></div>
 );
 const CustomServiceConnector = () => { const router = useRouter(); return (<Card className="bg-card/80 backdrop-blur-sm"><CardHeader><CardTitle className="font-headline flex items-center gap-2"><Users/> 寻找创意师</CardTitle><CardDescription>浏览平台上的创意人才，查看他们的作品集和专长。</CardDescription></CardHeader><CardContent><Button className="w-full" variant="accent" onClick={() => router.push('/designers')}>寻找创意师 →</Button></CardContent></Card>); };
-const DemandPoolConnector = () => { const router = useRouter(); return (<Card className="bg-accent/10 border-accent backdrop-blur-sm"><CardHeader><CardTitle className="font-headline flex items-center gap-2"><FilePlus2/> 没找到满意的？</CardTitle><CardDescription>您可以将您的需求发布到需求池，让更多的供应商和创意者来帮助您。</CardDescription></CardHeader><CardContent><Button className="w-full" onClick={() => router.push('/demand-pool')}>发布到需求池</Button></CardContent></Card>); };
+const DemandPoolConnector = () => { const router = useRouter(); return (<Card className="bg-accent/10 border-accent backdrop-blur-sm"><CardHeader><CardTitle className="font-headline flex items-center gap-2"><FilePlus2/> 没找到满意的？</CardTitle><CardDescription>您可以将您的需求发布到需求池，让更多的供应商和创意者来帮助您。</CardDescription></CardHeader><CardContent><Button className="w-full" variant="primary-gradient" onClick={() => router.push('/demand-pool')}>发布到需求池</Button></CardContent></Card>); };
 const UserProfileDisplay = ({ profile }: { profile: UserProfile }) => ( <Card className="bg-background/80 backdrop-blur-sm"><CardHeader className="p-3"><CardTitle className="text-base font-semibold flex items-center gap-2"><BrainCircuit className="w-5 h-5 text-accent"/> 用户画像分析</CardTitle></CardHeader><CardContent className="p-3 pt-0"><p className="text-sm text-muted-foreground mb-2">{profile.summary}</p><div className="flex flex-wrap gap-1">{profile.tags.map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}</div></CardContent></Card> );
 const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductService[] }) => ( <div><h4 className="font-semibold mb-2 flex items-center gap-2"><Sparkles className="w-5 h-5 text-amber-500" /> 首要推荐</h4><div className="space-y-3">{recommendations.map((rec) => ( <Card key={rec.id} className="overflow-hidden bg-background/80 backdrop-blur-sm"><div className="aspect-video relative w-full"><Image src={rec.imageUrl || `https://picsum.photos/seed/${rec.id}/300/200`} alt={rec.name} fill style={{objectFit: "cover"}}/></div><div className="p-3"><div className='flex justify-between items-start gap-2'><div><h5 className="font-semibold truncate pr-2">{rec.name}</h5>{rec.supplierName && <p className="text-xs text-muted-foreground">由 {rec.supplierName} 提供</p>}</div><p className="font-bold text-right text-primary whitespace-nowrap">¥{rec.price.toLocaleString()}</p></div></div>
     <CardFooter className="p-3 bg-muted/50 flex w-full justify-end gap-2">
