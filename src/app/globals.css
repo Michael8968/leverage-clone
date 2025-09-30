@@ -72,8 +72,8 @@
   }
   
   .gradient {
-    --background: 210 30% 98%; /* A very light, almost white color as a base */
-    --foreground: 0 0% 100%;   /* White text for sidebar */
+    --background: 210 30% 98%; /* A very light, almost white color for card backgrounds */
+    --foreground: 224 15% 18%;   /* Dark text for high contrast on light backgrounds */
     --card: 0 0% 100%;
     --card-foreground: 224 15% 18%; /* Dark text for cards */
     --popover: 0 0% 100%;
@@ -103,7 +103,6 @@
   }
   html.gradient body {
     background: linear-gradient(135deg, hsl(210, 22%, 32%), hsl(206, 70%, 54%)); /* #2c3e50 to #3498db */
-    @apply text-card-foreground;
   }
   html, body {
     transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
