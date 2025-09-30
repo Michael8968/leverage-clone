@@ -36,6 +36,7 @@ import { getUploadUrlForMediaAsset, analyzeMediaAsset } from '@/ai/flows/multimo
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Papa from 'papaparse';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 // =================================================================
@@ -476,6 +477,7 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
 
     const handleAnalyzeImage = async (image: ProductImage, index: number) => {
         if (!image.mediaAssetId || !user) {
+            // This case should be prevented by a disabled button, but as a safeguard:
             toast({ title: '错误', description: '图片资源ID无效或用户未登录。请先上传图片。', variant: 'destructive' });
             return;
         }
@@ -562,16 +564,31 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
                     </SelectContent>
                   </Select>
                 </div>
-                 <Button 
-                    variant="link" 
-                    size="sm" 
-                    className="w-full gap-2"
-                    onClick={() => handleAnalyzeImage(image, index)}
-                    disabled={analyzingIndex === index || !image.mediaAssetId}
-                 >
-                   {analyzingIndex === index ? <Loader2 className="w-4 h-4 animate-spin"/> : <BrainCircuit className="w-4 h-4"/>}
-                    AI分析与建议
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      {/* The TooltipTrigger needs a child that can accept a ref. A div wrapper works well. */}
+                      <div>
+                        <Button 
+                            variant="link" 
+                            size="sm" 
+                            className="w-full gap-2"
+                            onClick={() => handleAnalyzeImage(image, index)}
+                            disabled={analyzingIndex === index || !image.mediaAssetId}
+                        >
+                          {analyzingIndex === index ? <Loader2 className="w-4 h-4 animate-spin"/> : <BrainCircuit className="w-4 h-4"/>}
+                            AI分析与建议
+                        </Button>
+                      </div>
+                    </TooltipTrigger>
+                    {!image.mediaAssetId && (
+                      <TooltipContent>
+                        <p>请先上传图片，才能使用AI分析功能。</p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
+
                 {analysisResult && analysisResult.index === index && (
                     <Alert>
                         <AlertTitle className="flex items-center gap-2"><BrainCircuit className="w-4 h-4"/> AI分析结果</AlertTitle>
