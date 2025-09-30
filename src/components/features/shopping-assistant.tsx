@@ -263,7 +263,7 @@ export function ShoppingAssistant() {
     const hasAiResponse = messages.some(m => m.type === 'ai');
 
     return (
-        <div className="relative flex h-[calc(100vh-57px)] md:h-screen flex-col p-4 md:p-8 overflow-hidden">
+        <div className="relative flex min-h-[calc(100vh-57px)] md:min-h-screen flex-col p-4 md:p-8">
             <DynamicVideoBackground />
             <div className="relative z-10">
                 {upcomingAppointments.length > 0 && (
@@ -286,11 +286,11 @@ export function ShoppingAssistant() {
                     <h1 className="text-2xl font-headline font-bold text-white shadow-black [text-shadow:_0_1px_10px_var(--tw-shadow-color)]">欢迎光临 Leverage 力维利治</h1>
                     <p className="text-gray-200 mt-1 shadow-black [text-shadow:_0_1px_3px_var(--tw-shadow-color)]">与AI导购对话,发现为您量身推荐的独特设计,部分商品更支持个性化定制。</p>
                 </div>
-                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 min-h-0">
+                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1">
                     <div className="lg:col-span-2 flex flex-col">
-                        <Card className="flex-1 flex flex-col overflow-hidden bg-card/80 backdrop-blur-sm">
+                        <Card className="flex-1 flex flex-col bg-card/80 backdrop-blur-sm">
                             <CardHeader><CardTitle className="font-headline flex items-center gap-2"><Bot/> AI购物助手</CardTitle><CardDescription>您好,我是您的专属购物助手。请问您在寻找什么?</CardDescription></CardHeader>
-                            <CardContent className="flex-1 min-h-0"><ScrollArea className="h-full" ref={scrollAreaRef}><div className="space-y-6 pr-4">
+                            <CardContent className="flex-1 overflow-y-auto"><ScrollArea className="h-full" ref={scrollAreaRef}><div className="space-y-6 pr-4">
                                 {messages.length > 0 && messages.map((msg) => {
                                     if (msg.type === 'user') return <UserMessage key={msg.id} {...msg} />;
                                     if (msg.type === 'ai') return <AIMessage key={msg.id} {...msg} />;
@@ -409,6 +409,8 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
         </TooltipProvider>
     </CardFooter>
 </Card>))}</div></div> );
+
+    
 
     
 
