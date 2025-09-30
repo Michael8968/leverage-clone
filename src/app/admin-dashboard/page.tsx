@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -15,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 
 
-import { Edit, Trash2, Loader2, PlusCircle, Frown, Bot, TestTube2, KeyRound, Settings2, Star, Globe, Link, ChevronsUpDown, Check, Circle } from 'lucide-react';
+import { Edit, Trash2, Loader2, PlusCircle, Frown, Bot, TestTube2, KeyRound, Settings2, Star, Globe, Link, ChevronsUpDown, Check, Circle, RefreshCw } from 'lucide-react';
 import { useEffect, useState, useMemo, useCallback, useTransition } from 'react';
 import { collection, getDocs, query, orderBy, doc, updateDoc, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -27,7 +25,7 @@ import * as z from 'zod';
 import { useAuthStore } from '@/store/auth';
 import { useRouter } from 'next/navigation';
 
-import { getPlatformAssets } from '@/ai/flows/admin-management-flows';
+import { getPlatformAssets, updateModelsFromLiteLLM } from '@/ai/flows/admin-management-flows';
 import type { LlmConnection } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -329,6 +327,8 @@ export default function AdminDashboardPage() {
     const [isFormVisible, setIsFormVisible] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<LlmConnection | null>(null);
     const [testingId, setTestingId] = useState<string | null>(null);
+    const [isUpdatingFromLiteLLM, setIsUpdatingFromLiteLLM] = useState(false);
+
 
     const { toast } = useToast();
     const { user, role, isLoading: isAuthLoading } = useAuthStore();
@@ -421,6 +421,23 @@ export default function AdminDashboardPage() {
         setIsFormVisible(false);
         setSelectedLlm(null);
     };
+
+    const handleUpdateFromLiteLLM = async () => {
+        setIsUpdatingFromLiteLLM(true);
+        try {
+            const result = await updateModelsFromLiteLLM(null);
+            toast({
+                title: result.failed > 0 ? "同步部分成功" : "同步成功",
+                description: result.message,
+                variant: result.failed > 0 ? "default" : "default",
+            });
+            fetchLlms();
+        } catch (error: any) {
+            toast({ title: '同步失败', description: error.message, variant: 'destructive' });
+        } finally {
+            setIsUpdatingFromLiteLLM(false);
+        }
+    };
     
     // --- AUTH & RENDER ---
     useEffect(() => { if (!isAuthLoading && !user) { router.push('/login'); } }, [user, isAuthLoading, router]);
@@ -441,7 +458,13 @@ export default function AdminDashboardPage() {
                              <CardHeader>
                                 <div className="flex justify-between items-center">
                                     <CardTitle className="font-headline">已配置模型</CardTitle>
-                                    <Button onClick={handleAddNew}><PlusCircle className="mr-2"/> 添加新连接</Button>
+                                    <div className="flex items-center gap-2">
+                                         <Button variant="outline" onClick={handleUpdateFromLiteLLM} disabled={isUpdatingFromLiteLLM}>
+                                            {isUpdatingFromLiteLLM ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4"/>}
+                                            从 LiteLLM 更新
+                                        </Button>
+                                        <Button onClick={handleAddNew}><PlusCircle className="mr-2"/> 添加新连接</Button>
+                                    </div>
                                 </div>
                              </CardHeader>
                             <CardContent>

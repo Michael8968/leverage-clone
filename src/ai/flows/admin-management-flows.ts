@@ -1,9 +1,8 @@
-
 'use server';
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { collection, query, where, getDocs, orderBy, limit, doc, updateDoc, addDoc, serverTimestamp, getDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit, doc, updateDoc, addDoc, serverTimestamp, getDoc, Timestamp, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { LlmConnection, Prompt } from '@/lib/types';
 
@@ -18,7 +17,7 @@ const PLATFORM_ASSETS = {
         { 
             providerName: "LiteLLM", 
             models: ["groq/llama3-70b-8192", "ollama/llama3", "anthropic/claude-3-haiku-20240307"], 
-            apiBaseUrl: process.env.LITELLM_PROXY_URL || "http://localhost:4000" 
+            apiBaseUrl: process.env.LITELLM_PROXY_URL || "http://localhost:4000/v1" 
         },
     ]
 };
@@ -126,7 +125,6 @@ export const testLlmConnection = ai.defineFlow(
     }
 );
 
-
 // Get Prompts Flow
 const PromptSchema = z.object({
   id: z.string(),
@@ -161,3 +159,97 @@ export const getPrompts = ai.defineFlow(
   }
 );
 
+// =================================================================
+// Flow to update models from LiteLLM (NEW)
+// =================================================================
+const UpdateModelsOutputSchema = z.object({
+  added: z.number(),
+  skipped: z.number(),
+  failed: z.number(),
+  message: z.string(),
+});
+
+export const updateModelsFromLiteLLM = ai.defineFlow(
+  {
+    name: 'updateModelsFromLiteLLM',
+    inputSchema: z.null().optional(),
+    outputSchema: UpdateModelsOutputSchema,
+  },
+  async () => {
+    let added = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    try {
+      const liteLlmProvider = PLATFORM_ASSETS.providers.find(p => p.providerName === 'LiteLLM');
+      if (!liteLlmProvider) {
+        throw new Error('LiteLLM provider not configured in PLATFORM_ASSETS.');
+      }
+      
+      const modelsUrl = `${liteLlmProvider.apiBaseUrl.replace('/v1', '')}/v1/models`;
+      
+      const response = await fetch(modelsUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch models from LiteLLM: ${response.statusText}`);
+      }
+
+      const modelsData = await response.json();
+      const liteLlmModels = modelsData.data;
+
+      if (!liteLlmModels || !Array.isArray(liteLlmModels)) {
+        throw new Error('Invalid data structure received from LiteLLM /models endpoint.');
+      }
+
+      const connectionsRef = collection(db, 'llm_connections');
+      const q = query(connectionsRef, where('provider', '==', 'LiteLLM'));
+      const existingSnapshot = await getDocs(q);
+      const existingModels = new Set(existingSnapshot.docs.map(doc => doc.data().modelName));
+      
+      const batch = writeBatch(db);
+      
+      for (const model of liteLlmModels) {
+        if (!model.id) {
+          failed++;
+          continue;
+        }
+
+        if (existingModels.has(model.id)) {
+          skipped++;
+        } else {
+          const newModelRef = doc(connectionsRef);
+          batch.set(newModelRef, {
+            provider: 'LiteLLM',
+            modelName: model.id,
+            apiKey: 'NA', // API key is managed by the proxy, not needed here
+            priority: 50,
+            status: '活跃',
+            scope: '通用',
+            category: '文本', // Default category
+            lastTestStatus: 'untested',
+            lastTestTimestamp: null,
+            createdAt: serverTimestamp(),
+          });
+          added++;
+        }
+      }
+
+      await batch.commit();
+
+      return {
+        added,
+        skipped,
+        failed,
+        message: `同步完成。新增 ${added} 个模型，跳过 ${skipped} 个已存在的模型。`,
+      };
+
+    } catch (error: any) {
+      console.error('Error updating models from LiteLLM:', error);
+      return {
+        added: 0,
+        skipped: 0,
+        failed,
+        message: `同步失败: ${error.message}`,
+      };
+    }
+  }
+);
