@@ -1,7 +1,7 @@
 import { AppLayout } from '@/components/app-layout';
 import { UserManagementClient } from '@/components/features/user-management-client';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, Timestamp, doc, getDoc } from 'firebase/firestore';
 import type { User } from '@/lib/types';
 import { Frown } from 'lucide-react';
 import { auth } from '@/lib/firebase-admin';
@@ -36,7 +36,15 @@ async function getCurrentUser() {
         const decodedToken = await auth.verifySessionCookie(sessionCookie, true);
         const userDoc = await getDoc(doc(db, 'users', decodedToken.uid));
         if (userDoc.exists()) {
-             return { uid: userDoc.id, ...userDoc.data() } as User;
+             const data = userDoc.data();
+             // **CRITICAL FIX**: Serialize all Timestamp objects before returning from Server Component.
+             return {
+                uid: userDoc.id,
+                ...data,
+                createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : null,
+                last_level_check: data.last_level_check instanceof Timestamp ? data.last_level_check.toDate().toISOString() : null,
+                signup_date: data.signup_date instanceof Timestamp ? data.signup_date.toDate().toISOString() : null,
+             } as User;
         }
         return null;
     } catch (error) {
@@ -68,6 +76,7 @@ function RestrictedAccess() {
 }
 
 export default async function PermissionsPage() {
+    // Fetching data on the server
     const initialUsers = await getUsers();
     const currentUser = await getCurrentUser();
 
@@ -78,6 +87,7 @@ export default async function PermissionsPage() {
     return (
         <AppLayout>
             <Suspense fallback={<PermissionsPageSkeleton />}>
+                {/* Passing serialized data to the Client Component */}
                 <UserManagementClient initialUsers={initialUsers} currentUser={currentUser} />
             </Suspense>
         </AppLayout>
