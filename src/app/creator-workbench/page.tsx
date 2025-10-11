@@ -1,3 +1,4 @@
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -1105,7 +1106,7 @@ function BillingHistoryDialog({ open, onOpenChange }: { open: boolean, onOpenCha
                         </TableHeader>
                         <TableBody>
                             {isLoading ? <TableRow><TableCell colSpan={4} className="text-center"><Loader2 className="animate-spin mx-auto"/></TableCell></TableRow> 
-                            : transactions.length === 0 ? <TableRow><TableCell colSpan={4} className="text-center h-24">暂无记录</TableCell></TableRow>
+                            : transactions.length === 0 ? <TableRow><TableCell colSpan={4} className="text-center h-24">暂无记录</TableCell></TableRow> 
                             : transactions.map(tx => (
                                 <TableRow key={tx.id}>
                                     <TableCell><Badge variant="outline">{tx.type}</Badge></TableCell>
@@ -1176,7 +1177,7 @@ function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, is
     
     const handleDayToggle = (day: DayOfWeek) => {
         const currentDays = rule.conditions.daysOfWeek || [];
-        const newDays = currentDays.includes(day) ? currentDays.filter(d => d !== day) : [...prev, day];
+        const newDays = currentDays.includes(day) ? currentDays.filter(d => d !== day) : [...currentDays, day];
         handleConditionChange('daysOfWeek', newDays);
     };
     
@@ -1202,8 +1203,7 @@ function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, is
     };
     
     const renderActionContent = () => {
-        switch (rule.action.type) {
-          case 'use_prompt':
+        if (rule.action.type === 'use_prompt') {
             return (
               <div className="space-y-2">
                 <Label>选择AI助理能力 (提示词)</Label>
@@ -1229,13 +1229,12 @@ function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, is
                 </Select>
               </div>
             );
-          default:
-            return null;
         }
-      };
+        return null;
+    };
 
     return (
-         <AlertDialog open={open} onOpenChange={onOpenChange}>
+        <AlertDialog open={open} onOpenChange={onOpenChange}>
             <AlertDialogContent className="sm:max-w-2xl">
                 <AlertDialogHeader>
                     <AlertDialogTitle className="font-headline">{isEditing ? '编辑助理规则' : '新增助理规则'}</AlertDialogTitle>
