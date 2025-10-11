@@ -161,7 +161,7 @@ const clarifyDemandDetailsFlow = ai.defineFlow(
             // If a creator-specific prompt is found, use it. Otherwise, fall back to the platform scenario.
             promptKey: promptKeyToUse,
             scenario: promptKeyToUse ? undefined : 'chat-assistant',
-            userId: input.userId,
+            userId: input.creatorId, // ** The creator's points should be deducted for their assistant's work **
             messages: [{ role: 'user', content: userContent }],
         });
 
@@ -174,7 +174,12 @@ const clarifyDemandDetailsFlow = ai.defineFlow(
         }
         
         return { clarification: result.text };
-    } catch (error) {
+    } catch (error: any) {
+        // If it's a points error, re-throw it to be displayed to the user.
+        if (error.message.includes("积分余额不足")) {
+            throw error;
+        }
+
         console.warn("AI Assistant failed or requested handoff. Initiating intelligent routing.", error);
 
         const latestUserMessage = input.chatHistory.filter(m => !m.isAIMessage).pop()?.text || input.demandDescription;
