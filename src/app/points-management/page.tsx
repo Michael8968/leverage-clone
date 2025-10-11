@@ -402,8 +402,8 @@ function ManualGrantForm({ onSuccessfulGrant }: { onSuccessfulGrant: () => void 
                     toast({ title: "赋分成功", description: `已成功为 ${result.userCount} 位用户增加了 ${pointsAmount} 积分。` });
                     onSuccessfulGrant();
                     
-                    // Check if current user is affected and update global state
-                    if (currentUser && (!targetRoles.length || targetRoles.includes(currentUser.role)) && (!targetRatings.length || (currentUser.rating && targetRatings.includes(currentUser.rating)))) {
+                    // After a successful grant, refetch the current user's data to update the UI.
+                    if (currentUser) {
                         const userDocRef = doc(db, 'users', currentUser.uid);
                         const userDocSnap = await getDoc(userDocRef);
                         if (userDocSnap.exists()) {
