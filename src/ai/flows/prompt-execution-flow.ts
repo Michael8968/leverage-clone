@@ -5,7 +5,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { doc, getDoc, collection, query, where, getDocs, orderBy, limit, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { LlmConnection, AIScenario, User, Prompt, PointsTransaction } from '@/lib/types';
+import type { LlmConnection, AIScenario, User, Prompt, PointsTransaction, TokenConversionConfig } from '@/lib/types';
 import { getPlatformAssets } from './admin-management-flows';
 import { differenceInMonths } from 'date-fns';
 
@@ -131,74 +131,79 @@ const executePromptFlow = ai.defineFlow(
     // Points Deduction & User Level Check Logic
     // =================================================================
     if (userId) {
-        const userRef = doc(db, 'users', userId);
-        const userSnap = await getDoc(userRef);
+        const systemConfigDoc = await getDoc(doc(db, 'configs', 'system'));
+        if (systemConfigDoc.exists() && systemConfigDoc.data().enable_points === false) {
+             // Points system is disabled, skip deduction.
+        } else {
+            const userRef = doc(db, 'users', userId);
+            const userSnap = await getDoc(userRef);
 
-        if (userSnap.exists()) {
-            let user = userSnap.data() as User;
+            if (userSnap.exists()) {
+                let user = userSnap.data() as User;
 
-            // Admins are exempt from point deductions
-            if (user.role !== 'admin') {
-                // In a real system, cost would be dynamically determined. Here, we use a default.
-                const cost = 1;
+                // Admins are exempt from point deductions
+                if (user.role !== 'admin') {
+                    const actionKey = scenario || promptKey || 'generic';
+                    const tokenConfigDoc = await getDoc(doc(db, 'configs', 'token_conversion'));
+                    const tokenConfig = tokenConfigDoc.exists() ? tokenConfigDoc.data() as TokenConversionConfig : { actions: {} };
+                    const cost = tokenConfig.actions[actionKey] || 1; // Default cost is 1 if not specified
 
-                if ((user.points_balance || 0) < cost) {
-                    throw new Error("积分余额不足，请充值后再试。");
+                    if ((user.points_balance || 0) < cost) {
+                        throw new Error("积分余额不足，请充值后再试。");
+                    }
+
+                    // Use a transaction to deduct points and log the transaction atomically.
+                    await runTransaction(db, async (transaction) => {
+                        const freshUserSnap = await transaction.get(userRef);
+                        if (!freshUserSnap.exists()) throw new Error("User not found.");
+                        const freshUser = freshUserSnap.data() as User;
+
+                        const newBalance = (freshUser.points_balance || 0) - cost;
+                        if (newBalance < 0) throw new Error("积分余额不足。");
+                        
+                        const newTotalCalls = (freshUser.total_llm_calls || 0) + 1;
+
+                        transaction.update(userRef, { 
+                            points_balance: newBalance,
+                            total_llm_calls: newTotalCalls,
+                        });
+
+                        const transactionRef = doc(collection(db, 'points_transactions'));
+                        const newTransaction: PointsTransaction = {
+                            id: transactionRef.id,
+                            uid: userId,
+                            type: 'deduct',
+                            amount: -cost,
+                            reason: `AI Call: ${actionKey}`,
+                            timestamp: serverTimestamp(),
+                            llm_action: actionKey
+                        }
+                        transaction.set(transactionRef, newTransaction);
+                        
+                        // Update user object for level check after transaction
+                        user.points_balance = newBalance;
+                        user.total_llm_calls = newTotalCalls;
+                    });
                 }
 
-                // Use a transaction to deduct points and log the transaction atomically.
-                await runTransaction(db, async (transaction) => {
-                    const freshUserSnap = await transaction.get(userRef);
-                    if (!freshUserSnap.exists()) throw new Error("User not found.");
-                    const freshUser = freshUserSnap.data() as User;
+                // After successful deduction, check for level up
+                const currentLevel = user.level || 'New';
+                const registrationDate = user.signup_date?.toDate ? user.signup_date.toDate() : new Date();
+                const monthsSinceSignup = differenceInMonths(new Date(), registrationDate);
+                const totalCalls = user.total_llm_calls || 0;
+                let newLevel = currentLevel;
 
-                    const newBalance = (freshUser.points_balance || 0) - cost;
-                    if (newBalance < 0) throw new Error("积分余额不足。");
-                    
-                    const newTotalCalls = (freshUser.total_llm_calls || 0) + 1;
+                if (currentLevel === 'New' && monthsSinceSignup >= 1 && totalCalls >= 100) {
+                    newLevel = 'Regular';
+                }
+                if (currentLevel !== 'Pro' && monthsSinceSignup >= 6 && totalCalls >= 500) {
+                    newLevel = 'Pro';
+                }
 
-                    transaction.update(userRef, { 
-                        points_balance: newBalance,
-                        total_llm_calls: newTotalCalls,
-                    });
-
-                    const transactionRef = doc(collection(db, 'points_transactions'));
-                    const newTransaction: PointsTransaction = {
-                        id: transactionRef.id,
-                        uid: userId,
-                        type: 'deduct',
-                        amount: -cost,
-                        reason: `AI Call: ${scenario || promptKey || 'generic'}`,
-                        timestamp: serverTimestamp(),
-                        llm_action: scenario || promptKey || 'generic'
-                    }
-                    transaction.set(transactionRef, newTransaction);
-                    
-                    // Update user object for level check after transaction
-                    user.points_balance = newBalance;
-                    user.total_llm_calls = newTotalCalls;
-                });
-            }
-
-            // After successful deduction, check for level up
-            const currentLevel = user.level || 'New';
-            const registrationDate = user.signup_date?.toDate ? user.signup_date.toDate() : new Date();
-            const monthsSinceSignup = differenceInMonths(new Date(), registrationDate);
-            const totalCalls = user.total_llm_calls || 0;
-            let newLevel = currentLevel;
-
-            if (currentLevel === 'New' && monthsSinceSignup >= 1 && totalCalls >= 100) {
-                newLevel = 'Regular';
-            }
-            if (currentLevel !== 'Pro' && monthsSinceSignup >= 6 && totalCalls >= 500) {
-                newLevel = 'Pro';
-            }
-
-            if (newLevel !== currentLevel) {
-                // In a real application, this would also trigger giving bonus points.
-                // For now, we just update the level.
-                await updateDoc(userRef, { level: newLevel, last_level_check: serverTimestamp() });
-                console.log(`User ${userId} promoted from ${currentLevel} to ${newLevel}.`);
+                if (newLevel !== currentLevel) {
+                    await updateDoc(userRef, { level: newLevel, last_level_check: serverTimestamp() });
+                    console.log(`User ${userId} promoted from ${currentLevel} to ${newLevel}.`);
+                }
             }
         }
     }
@@ -293,7 +298,7 @@ const executePromptFlow = ai.defineFlow(
                             outputText = responseData.candidates?.[0]?.content?.parts?.[0]?.text || '';
                             break;
                         default: // OpenAI-compatible response path
-                            outputText = responseData.choices?.[0].message?.content || '';
+                            outputText = responseData.choices?.[0]?.message?.content || '';
                             break;
                     }
                     
@@ -322,5 +327,3 @@ const executePromptFlow = ai.defineFlow(
     return { text: llmResponse.text() };
   }
 );
-
-    

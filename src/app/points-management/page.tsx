@@ -108,7 +108,7 @@ export default function PointsManagementPage() {
                 setDoc(doc(db, 'configs', 'role_gifts'), roleGifts),
                 setDoc(doc(db, 'configs', 'token_conversion'), tokenConversionConfig),
             ]);
-            toast({ title: '保存成功', description: '所有积分和支付配置已更新。' });
+            toast({ title: '保存成功', description: '所有积分和结算配置已更新。' });
         } catch (error) {
             console.error("Failed to save points configuration:", error);
             toast({ title: '保存失败', description: '更新配置时发生错误。', variant: 'destructive' });
@@ -207,7 +207,7 @@ export default function PointsManagementPage() {
                             </div>
                         </CardContent>
                     </Card>
-                    <Card>
+                    <Card className="lg:col-span-2">
                         <CardHeader>
                             <CardTitle>AI服务定价 (积分成本)</CardTitle>
                             <CardDescription>为系统中的不同AI功能设置独立的积分消耗值。</CardDescription>
@@ -229,7 +229,7 @@ export default function PointsManagementPage() {
                         </CardContent>
                     </Card>
 
-                    <div className="space-y-6">
+                    <div className="space-y-6 lg:col-span-2">
                         <Card>
                             <CardHeader>
                                 <CardTitle>新用户初始赠送积分</CardTitle>
