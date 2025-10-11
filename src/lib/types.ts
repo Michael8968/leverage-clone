@@ -357,3 +357,14 @@ export interface PointsConfig {
         [action: string]: PricingRule[]; // e.g. "shopping-assistant": [rule1, rule2]
     }
 }
+
+export interface BillingStatement {
+    id: string;
+    uid: string;
+    month: string; // YYYY-MM
+    totalConsumption: number;
+    transactions: PointsTransaction[];
+    invoice_status: '未开票' | '已开票' | '已作废';
+    invoice_id?: string;
+    generatedAt: any; // Firestore Timestamp
+}

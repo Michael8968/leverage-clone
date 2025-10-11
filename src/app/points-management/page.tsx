@@ -12,14 +12,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useToast } from '@/hooks/use-toast';
 import { useAuthStore, type Role } from '@/store/auth';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { Coins, Frown, Loader2, Save, PlusCircle, Edit, Trash2 } from 'lucide-react';
+import { doc, getDoc, setDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { Coins, Frown, Loader2, Save, PlusCircle, Edit, Trash2, Search, Calendar as CalendarIcon, Mail, FileText } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { PointsConfig, PricingRule } from '@/lib/types';
+import type { PointsConfig, PricingRule, PointsTransaction, User, BillingStatement } from '@/lib/types';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-
+import { DateRange } from "react-day-picker"
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { zhCN } from 'date-fns/locale';
 
 type SystemConfig = {
     enable_points: boolean;
@@ -70,6 +75,170 @@ function PricingRuleDialog({ open, onOpenChange, onSave, rule: initialRule }: {
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
+    );
+}
+
+// New Component for Billing and Invoicing
+function BillingManagement() {
+    const [searchQuery, setSearchQuery] = useState('');
+    const [dateRange, setDateRange] = useState<DateRange | undefined>();
+    const [transactions, setTransactions] = useState<PointsTransaction[]>([]);
+    const [selectedUser, setSelectedUser] = useState<User | null>(null);
+    const [isSearching, setIsSearching] = useState(false);
+    const { toast } = useToast();
+
+    const handleSearch = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!searchQuery) {
+            toast({ title: '请输入搜索条件', description: '请输入用户的姓名或邮箱进行查询。', variant: 'destructive' });
+            return;
+        }
+
+        setIsSearching(true);
+        setTransactions([]);
+        setSelectedUser(null);
+        try {
+            const usersRef = collection(db, 'users');
+            const userQuery = query(usersRef, where('email', '==', searchQuery)); // Assuming search by email for now
+            const userSnapshot = await getDocs(userQuery);
+
+            if (userSnapshot.empty) {
+                toast({ title: '未找到用户', description: '未找到匹配该邮箱的用户。', variant: 'destructive'});
+                setIsSearching(false);
+                return;
+            }
+
+            const user = { ...userSnapshot.docs[0].data(), uid: userSnapshot.docs[0].id } as User;
+            setSelectedUser(user);
+            
+            let transactionsQuery = query(
+                collection(db, 'points_transactions'),
+                where('uid', '==', user.uid),
+                orderBy('timestamp', 'desc')
+            );
+            
+            if (dateRange?.from) {
+                transactionsQuery = query(transactionsQuery, where('timestamp', '>=', dateRange.from));
+            }
+            if (dateRange?.to) {
+                transactionsQuery = query(transactionsQuery, where('timestamp', '<=', dateRange.to));
+            }
+
+            const transactionsSnapshot = await getDocs(transactionsQuery);
+            const transactionsData = transactionsSnapshot.docs.map(doc => ({
+                ...doc.data(),
+                id: doc.id,
+            } as PointsTransaction));
+            setTransactions(transactionsData);
+
+        } catch (error) {
+            console.error(error);
+            toast({ title: '查询失败', description: '获取账单明细时发生错误。', variant: 'destructive' });
+        } finally {
+            setIsSearching(false);
+        }
+    };
+    
+    const handleActionClick = (actionType: 'statement' | 'invoice') => {
+        toast({
+            title: '功能开发中',
+            description: `“${actionType === 'statement' ? '发送对账单' : '开具发票'}”功能即将上线，敬请期待。`,
+        });
+    };
+    
+    const totalConsumption = transactions.reduce((acc, tx) => tx.amount < 0 ? acc + Math.abs(tx.amount) : acc, 0);
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>对账单与发票管理</CardTitle>
+                <CardDescription>查询用户的积分消耗明细，并管理对账单和发票。</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <form onSubmit={handleSearch} className="flex flex-col md:flex-row items-end gap-4 mb-6 p-4 border rounded-lg bg-muted/50">
+                    <div className="grid gap-2 flex-1 w-full">
+                        <Label htmlFor="user-search">用户邮箱</Label>
+                        <Input id="user-search" placeholder="输入用户邮箱进行精确查询..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                    </div>
+                     <div className="grid gap-2 w-full md:w-auto">
+                        <Label htmlFor="date-range">日期范围</Label>
+                         <Popover>
+                            <PopoverTrigger asChild>
+                            <Button
+                                id="date"
+                                variant={"outline"}
+                                className={cn(
+                                "w-full md:w-[300px] justify-start text-left font-normal",
+                                !dateRange && "text-muted-foreground"
+                                )}
+                            >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {dateRange?.from ? (
+                                dateRange.to ? (
+                                    <>
+                                    {format(dateRange.from, "y-MM-dd")} -{" "}
+                                    {format(dateRange.to, "y-MM-dd")}
+                                    </>
+                                ) : (
+                                    format(dateRange.from, "y-MM-dd")
+                                )
+                                ) : (
+                                <span>选择日期范围</span>
+                                )}
+                            </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                                initialFocus
+                                mode="range"
+                                defaultMonth={dateRange?.from}
+                                selected={dateRange}
+                                onSelect={setDateRange}
+                                numberOfMonths={2}
+                                locale={zhCN}
+                            />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+                    <Button type="submit" disabled={isSearching} className="w-full md:w-auto">
+                        {isSearching ? <Loader2 className="animate-spin mr-2" /> : <Search className="mr-2" />}
+                        查询
+                    </Button>
+                </form>
+                
+                {selectedUser && (
+                    <div>
+                         <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-semibold">
+                                {selectedUser.name} ({selectedUser.email}) 的账单明细
+                            </h3>
+                             {transactions.length > 0 && <p className="text-sm text-muted-foreground">范围内总消耗: <span className="font-bold text-red-500">{totalConsumption.toLocaleString()}</span> 积分</p>}
+                         </div>
+                        <Table>
+                            <TableHeader><TableRow><TableHead>类型</TableHead><TableHead>金额</TableHead><TableHead>原因</TableHead><TableHead>时间</TableHead></TableRow></TableHeader>
+                            <TableBody>
+                                {isSearching ? <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow> 
+                                : transactions.length === 0 ? <TableRow><TableCell colSpan={4} className="h-24 text-center">在此时间范围内无记录。</TableCell></TableRow> 
+                                : transactions.map(tx => (
+                                    <TableRow key={tx.id}>
+                                        <TableCell><Badge variant="outline">{tx.type}</Badge></TableCell>
+                                        <TableCell className={cn(tx.amount > 0 ? "text-green-600" : "text-red-600")}>{tx.amount > 0 ? '+' : ''}{tx.amount}</TableCell>
+                                        <TableCell>{tx.reason}</TableCell>
+                                        <TableCell className="text-xs text-muted-foreground">{tx.timestamp ? format(tx.timestamp.toDate(), 'yyyy-MM-dd HH:mm') : 'N/A'}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                         {transactions.length > 0 && (
+                            <div className="flex justify-end gap-2 mt-4">
+                                <Button variant="outline" onClick={() => handleActionClick('statement')}><Mail className="mr-2"/>发送对账单</Button>
+                                <Button onClick={() => handleActionClick('invoice')}><FileText className="mr-2"/>开具并发票</Button>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </CardContent>
+        </Card>
     );
 }
 
@@ -325,6 +494,9 @@ export default function PointsManagementPage() {
                         </Table>
                     </CardContent>
                 </Card>
+
+                <BillingManagement />
+
                  <Card>
                     <CardHeader>
                         <CardTitle>新用户初始赠送积分</CardTitle>
