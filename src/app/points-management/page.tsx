@@ -13,11 +13,12 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuthStore } from '@/store/auth';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { Coins, Frown, Loader2, Save } from 'lucide-react';
+import { Coins, Frown, Loader2, Save, PlusCircle, Edit, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { TokenConversionConfig } from '@/lib/types';
+import type { PointsConfig, PricingRule } from '@/lib/types';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 
 type SystemConfig = {
@@ -47,6 +48,31 @@ const ALL_ACTIONS = [
     'data-analysis'
 ];
 
+function PricingRuleDialog({ open, onOpenChange, onSave, rule: initialRule }: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onSave: (rule: PricingRule) => void;
+    rule: PricingRule | null;
+}) {
+    // This is a placeholder for the full rule dialog implementation
+    return (
+        <AlertDialog open={open} onOpenChange={onOpenChange}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>{initialRule ? '编辑定价规则' : '新增定价规则'}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        此功能正在开发中。您将能够在这里为特定的时间、用户和场景设置详细的计费规则。
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>取消</AlertDialogCancel>
+                    <AlertDialogAction>保存</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+}
+
 export default function PointsManagementPage() {
     const { role, isLoading: isAuthLoading } = useAuthStore();
     const router = useRouter();
@@ -55,35 +81,43 @@ export default function PointsManagementPage() {
     const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
     const [pricingConfig, setPricingConfig] = useState<PricingConfig | null>(null);
     const [roleGifts, setRoleGifts] = useState<RoleGiftsConfig | null>(null);
-    const [tokenConversionConfig, setTokenConversionConfig] = useState<TokenConversionConfig | null>(null);
-
+    const [pointsConfig, setPointsConfig] = useState<PointsConfig | null>(null);
 
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    
+    // State for the new dialog
+    const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
+    const [currentRule, setCurrentRule] = useState<PricingRule | null>(null);
+    const [currentAction, setCurrentAction] = useState<string | null>(null);
+
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
-            const [systemDoc, pricingDoc, roleGiftsDoc, tokenDoc] = await Promise.all([
+            const [systemDoc, pricingDoc, roleGiftsDoc, pointsDoc] = await Promise.all([
                 getDoc(doc(db, 'configs', 'system')),
                 getDoc(doc(db, 'configs', 'pricing')),
                 getDoc(doc(db, 'configs', 'role_gifts')),
-                getDoc(doc(db, 'configs', 'token_conversion')),
+                getDoc(doc(db, 'configs', 'points')),
             ]);
 
             setSystemConfig(systemDoc.exists() ? (systemDoc.data() as SystemConfig) : { enable_points: true, enable_payments: true, pro_monthly_bonus: 10000, min_balance_for_llm: 0 });
             setPricingConfig(pricingDoc.exists() ? (pricingDoc.data() as PricingConfig) : { points_per_rmb: 100, min_recharge_rmb: 10 });
             setRoleGifts(roleGiftsDoc.exists() ? (roleGiftsDoc.data() as RoleGiftsConfig) : { 'user_new': 5000, 'creator_pro': 30000 });
             
-            const fetchedTokenConfig = tokenDoc.exists() ? (tokenDoc.data() as TokenConversionConfig) : { base_tokens_per_point: 1000, actions: {} };
+            const fetchedPointsConfig = pointsDoc.exists() ? (pointsDoc.data() as PointsConfig) : { defaultPricing: {}, rules: {} };
             
-            // Ensure all system actions are present in the config, adding them with a default value if not.
+            // Ensure all system actions have a default price
             ALL_ACTIONS.forEach(action => {
-                if (!fetchedTokenConfig.actions.hasOwnProperty(action)) {
-                    fetchedTokenConfig.actions[action] = 1; // Default to 1 point if not set
+                if (!fetchedPointsConfig.defaultPricing.hasOwnProperty(action)) {
+                    fetchedPointsConfig.defaultPricing[action] = 1; // Default to 1 point
+                }
+                 if (!fetchedPointsConfig.rules.hasOwnProperty(action)) {
+                    fetchedPointsConfig.rules[action] = []; // Default to empty rules array
                 }
             });
-            setTokenConversionConfig(fetchedTokenConfig);
+            setPointsConfig(fetchedPointsConfig);
 
         } catch (error) {
             console.error("Failed to fetch points configuration:", error);
@@ -106,7 +140,7 @@ export default function PointsManagementPage() {
                 setDoc(doc(db, 'configs', 'system'), systemConfig),
                 setDoc(doc(db, 'configs', 'pricing'), pricingConfig),
                 setDoc(doc(db, 'configs', 'role_gifts'), roleGifts),
-                setDoc(doc(db, 'configs', 'token_conversion'), tokenConversionConfig),
+                setDoc(doc(db, 'configs', 'points'), pointsConfig),
             ]);
             toast({ title: '保存成功', description: '所有积分和结算配置已更新。' });
         } catch (error) {
@@ -124,14 +158,57 @@ export default function PointsManagementPage() {
         }
     }
     
-    const handleActionCostChange = (action: string, value: string) => {
+    const handleDefaultPriceChange = (action: string, value: string) => {
         const numValue = parseInt(value, 10);
         if (!isNaN(numValue)) {
-            setTokenConversionConfig(prev => ({
+            setPointsConfig(prev => ({
                 ...prev!,
-                actions: { ...prev!.actions, [action]: numValue }
+                defaultPricing: { ...prev!.defaultPricing, [action]: numValue }
             }));
         }
+    };
+
+    const handleAddRule = (action: string) => {
+        setCurrentAction(action);
+        setCurrentRule(null);
+        setIsRuleDialogOpen(true);
+    };
+
+    const handleEditRule = (action: string, rule: PricingRule) => {
+        setCurrentAction(action);
+        setCurrentRule(rule);
+        setIsRuleDialogOpen(true);
+    };
+    
+    const handleDeleteRule = (action: string, ruleId: string) => {
+        setPointsConfig(prev => {
+            if (!prev) return null;
+            const newRulesForAction = (prev.rules[action] || []).filter(r => r.id !== ruleId);
+            return {
+                ...prev,
+                rules: { ...prev.rules, [action]: newRulesForAction }
+            };
+        });
+    };
+    
+    const handleSaveRule = (rule: PricingRule) => {
+        if (!currentAction) return;
+        setPointsConfig(prev => {
+            if (!prev) return null;
+            const rulesForAction = prev.rules[currentAction] || [];
+            const existingIndex = rulesForAction.findIndex(r => r.id === rule.id);
+            let newRules;
+            if (existingIndex > -1) {
+                newRules = [...rulesForAction];
+                newRules[existingIndex] = rule;
+            } else {
+                newRules = [...rulesForAction, rule];
+            }
+            return {
+                ...prev,
+                rules: { ...prev.rules, [currentAction]: newRules }
+            };
+        });
     };
 
     if (isAuthLoading) {
@@ -207,57 +284,73 @@ export default function PointsManagementPage() {
                             </div>
                         </CardContent>
                     </Card>
-                    <Card className="lg:col-span-2">
-                        <CardHeader>
-                            <CardTitle>AI服务定价 (积分成本)</CardTitle>
-                            <CardDescription>为系统中的不同AI功能设置独立的积分消耗值。</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <Table>
-                                <TableHeader><TableRow><TableHead>AI服务 (Action)</TableHead><TableHead>消耗积分</TableHead></TableRow></TableHeader>
-                                <TableBody>
-                                    {tokenConversionConfig && ALL_ACTIONS.map((action) => (
-                                        <TableRow key={action}>
-                                            <TableCell className="font-mono">{action}</TableCell>
-                                            <TableCell>
-                                                <Input type="number" value={tokenConversionConfig.actions[action] || 1} className="max-w-xs" onChange={e => handleActionCostChange(action, e.target.value)} />
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-
-                    <div className="space-y-6 lg:col-span-2">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>新用户初始赠送积分</CardTitle>
-                                <CardDescription>为不同角色和级别的用户设置注册时自动赠送的积分数量。</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>角色_级别</TableHead>
-                                            <TableHead>赠送积分</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {roleGifts && Object.entries(roleGifts).map(([key, value]) => (
-                                            <TableRow key={key}>
-                                                <TableCell className="font-mono">{key}</TableCell>
-                                                <TableCell>
-                                                    <Input type="number" value={value} className="max-w-xs" onChange={e => handleRoleGiftChange(key, e.target.value)} />
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </CardContent>
-                        </Card>
-                    </div>
                 </div>
+                 <Card className="lg:col-span-2">
+                    <CardHeader>
+                        <CardTitle>AI服务定价</CardTitle>
+                        <CardDescription>为系统中的不同AI功能设置默认的积分消耗值，并可为其添加带有复杂条件的优先计费规则。</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <Table>
+                            <TableHeader><TableRow><TableHead>AI服务 (Action)</TableHead><TableHead>默认成本(积分)</TableHead><TableHead>优先计费规则</TableHead><TableHead className="text-right">操作</TableHead></TableRow></TableHeader>
+                            <TableBody>
+                                {pointsConfig && ALL_ACTIONS.map((action) => (
+                                    <TableRow key={action}>
+                                        <TableCell className="font-mono">{action}</TableCell>
+                                        <TableCell>
+                                            <Input type="number" value={pointsConfig.defaultPricing[action] || 1} className="w-24" onChange={e => handleDefaultPriceChange(action, e.target.value)} />
+                                        </TableCell>
+                                        <TableCell>
+                                            {(pointsConfig.rules[action] || []).length > 0 ? (
+                                                <div className="flex flex-wrap gap-1">
+                                                    {(pointsConfig.rules[action] || []).map(rule => (
+                                                        <Button key={rule.id} variant="outline" size="xs" onClick={() => handleEditRule(action, rule)}>
+                                                            {rule.name}
+                                                        </Button>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <span className="text-xs text-muted-foreground">无优先规则</span>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                             <Button variant="ghost" size="sm" onClick={() => handleAddRule(action)}>
+                                                <PlusCircle className="mr-2 h-4 w-4" />
+                                                添加规则
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>新用户初始赠送积分</CardTitle>
+                        <CardDescription>为不同角色和级别的用户设置注册时自动赠送的积分数量。</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>角色_级别</TableHead>
+                                    <TableHead>赠送积分</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {roleGifts && Object.entries(roleGifts).map(([key, value]) => (
+                                    <TableRow key={key}>
+                                        <TableCell className="font-mono">{key}</TableCell>
+                                        <TableCell>
+                                            <Input type="number" value={value} className="max-w-xs" onChange={e => handleRoleGiftChange(key, e.target.value)} />
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
 
                  <div className="flex justify-end mt-8">
                      <Button size="lg" onClick={handleSave} disabled={isSaving}>
@@ -266,6 +359,13 @@ export default function PointsManagementPage() {
                     </Button>
                 </div>
             </div>
+            
+            <PricingRuleDialog 
+                open={isRuleDialogOpen}
+                onOpenChange={setIsRuleDialogOpen}
+                rule={currentRule}
+                onSave={handleSaveRule}
+            />
         </AppLayout>
     );
 }

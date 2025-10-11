@@ -328,9 +328,32 @@ export interface PaymentOrder {
     proof_url?: string; // GS path for bank transfer proof
 }
 
-export interface TokenConversionConfig {
-    base_tokens_per_point: number;
-    actions: {
+export type PricingRule = {
+    id: string;
+    name: string;
+    priority: number;
+    conditions: {
+        ruleLogic: 'and' | 'or';
+        repetition?: 'none' | 'daily' | 'weekly';
+        daysOfWeek?: ('mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun')[];
+        startTime?: string;
+        endTime?: string;
+        startsAt?: any;
+        expiresAt?: any;
+        targetUserRoles?: { [key in Role]?: number[] };
+    };
+    action: {
+        type: 'per_call' | 'per_minute' | 'free' | 'add' | 'subtract';
+        value: number; // For per_call, add, subtract
+        // per_minute is a placeholder for future implementation
+    };
+}
+
+export interface PointsConfig {
+    defaultPricing: {
         [key: string]: number; // e.g., "shopping-assistant": 1
     };
+    rules: {
+        [action: string]: PricingRule[]; // e.g. "shopping-assistant": [rule1, rule2]
+    }
 }
