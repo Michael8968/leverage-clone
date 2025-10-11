@@ -99,11 +99,19 @@ function BillingManagement() {
         setSelectedUser(null);
         try {
             const usersRef = collection(db, 'users');
-            const userQuery = query(usersRef, where('email', '==', searchQuery)); // Assuming search by email for now
-            const userSnapshot = await getDocs(userQuery);
+            // Allow search by email or name
+            const emailQuery = query(usersRef, where('email', '==', searchQuery));
+            const nameQuery = query(usersRef, where('name', '==', searchQuery));
+            
+            const [emailSnapshot, nameSnapshot] = await Promise.all([
+                getDocs(emailQuery),
+                getDocs(nameQuery),
+            ]);
+
+            const userSnapshot = !emailSnapshot.empty ? emailSnapshot : nameSnapshot;
 
             if (userSnapshot.empty) {
-                toast({ title: '未找到用户', description: '未找到匹配该邮箱的用户。', variant: 'destructive'});
+                toast({ title: '未找到用户', description: '未找到匹配该邮箱或姓名的用户。', variant: 'destructive'});
                 setIsSearching(false);
                 return;
             }
@@ -157,8 +165,8 @@ function BillingManagement() {
             <CardContent>
                 <form onSubmit={handleSearch} className="flex flex-col md:flex-row items-end gap-4 mb-6 p-4 border rounded-lg bg-muted/50">
                     <div className="grid gap-2 flex-1 w-full">
-                        <Label htmlFor="user-search">用户邮箱</Label>
-                        <Input id="user-search" placeholder="输入用户邮箱进行精确查询..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                        <Label htmlFor="user-search">用户邮箱或姓名</Label>
+                        <Input id="user-search" placeholder="输入用户邮箱或姓名进行精确查询..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                     </div>
                      <div className="grid gap-2 w-full md:w-auto">
                         <Label htmlFor="date-range">日期范围</Label>
@@ -454,7 +462,7 @@ export default function PointsManagementPage() {
                         </CardContent>
                     </Card>
                 </div>
-                 <Card className="lg:col-span-2">
+                 <Card>
                     <CardHeader>
                         <CardTitle>AI服务定价</CardTitle>
                         <CardDescription>为系统中的不同AI功能设置默认的积分消耗值，并可为其添加带有复杂条件的优先计费规则。</CardDescription>
