@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -619,8 +620,8 @@ function SubmissionsTab({ refreshKey }: { refreshKey: number }) {
                 const snapshot = await getDocs(q);
                 let subsList = snapshot.docs.map(doc => {
                     const data = doc.data();
-                    // Firestore Timestamps need to be converted to JS Date objects
-                    const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : null;
+                    // CRITICAL FIX: Ensure all Timestamp objects are serialized.
+                    const createdAt = data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(data.createdAt);
                     return { id: doc.id, ...data, createdAt } as ProductService;
                 });
                 
@@ -689,7 +690,7 @@ function SubmissionsTab({ refreshKey }: { refreshKey: number }) {
                                     <TableCell>{getStatusBadge(sub.status)}</TableCell>
                                     <TableCell>¥{sub.price.toLocaleString()}</TableCell>
                                     <TableCell className="text-muted-foreground text-xs">
-                                        {sub.createdAt ? formatDistanceToNow(sub.createdAt, { addSuffix: true, locale: zhCN }) : 'N/A'}
+                                        {sub.createdAt ? formatDistanceToNow(new Date(sub.createdAt), { addSuffix: true, locale: zhCN }) : 'N/A'}
                                     </TableCell>
                                 </TableRow>
                             ))
@@ -734,11 +735,20 @@ function ScheduleAndAssistantTab() {
             const availablePrompts = promptsData.prompts.filter(p => p.ownerType === 'platform' || p.ownerId === user.uid);
             setPrompts(availablePrompts);
 
-            // Fetch appointments with client-side sorting to avoid index requirement
+            // Fetch appointments
             const apptQuery = query(collection(db, 'appointments'), where("creatorId", "==", user.uid));
             const apptSnapshot = await getDocs(apptQuery);
-            const apptList = apptSnapshot.docs.map(doc => doc.data() as Appointment);
-            apptList.sort((a,b) => b.appointmentTime.toMillis() - a.appointmentTime.toMillis());
+            const apptList = apptSnapshot.docs.map(doc => {
+                 const data = doc.data();
+                 // CRITICAL FIX: Ensure all Timestamp objects are serialized.
+                 return { 
+                    ...data, 
+                    id: doc.id,
+                    appointmentTime: data.appointmentTime instanceof Timestamp ? data.appointmentTime.toDate() : new Date(data.appointmentTime),
+                    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(data.createdAt),
+                } as Appointment;
+            });
+            apptList.sort((a,b) => new Date(b.appointmentTime).getTime() - new Date(a.appointmentTime).getTime());
             setAppointments(apptList);
             setIsAppointmentsLoading(false);
 
@@ -949,7 +959,7 @@ function ScheduleAndAssistantTab() {
                                         {appointments.map(appt => (
                                             <TableRow key={appt.id}>
                                                 <TableCell>{appt.requesterName}</TableCell>
-                                                <TableCell className="text-xs">{format(appt.appointmentTime.toDate(), 'MM/dd HH:mm')}</TableCell>
+                                                <TableCell className="text-xs">{format(new Date(appt.appointmentTime), 'MM/dd HH:mm')}</TableCell>
                                                 <TableCell>
                                                     {appt.status === 'pending' ? (
                                                         <div className="flex gap-1">
@@ -1076,7 +1086,15 @@ function BillingHistoryDialog({ open, onOpenChange }: { open: boolean, onOpenCha
                 try {
                     const q = query(collection(db, 'points_transactions'), where('uid', '==', user.uid), orderBy('timestamp', 'desc'));
                     const snapshot = await getDocs(q);
-                    const history = snapshot.docs.map(doc => ({...doc.data(), id: doc.id} as PointsTransaction));
+                    const history = snapshot.docs.map(doc => {
+                        const data = doc.data();
+                        // CRITICAL FIX: Ensure all Timestamp objects are serialized.
+                        return {
+                            ...data, 
+                            id: doc.id,
+                            timestamp: data.timestamp instanceof Timestamp ? data.timestamp.toDate() : new Date(data.timestamp)
+                        } as PointsTransaction
+                    });
                     setTransactions(history);
                 } catch (error) {
                     toast({ title: "加载失败", description: "无法获取账单历史。", variant: "destructive" });
@@ -1112,7 +1130,7 @@ function BillingHistoryDialog({ open, onOpenChange }: { open: boolean, onOpenCha
                                     <TableCell><Badge variant="outline">{tx.type}</Badge></TableCell>
                                     <TableCell className={cn(tx.amount > 0 ? "text-green-600" : "text-red-600")}>{tx.amount > 0 ? '+' : ''}{tx.amount}</TableCell>
                                     <TableCell>{tx.reason}</TableCell>
-                                    <TableCell className="text-xs text-muted-foreground">{tx.timestamp ? format(tx.timestamp.toDate(), 'yyyy-MM-dd HH:mm') : 'N/A'}</TableCell>
+                                    <TableCell className="text-xs text-muted-foreground">{tx.timestamp ? format(new Date(tx.timestamp), 'yyyy-MM-dd HH:mm') : 'N/A'}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
@@ -1177,7 +1195,7 @@ function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, is
     
     const handleDayToggle = (day: DayOfWeek) => {
         const currentDays = rule.conditions.daysOfWeek || [];
-        const newDays = currentDays.includes(day) ? currentDays.filter(d => d !== day) : [...currentDays, day];
+        const newDays = currentDays.includes(day) ? currentDays.filter(d => d !== day) : [...prev, day];
         handleConditionChange('daysOfWeek', newDays);
     };
     

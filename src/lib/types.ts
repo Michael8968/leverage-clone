@@ -12,7 +12,7 @@ export type Demand = {
   category: string;
   budget: number;
   status: '开放中' | '进行中' | '已完成';
-  createdAt: any; // Can be Date or Firestore Timestamp or string
+  createdAt: any; // Can be Date, string, or Firestore Timestamp
   requesterId: string;
   requesterName: string;
   requesterAvatar: string;
@@ -47,7 +47,7 @@ export type ProductService = {
   sku?: string;
   details?: SupplementaryField[]; // For product-specific specifications
   creatorId?: string;
-  createdAt?: any; // Can be Date or Firestore Timestamp or string
+  createdAt?: any; // Can be Date, string, or Firestore Timestamp
   status?: '审核中' | '已入库' | '需要修改';
   imageUrl?: string; // Main image
   thumbnailUrl?: string; // Small image
@@ -60,7 +60,7 @@ export type Supplier = {
   shortName?: string | null;
   region?: string | null;
   address?: string | null;
-  establishedDate?: any; // Can be Date or Firestore Timestamp or null
+  establishedDate?: any; // Can be Date, string, or Firestore Timestamp or null
   registeredCapital?: string | null;
   creditCode?: string | null;
   email?: string;
@@ -87,10 +87,8 @@ export type AssistantRule = {
         daysOfWeek?: ('mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun')[];
         startTime?: string; // HH:mm format
         endTime?: string; // HH:mm format
-        startsAt?: any; // Firestore Timestamp for one-off start
-        expiresAt?: any; // Firestore Timestamp for one-off end
-        // User-based conditions
-        targetUserRoles?: { [key in Role]?: number[] }; // e.g. { user: [4, 5], creator: [] }
+        startsAt?: any; // Can be Date, string, or Firestore Timestamp
+        expiresAt?: any; // Can be Date, string, or Firestore Timestamp
     };
     // Action to take when conditions are met
     action: {
@@ -112,7 +110,7 @@ export type User = {
   alwaysAvailable?: boolean;
   bio?: string;
   skills?: string[];
-  createdAt?: any;
+  createdAt?: any; // Can be Date, string, or Firestore Timestamp
   currentQueueSize?: number;
   maxQueueSize?: number;
   assistantRules?: AssistantRule[];
@@ -120,8 +118,8 @@ export type User = {
   // New fields for points system
   level: 'New' | 'Regular' | 'Pro';
   points_balance: number;
-  signup_date: any; // Firestore Timestamp
-  last_level_check: any; // Firestore Timestamp
+  signup_date: any; // Can be Date, string, or Firestore Timestamp
+  last_level_check: any; // Can be Date, string, or Firestore Timestamp
   total_llm_calls: number;
 };
 
@@ -132,7 +130,7 @@ export type ChatMessage = {
   senderId: string;
   senderName: string;
   senderAvatar: string;
-  timestamp: Date;
+  timestamp: any; // Can be Date, string, or Firestore Timestamp
   isAIMessage?: boolean;
 };
 
@@ -154,8 +152,8 @@ export interface LlmConnection {
     scope?: '通用' | '专属';
     category?: '文本' | '图像' | '多模态' | '推理';
     lastTestStatus?: 'success' | 'failed' | 'untested';
-    lastTestTimestamp?: any; // Firestore Timestamp
-    createdAt?: any;
+    lastTestTimestamp?: any; // Can be Date, string, or Firestore Timestamp
+    createdAt?: any; // Can be Date, string, or Firestore Timestamp
 }
 
 export interface LlmProvider {
@@ -177,7 +175,7 @@ export interface Prompt {
     priority?: number;
     querySources?: QuerySources;
     sourceTemperatures?: SourceTemperatures;
-    createdAt?: any;
+    createdAt?: any; // Can be Date, string, or Firestore Timestamp
 }
 
 export type QuerySources = {
@@ -197,8 +195,8 @@ export type AIScenarioRules = {
   daysOfWeek?: ('mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun')[];
   startTime?: string; // HH:mm format
   endTime?: string; // HH:mm format
-  startsAt?: any; // Firestore Timestamp
-  expiresAt?: any; // Firestore Timestamp
+  startsAt?: any; // Can be Date, string, or Firestore Timestamp
+  expiresAt?: any; // Can be Date, string, or Firestore Timestamp
   targetUserRoles?: { [key in Role]?: number[] };
   ruleLogic?: 'and' | 'or';
 };
@@ -228,7 +226,7 @@ export type MediaAsset = {
   mediaType: 'image' | 'video' | 'audio' | 'file';
   mimeType: string;
   status: 'uploading' | 'processing' | 'ready' | 'error';
-  createdAt: any; // Firestore Timestamp
+  createdAt: any; // Can be Date, string, or Firestore Timestamp
   analysis?: string; // Result from AI analysis
 }
 
@@ -240,7 +238,7 @@ export interface Resource {
     tags: string[];
     updateFrequency: '实时' | '每日' | '每周' | '每月';
     status: '可用' | '已停用';
-    createdAt?: any; // Firestore Timestamp
+    createdAt?: any; // Can be Date, string, or Firestore Timestamp
     matchScore?: number;
     recommendation?: string;
     apiKey?: string;
@@ -257,10 +255,10 @@ export interface Appointment {
   creatorId: string;
   requesterId: string;
   requesterName: string;
-  appointmentTime: Timestamp; // Firestore Timestamp
+  appointmentTime: any; // Can be Date, string, or Firestore Timestamp
   status: 'pending' | 'confirmed' | 'cancelled';
   notes?: string;
-  createdAt: any; // Firestore Timestamp
+  createdAt: any; // Can be Date, string, or Firestore Timestamp
 }
 
 // New types for Intelligent Routing Strategy
@@ -281,8 +279,8 @@ export type StrategyRule = {
         daysOfWeek?: ('mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun')[];
         startTime?: string;
         endTime?: string;
-        startsAt?: any;
-        expiresAt?: any;
+        startsAt?: any; // Can be Date, string, or Firestore Timestamp
+        expiresAt?: any; // Can be Date, string, or Firestore Timestamp
         targetUserRoles?: { [key in Role]?: number[] };
     };
     actions: {
@@ -303,7 +301,7 @@ export interface IntelligentRoutingStrategy {
     factors: DecisionFactor[];
     factorTemperatures: { [key: string]: number; };
     advancedRules: StrategyRule[];
-    updatedAt: any; // Firestore Timestamp
+    updatedAt: any; // Can be Date, string, or Firestore Timestamp
 }
 
 // New types for Points and Payment System
@@ -313,7 +311,7 @@ export interface PointsTransaction {
     type: 'gift' | 'deduct' | 'manual' | 'renewal' | 'recharge';
     amount: number; // Can be positive or negative
     reason: string;
-    timestamp: any; // Firestore Timestamp
+    timestamp: any; // Can be Date, string, or Firestore Timestamp
     llm_action?: string; // e.g., 'chat_message', 'ai_match'
     batchId?: string; // To group manual grant operations
     status?: 'active' | 'revoked'; // For undoing operations
@@ -326,7 +324,7 @@ export interface PaymentOrder {
     points_to_add: number;
     status: 'pending' | 'paid' | 'failed' | 'proof_uploaded';
     type: 'alipay' | 'wechat' | 'bank';
-    timestamp: any; // Firestore Timestamp
+    timestamp: any; // Can be Date, string, or Firestore Timestamp
     proof_url?: string; // GS path for bank transfer proof
 }
 
@@ -340,8 +338,8 @@ export type PricingRule = {
         daysOfWeek?: ('mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun')[];
         startTime?: string;
         endTime?: string;
-        startsAt?: any;
-        expiresAt?: any;
+        startsAt?: any; // Can be Date, string, or Firestore Timestamp
+        expiresAt?: any; // Can be Date, string, or Firestore Timestamp
         targetUserRoles?: { [key in Role]?: number[] };
     };
     action: {
@@ -381,5 +379,5 @@ export interface BillingStatement {
     transactions: PointsTransaction[];
     invoice_status: '未开票' | '已开票' | '已作废';
     invoice_id?: string;
-    generatedAt: any; // Firestore Timestamp
+    generatedAt: any; // Can be Date, string, or Firestore Timestamp
 }

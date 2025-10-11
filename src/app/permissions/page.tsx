@@ -14,6 +14,7 @@ async function getUsers() {
         const usersSnapshot = await getDocs(query(collection(db, 'users')));
         const usersData = usersSnapshot.docs.map(doc => {
             const data = doc.data();
+            // CRITICAL FIX: Ensure all Timestamp objects are serialized.
             return {
                 ...data,
                 uid: doc.id,
@@ -37,7 +38,7 @@ async function getCurrentUser() {
         const userDoc = await getDoc(doc(db, 'users', decodedToken.uid));
         if (userDoc.exists()) {
              const data = userDoc.data();
-             // **CRITICAL FIX**: Serialize all Timestamp objects before returning from Server Component.
+             // CRITICAL FIX: Serialize all Timestamp objects before returning from Server Component.
              return {
                 uid: userDoc.id,
                 ...data,

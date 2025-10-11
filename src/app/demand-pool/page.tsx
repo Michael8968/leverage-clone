@@ -188,10 +188,11 @@ export default function DemandPoolPage() {
       const demandSnapshot = await getDocs(demandsCollection);
       const demandsList = demandSnapshot.docs.map(doc => {
         const data = doc.data();
+        // CRITICAL FIX: Ensure all Timestamp objects are serialized.
         return {
             id: doc.id,
             ...data,
-            createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(data.createdAt),
+            createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
         } as Demand;
       });
       setDemands(demandsList);
@@ -391,7 +392,7 @@ export default function DemandPoolPage() {
                       </TableCell>
                       <TableCell>¥{demand.budget.toLocaleString()}</TableCell>
                       <TableCell>{getStatusBadge(demand.status)}</TableCell>
-                      <TableCell>{demand.createdAt ? format(demand.createdAt, 'yyyy-MM-dd') : 'N/A'}</TableCell>
+                      <TableCell>{demand.createdAt ? format(new Date(demand.createdAt), 'yyyy-MM-dd') : 'N/A'}</TableCell>
                       <TableCell className="text-right">
                          {(demand.status === "进行中" && (demand.requesterId === user?.uid || demand.creatorId === user?.uid || role === 'admin')) && (
                              <Button variant="outline" size="sm" onClick={() => handleStartChat(demand)}>
