@@ -1194,45 +1194,11 @@ function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, is
     const handleRatingToggle = (role: Role, rating: number) => {
         const currentRoles = { ...(rule.conditions.targetUserRoles || {}) };
         const currentRatings = currentRoles[role] || [];
-        if (currentRatings.includes(rating)) {
-            currentRoles[role] = currentRatings.filter(r => r !== rating);
-        } else {
-            currentRoles[role] = [...currentRatings, rating];
-        }
+        const newRatings = currentRatings.includes(rating) ? currentRatings.filter(r => r !== rating) : [...currentRatings, rating];
+        currentRoles[role] = newRatings;
         handleConditionChange('targetUserRoles', currentRoles);
     };
     
-    const renderActionContent = () => {
-        if (rule.action.type === 'use_prompt') {
-            return (
-              <div className="space-y-2">
-                <Label>选择AI助理能力 (提示词)</Label>
-                <Select
-                  value={rule.action.promptKey}
-                  onValueChange={(v) =>
-                    setRule((p) => ({
-                      ...p,
-                      action: { ...p.action, promptKey: v },
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="请选择一个提示词..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {prompts.map((p) => (
-                      <SelectItem key={p.promptKey} value={p.promptKey}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            );
-        }
-        return null;
-    };
-
     return (
         <AlertDialog open={open} onOpenChange={onOpenChange}>
             <AlertDialogContent className="sm:max-w-2xl">
@@ -1277,7 +1243,31 @@ function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, is
                         </AccordionItem>
                         <AccordionItem value="action"><AccordionTrigger><div className="flex items-center gap-2 font-semibold"><BrainCircuit className="w-4 h-4"/> 执行动作</div></AccordionTrigger>
                             <AccordionContent className="pt-4 space-y-2">
-                                {renderActionContent()}
+                                {rule.action.type === 'use_prompt' && (
+                                    <div className="space-y-2">
+                                        <Label>选择AI助理能力 (提示词)</Label>
+                                        <Select
+                                        value={rule.action.promptKey}
+                                        onValueChange={(v) =>
+                                            setRule((p) => ({
+                                            ...p,
+                                            action: { ...p.action, promptKey: v },
+                                            }))
+                                        }
+                                        >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="请选择一个提示词..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {prompts.map((p) => (
+                                            <SelectItem key={p.promptKey} value={p.promptKey}>
+                                                {p.name}
+                                            </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                        </Select>
+                                    </div>
+                                )}
                             </AccordionContent>
                         </AccordionItem>
                     </Accordion>
@@ -1377,3 +1367,5 @@ export default function CreatorWorkbenchPage() {
     if (role !== 'creator') { return <AppLayout><RestrictedAccess /></AppLayout>; }
     return <AppLayout><CreatorWorkbench /></AppLayout>;
 }
+
+    
