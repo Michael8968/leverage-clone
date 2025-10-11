@@ -1064,7 +1064,7 @@ function RechargeDialog({ open, onOpenChange }: { open: boolean, onOpenChange: (
 }
 
 // =================================================================
-// BILLING HISTORY DIALOG (NEW)
+// BILLING HISTORY DIALOG (NEW & IMPROVED)
 // =================================================================
 function BillingHistoryDialog({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void}) {
      const [transactions, setTransactions] = useState<PointsTransaction[]>([]);
@@ -1362,5 +1362,6 @@ export default function CreatorWorkbenchPage() {
 
 
     
+
 
 
