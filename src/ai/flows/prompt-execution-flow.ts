@@ -6,7 +6,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { doc, getDoc, collection, query, where, getDocs, orderBy, limit, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { LlmConnection, AIScenario, User, Prompt, PointsTransaction, TokenConversionConfig, PricingRule, Role } from '@/lib/types';
+import type { LlmConnection, AIScenario, User, Prompt, PointsTransaction, TokenConversionConfig, PricingRule, Role, PointsConfig } from '@/lib/types';
 import { getPlatformAssets } from './admin-management-flows';
 import { differenceInMonths } from 'date-fns';
 
@@ -28,30 +28,32 @@ const PromptExecutionOutputSchema = z.object({
   text: z.string(),
 });
 
-async function isRuleSetValid(rules: AIScenario, userId?: string): Promise<boolean> {
+// Helper to check if a rule's conditions are met
+async function isRuleValid(rule: PricingRule, userId?: string): Promise<boolean> {
     const now = new Date();
     let timeIsValid: boolean | null = null;
     let userIsValid: boolean | null = null;
+    const { conditions } = rule;
 
-     // Time-based rule validation
-    const hasTimeRules = (rules.repetition && rules.repetition !== 'none') || rules.startsAt || rules.expiresAt;
+    // Time-based rule validation
+    const hasTimeRules = (conditions.repetition && conditions.repetition !== 'none') || conditions.startsAt || conditions.expiresAt;
     if (hasTimeRules) {
         timeIsValid = true; // Assume true until a condition fails
-        if (rules.repetition === 'none') {
-            const startsAt = rules.startsAt?.toDate ? rules.startsAt.toDate() : null;
-            const expiresAt = rules.expiresAt?.toDate ? rules.expiresAt.toDate() : null;
+        if (conditions.repetition === 'none') {
+            const startsAt = conditions.startsAt?.toDate ? conditions.startsAt.toDate() : null;
+            const expiresAt = conditions.expiresAt?.toDate ? conditions.expiresAt.toDate() : null;
             if ((startsAt && now < startsAt) || (expiresAt && now > expiresAt)) {
                 timeIsValid = false;
             }
-        } else if (rules.repetition) {
+        } else if (conditions.repetition) {
             const currentDay = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][now.getDay()];
-            if (rules.repetition === 'weekly' && !rules.daysOfWeek?.includes(currentDay as any)) {
+            if (conditions.repetition === 'weekly' && !conditions.daysOfWeek?.includes(currentDay as any)) {
                 timeIsValid = false;
             }
-            if (timeIsValid && (rules.startTime || rules.endTime)) {
+            if (timeIsValid && (conditions.startTime || conditions.endTime)) {
                 const currentTime = now.getHours() * 60 + now.getMinutes();
-                const [startH, startM] = (rules.startTime || "00:00").split(':').map(Number);
-                const [endH, endM] = (rules.endTime || "23:59").split(':').map(Number);
+                const [startH, startM] = (conditions.startTime || "00:00").split(':').map(Number);
+                const [endH, endM] = (conditions.endTime || "23:59").split(':').map(Number);
                 const startTimeInMinutes = startH * 60 + startM;
                 const endTimeInMinutes = endH * 60 + endM;
                 if (currentTime < startTimeInMinutes || currentTime > endTimeInMinutes) {
@@ -63,7 +65,7 @@ async function isRuleSetValid(rules: AIScenario, userId?: string): Promise<boole
 
 
     // User-based rule validation
-    const targetRoles = rules.targetUserRoles;
+    const targetRoles = conditions.targetUserRoles;
     const hasUserRules = targetRoles && Object.keys(targetRoles).length > 0;
     if (userId && hasUserRules) {
         userIsValid = false; // Assume false until a condition passes
@@ -88,13 +90,13 @@ async function isRuleSetValid(rules: AIScenario, userId?: string): Promise<boole
     }
     
     // Combine rules
-    if (rules.ruleLogic === 'or') {
+    if (conditions.ruleLogic === 'or') {
         if (!hasTimeRules && !hasUserRules) return false; // If no rules are set, it's not valid for OR logic
         return (timeIsValid === true) || (userIsValid === true);
     }
     
     // Default to AND logic
-    if (timeIsValid === null && userIsValid === null) return true; // No rules set at all, defaults to valid
+    if (timeIsValid === null && userIsValid === null) return false; // No rules set at all, rule is not considered a match
     return (timeIsValid !== false) && (userIsValid !== false);
 }
 
@@ -134,7 +136,7 @@ const executePromptFlow = ai.defineFlow(
   async ({ modelId, promptKey, messages, temperature, scenario, userId }) => {
     
     // =================================================================
-    // Points Deduction & User Level Check Logic
+    // Points Deduction & User Level Check Logic (UPGRADED)
     // =================================================================
     if (userId) {
         const systemConfigDoc = await getDoc(doc(db, 'configs', 'system'));
@@ -150,9 +152,28 @@ const executePromptFlow = ai.defineFlow(
                 // Admins are exempt from point deductions
                 if (user.role !== 'admin') {
                     const actionKey = scenario || promptKey || 'generic';
-                    const tokenConfigDoc = await getDoc(doc(db, 'configs', 'token_conversion'));
-                    const tokenConfig = tokenConfigDoc.exists() ? tokenConfigDoc.data() as TokenConversionConfig : { actions: {} };
-                    const cost = tokenConfig.actions[actionKey] || 1; // Default cost is 1 if not specified
+                    
+                    // Fetch all pricing configurations
+                    const pointsConfigDoc = await getDoc(doc(db, 'configs', 'points'));
+                    const pointsConfig = pointsConfigDoc.exists() ? pointsConfigDoc.data() as PointsConfig : { defaultPricing: {}, rules: {} };
+
+                    let cost = pointsConfig.defaultPricing[actionKey] || 1; // Start with default cost
+                    
+                    const rulesForAction = (pointsConfig.rules[actionKey] || []).sort((a,b) => a.priority - b.priority);
+
+                    // Find the first valid rule
+                    for (const rule of rulesForAction) {
+                        if (await isRuleValid(rule, userId)) {
+                            // Apply the action of the first matched rule
+                            if (rule.action.type === 'per_call') {
+                                cost = rule.action.value;
+                            } else if (rule.action.type === 'free') {
+                                cost = 0;
+                            }
+                            // Future actions like 'per_minute' would be handled here
+                            break; // Stop after applying the highest-priority rule
+                        }
+                    }
 
                     if ((user.points_balance || 0) < cost) {
                         throw new Error("积分余额不足，请充值后再试。");
@@ -215,22 +236,19 @@ const executePromptFlow = ai.defineFlow(
     }
     // =================================================================
 
-
     let finalPromptKey = promptKey;
     let finalSystemPrompt = messages.find(m => m.role === 'system')?.content || '';
     let finalModelId = modelId;
 
     // 1. Scenario-based configuration override (Highest Priority)
     if (scenario) {
-        // Scenario ID is now the document ID
         const scenarioDocRef = doc(db, 'ai_scenarios', scenario);
         const scenarioDocSnap = await getDoc(scenarioDocRef);
         
         if (scenarioDocSnap.exists()) {
             const scenarioDoc = { id: scenarioDocSnap.id, ...scenarioDocSnap.data() } as AIScenario;
-            if (await isRuleSetValid(scenarioDoc, userId)) {
-                finalPromptKey = scenarioDoc.configuredPromptKey;
-            }
+            // The isRuleSetValid logic is now part of the points deduction, so we just get the key
+            finalPromptKey = scenarioDoc.configuredPromptKey;
         }
     }
     
@@ -333,3 +351,5 @@ const executePromptFlow = ai.defineFlow(
     return { text: llmResponse.text() };
   }
 );
+
+    
