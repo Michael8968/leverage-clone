@@ -3,10 +3,11 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { doc, getDoc, collection, query, where, getDocs, orderBy, limit, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, orderBy, limit, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { LlmConnection, AIScenario, User, Prompt, PointsTransaction } from '@/lib/types';
 import { getPlatformAssets } from './admin-management-flows';
+import { differenceInMonths } from 'date-fns';
 
 const PromptMessageSchema = z.object({
   role: z.enum(['system', 'user', 'assistant', 'tool']),
@@ -127,20 +128,19 @@ const executePromptFlow = ai.defineFlow(
   async ({ modelId, promptKey, messages, temperature, scenario, userId }) => {
     
     // =================================================================
-    // NEW: Points Deduction Logic
+    // Points Deduction & User Level Check Logic
     // =================================================================
     if (userId) {
         const userRef = doc(db, 'users', userId);
         const userSnap = await getDoc(userRef);
 
         if (userSnap.exists()) {
-            const user = userSnap.data() as User;
+            let user = userSnap.data() as User;
 
             // Admins are exempt from point deductions
             if (user.role !== 'admin') {
                 // In a real system, cost would be dynamically determined. Here, we use a default.
-                // We'll fetch this from a config doc later if it exists.
-                const cost = 1; // Default cost for one AI call
+                const cost = 1;
 
                 if ((user.points_balance || 0) < cost) {
                     throw new Error("积分余额不足，请充值后再试。");
@@ -150,11 +150,17 @@ const executePromptFlow = ai.defineFlow(
                 await runTransaction(db, async (transaction) => {
                     const freshUserSnap = await transaction.get(userRef);
                     if (!freshUserSnap.exists()) throw new Error("User not found.");
+                    const freshUser = freshUserSnap.data() as User;
 
-                    const newBalance = (freshUserSnap.data().points_balance || 0) - cost;
+                    const newBalance = (freshUser.points_balance || 0) - cost;
                     if (newBalance < 0) throw new Error("积分余额不足。");
+                    
+                    const newTotalCalls = (freshUser.total_llm_calls || 0) + 1;
 
-                    transaction.update(userRef, { points_balance: newBalance });
+                    transaction.update(userRef, { 
+                        points_balance: newBalance,
+                        total_llm_calls: newTotalCalls,
+                    });
 
                     const transactionRef = doc(collection(db, 'points_transactions'));
                     const newTransaction: PointsTransaction = {
@@ -164,9 +170,35 @@ const executePromptFlow = ai.defineFlow(
                         amount: -cost,
                         reason: `AI Call: ${scenario || promptKey || 'generic'}`,
                         timestamp: serverTimestamp(),
+                        llm_action: scenario || promptKey || 'generic'
                     }
                     transaction.set(transactionRef, newTransaction);
+                    
+                    // Update user object for level check after transaction
+                    user.points_balance = newBalance;
+                    user.total_llm_calls = newTotalCalls;
                 });
+            }
+
+            // After successful deduction, check for level up
+            const currentLevel = user.level || 'New';
+            const registrationDate = user.signup_date?.toDate ? user.signup_date.toDate() : new Date();
+            const monthsSinceSignup = differenceInMonths(new Date(), registrationDate);
+            const totalCalls = user.total_llm_calls || 0;
+            let newLevel = currentLevel;
+
+            if (currentLevel === 'New' && monthsSinceSignup >= 1 && totalCalls >= 100) {
+                newLevel = 'Regular';
+            }
+            if (currentLevel !== 'Pro' && monthsSinceSignup >= 6 && totalCalls >= 500) {
+                newLevel = 'Pro';
+            }
+
+            if (newLevel !== currentLevel) {
+                // In a real application, this would also trigger giving bonus points.
+                // For now, we just update the level.
+                await updateDoc(userRef, { level: newLevel, last_level_check: serverTimestamp() });
+                console.log(`User ${userId} promoted from ${currentLevel} to ${newLevel}.`);
             }
         }
     }
@@ -193,16 +225,14 @@ const executePromptFlow = ai.defineFlow(
     
     // 2. Fetch prompt document if a key is determined
     let promptDoc: Prompt | undefined;
-    // FIX: Add a stricter check to ensure finalPromptKey is a valid, non-empty string.
     if (typeof finalPromptKey === 'string' && finalPromptKey.trim() !== '') {
-        // This query requires a single-field index on the 'promptKey' field in the 'prompts' collection.
         const q = query(collection(db, 'prompts'), where('promptKey', '==', finalPromptKey), limit(1));
         const promptSnapshot = await getDocs(q);
 
         if (!promptSnapshot.empty) {
             promptDoc = { id: promptSnapshot.docs[0].id, ...promptSnapshot.docs[0].data() } as Prompt;
-            finalSystemPrompt = promptDoc.content; // Override system prompt with content from DB
-            if (promptDoc.modelId && !finalModelId) { // Prompt's model overrides if no specific model was passed in
+            finalSystemPrompt = promptDoc.content; 
+            if (promptDoc.modelId && !finalModelId) { 
                 finalModelId = promptDoc.modelId;
             }
         }
@@ -263,31 +293,34 @@ const executePromptFlow = ai.defineFlow(
                             outputText = responseData.candidates?.[0]?.content?.parts?.[0]?.text || '';
                             break;
                         default: // OpenAI-compatible response path
-                            outputText = responseData.choices?.[0]?.message?.content || '';
+                            outputText = responseData.choices?.[0].message?.content || '';
                             break;
                     }
-
-                    if (outputText) return { text: outputText };
-                    throw new Error("Model returned a successful status but no text content.");
+                    
+                    if (outputText) {
+                        return { text: outputText };
+                    }
+                    throw new Error('API returned a valid response, but no text content was found.');
 
                 } catch (error) {
                     console.error(`Attempt with model ${connection.modelName} failed:`, error);
-                    errors.push({ modelName: connection.modelName, error: (error as Error).message });
+                    errors.push(error);
                 }
             }
-            // If all manual models failed, throw an error.
-            throw new Error(`All configured models failed. Errors: ${JSON.stringify(errors, null, 2)}`);
+            // If all manual attempts fail, fall through to Genkit.
+            console.warn(`All manual LLM connections failed. Errors: ${errors.map(e => e.message).join(', ')}. Falling back to Genkit.`);
         }
     }
 
-    // 4. Fallback: No manual config found, use default Genkit AI.
-    console.log("No valid manual configuration found. Falling back to default Genkit AI.");
+    // 4. Genkit Fallback: If no manual configuration leads to a successful call, use Genkit.
+    console.log("No valid manual configuration found or all attempts failed. Using Genkit fallback.");
     const llmResponse = await ai.generate({
-        prompt: messages.map(msg => ({ role: msg.role === 'assistant' ? 'model' : msg.role, content: msg.content })) as any,
-        temperature
+        prompt: messages.map(m => m.content).join('\n'), // Simple concatenation for fallback
+        config: { temperature },
     });
+    
     return { text: llmResponse.text() };
   }
 );
 
-      
+    
