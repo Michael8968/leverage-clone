@@ -75,11 +75,12 @@ export default function PointsManagementPage() {
             setPricingConfig(pricingDoc.exists() ? (pricingDoc.data() as PricingConfig) : { points_per_rmb: 100, min_recharge_rmb: 10 });
             setRoleGifts(roleGiftsDoc.exists() ? (roleGiftsDoc.data() as RoleGiftsConfig) : { 'user_new': 5000, 'creator_pro': 30000 });
             
-            const fetchedTokenConfig = tokenDoc.exists() ? (tokenDoc.data() as TokenConversionConfig) : { base_tokens_per_point: 1000, actions: { 'shopping-assistant': 1, 'ai-match': 3, 'chat-assistant': 1, 'intelligent-routing': 2, 'ai-image-creation': 5, 'ai-3d-creation': 10, 'data-analysis': 2 } };
-            // Ensure all actions are present in the config
+            const fetchedTokenConfig = tokenDoc.exists() ? (tokenDoc.data() as TokenConversionConfig) : { base_tokens_per_point: 1000, actions: {} };
+            
+            // Ensure all system actions are present in the config, adding them with a default value if not.
             ALL_ACTIONS.forEach(action => {
                 if (!fetchedTokenConfig.actions.hasOwnProperty(action)) {
-                    fetchedTokenConfig.actions[action] = 1; // Default to 1 if not set
+                    fetchedTokenConfig.actions[action] = 1; // Default to 1 point if not set
                 }
             });
             setTokenConversionConfig(fetchedTokenConfig);
@@ -208,22 +209,18 @@ export default function PointsManagementPage() {
                     </Card>
                     <Card>
                         <CardHeader>
-                            <CardTitle>AI服务定价 (Token换算)</CardTitle>
-                            <CardDescription>定义积分与LLM Token的换算关系及具体服务的价格。</CardDescription>
+                            <CardTitle>AI服务定价 (积分成本)</CardTitle>
+                            <CardDescription>为系统中的不同AI功能设置独立的积分消耗值。</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                             <div className="space-y-2">
-                                <Label htmlFor="base_tokens_per_point">基础换算率 (多少Token=1积分)</Label>
-                                <Input id="base_tokens_per_point" type="number" value={tokenConversionConfig?.base_tokens_per_point} onChange={(e) => setTokenConversionConfig(prev => ({...prev!, base_tokens_per_point: parseInt(e.target.value) || 1000}))} />
-                            </div>
                             <Table>
                                 <TableHeader><TableRow><TableHead>AI服务 (Action)</TableHead><TableHead>消耗积分</TableHead></TableRow></TableHeader>
                                 <TableBody>
-                                    {tokenConversionConfig && Object.entries(tokenConversionConfig.actions).map(([action, cost]) => (
+                                    {tokenConversionConfig && ALL_ACTIONS.map((action) => (
                                         <TableRow key={action}>
                                             <TableCell className="font-mono">{action}</TableCell>
                                             <TableCell>
-                                                <Input type="number" value={cost} className="max-w-xs" onChange={e => handleActionCostChange(action, e.target.value)} />
+                                                <Input type="number" value={tokenConversionConfig.actions[action] || 1} className="max-w-xs" onChange={e => handleActionCostChange(action, e.target.value)} />
                                             </TableCell>
                                         </TableRow>
                                     ))}

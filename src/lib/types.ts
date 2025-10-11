@@ -331,6 +331,6 @@ export interface PaymentOrder {
 export interface TokenConversionConfig {
     base_tokens_per_point: number;
     actions: {
-        [key: string]: number; // e.g., "ai-match": 3, "chat-assistant": 1
+        [key: string]: number; // e.g., "shopping-assistant": 1
     };
 }
