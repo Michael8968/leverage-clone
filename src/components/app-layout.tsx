@@ -90,7 +90,7 @@ const navItems: NavItem[] = [
   { href: '/prompt-management', label: '提示词管理', icon: Workflow, roles: ['admin']},
   { href: '/ai-scenario-config', label: 'AI场景配置', icon: Puzzle, roles: ['admin'] },
   { href: '/intelligent-routing', label: '智能路由策略', icon: Route, roles: ['admin'] },
-  { href: '/points-management', label: '积分与支付', icon: Coins, roles: ['admin'] },
+  { href: '/points-management', label: '积分与结算', icon: Coins, roles: ['admin'] },
   { href: '/knowledge-base', label: '知识库管理', icon: Database, roles: ['admin'] },
   { href: '/public-resources', label: '公共资源库', icon: Library, roles: ['admin'] },
   { href: '/permissions', label: '权限管理', icon: ShieldCheck, roles: ['admin'] },
