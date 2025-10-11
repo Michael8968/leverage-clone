@@ -13,9 +13,9 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuthStore, type Role } from '@/store/auth';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, collection, query, where, getDocs, orderBy, Timestamp } from 'firebase/firestore';
-import { Coins, Frown, Loader2, Save, PlusCircle, Edit, Trash2, Search, Calendar as CalendarIcon, Mail, FileText, Settings } from 'lucide-react';
+import { Coins, Frown, Loader2, Save, PlusCircle, Edit, Trash2, Search, Calendar as CalendarIcon, Mail, FileText, Settings, Gift, RotateCcw, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useTransition } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { PointsConfig, PricingRule, PointsTransaction, User, BillingStatement, TokenConversionConfig, RoleGiftsConfig } from '@/lib/types';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -30,6 +30,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { TimePicker } from '@/components/ui/time-picker';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Select, SelectContent, SelectTrigger, SelectValue, SelectItem } from '@/components/ui/select';
+import { grantPointsToGroup, revokePointsGrant } from '@/ai/flows/user-management-flows';
+import { Textarea } from '@/components/ui/textarea';
 
 type SystemConfig = {
     enable_points: boolean;
@@ -362,15 +364,213 @@ function BillingManagement() {
     );
 }
 
+function ManualGrantForm({ onSuccessfulGrant }: { onSuccessfulGrant: () => void }) {
+    const [targetRoles, setTargetRoles] = useState<Role[]>([]);
+    const [targetRatings, setTargetRatings] = useState<number[]>([]);
+    const [pointsAmount, setPointsAmount] = useState<number>(1000);
+    const [grantReason, setGrantReason] = useState('');
+    const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+    const [isGranting, setIsGranting] = useTransition();
+    const { toast } = useToast();
+
+    const handleRoleToggle = (role: Role) => {
+        setTargetRoles(prev => prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]);
+    };
+
+    const handleRatingToggle = (rating: number) => {
+        setTargetRatings(prev => prev.includes(rating) ? prev.filter(r => r !== rating) : [...prev, rating]);
+    };
+
+    const handleExecuteGrant = async () => {
+        if (!grantReason || pointsAmount <= 0) {
+            toast({ title: "信息不完整", description: "请输入有效的积分数量和操作原因。", variant: "destructive" });
+            return;
+        }
+
+        setIsConfirmOpen(false);
+        setIsGranting(async () => {
+            try {
+                const result = await grantPointsToGroup({
+                    roles: targetRoles,
+                    ratings: targetRatings,
+                    amount: pointsAmount,
+                    reason: grantReason,
+                });
+                if (result.userCount > 0) {
+                    toast({ title: "赋分成功", description: `已成功为 ${result.userCount} 位用户增加了 ${pointsAmount} 积分。` });
+                    onSuccessfulGrant(); // Callback to refresh history
+                } else {
+                    toast({ title: "操作完成", description: "未找到符合条件的用户。", variant: "default" });
+                }
+            } catch (error: any) {
+                toast({ title: "赋分失败", description: error.message, variant: "destructive" });
+            }
+        });
+    };
+
+    const targetDescription = () => {
+        let parts = [];
+        if (targetRoles.length > 0) parts.push(`角色为 "${targetRoles.map(r => ROLE_NAMES[r] || r).join(', ')}"`);
+        if (targetRatings.length > 0) parts.push(`星级为 "${targetRatings.join(', ')}"`);
+        return parts.length > 0 ? parts.join(" 且 ") : "所有";
+    };
+
+    return (
+        <>
+            <Card>
+                <CardHeader>
+                    <CardTitle>手动积分操作</CardTitle>
+                    <CardDescription>为特定用户群体批量增加积分，常用于活动奖励、补偿等场景。</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <div>
+                        <Label className="font-semibold">第一步: 定义目标用户群 (不选则为全体用户)</Label>
+                        <div className="p-3 border rounded-md mt-2 space-y-3">
+                            <div>
+                                <Label className="text-xs text-muted-foreground">按角色筛选</Label>
+                                <div className="flex flex-wrap gap-x-4 gap-y-2 mt-1">
+                                    {ALL_ROLES.map(role => (<div key={role} className="flex items-center space-x-2"><Checkbox id={`grant-role-${role}`} checked={targetRoles.includes(role)} onCheckedChange={() => handleRoleToggle(role)} /><Label htmlFor={`grant-role-${role}`} className="font-normal">{ROLE_NAMES[role]}</Label></div>))}
+                                </div>
+                            </div>
+                            <div className="pt-3 border-t">
+                                <Label className="text-xs text-muted-foreground">按星级筛选</Label>
+                                <div className="flex flex-wrap gap-x-4 gap-y-2 mt-1">
+                                    {Array.from({ length: 10 }, (_, i) => i + 1).map(rating => (<div key={rating} className="flex items-center space-x-2"><Checkbox id={`grant-rating-${rating}`} checked={targetRatings.includes(rating)} onCheckedChange={() => handleRatingToggle(rating)} /><Label htmlFor={`grant-rating-${rating}`} className="font-normal">{rating}星</Label></div>))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <Label className="font-semibold">第二步: 定义操作内容</Label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                            <div className="space-y-1"><Label htmlFor="points-amount">增加积分数量</Label><Input id="points-amount" type="number" value={pointsAmount} onChange={e => setPointsAmount(Number(e.target.value))} /></div>
+                            <div className="space-y-1"><Label htmlFor="grant-reason">操作原因</Label><Textarea id="grant-reason" placeholder="例如: 2025年春节活动奖励" value={grantReason} onChange={e => setGrantReason(e.target.value)} /></div>
+                        </div>
+                    </div>
+                </CardContent>
+                <CardFooter>
+                    <Button className="w-full md:w-auto ml-auto" onClick={() => setIsConfirmOpen(true)} disabled={!grantReason || pointsAmount <= 0 || isGranting}>
+                        <Gift className="mr-2" />
+                        执行赋分
+                    </Button>
+                </CardFooter>
+            </Card>
+
+            <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="text-amber-500" />二次确认</AlertDialogTitle>
+                        <AlertDialogDescription>请检查并确认您的操作。此操作将影响多位用户。</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="text-sm space-y-2">
+                        <p><strong>目标用户:</strong> {targetDescription()} 用户</p>
+                        <p><strong>操作内容:</strong> 为每位用户增加 <strong>{pointsAmount}</strong> 积分</p>
+                        <p><strong>操作原因:</strong> {grantReason}</p>
+                    </div>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>取消</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleExecuteGrant} disabled={isGranting}>
+                            {isGranting ? <Loader2 className="animate-spin" /> : "确认执行"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
+    );
+}
+
+function GrantHistory({ refreshKey }: { refreshKey: number }) {
+    const [history, setHistory] = useState<PointsTransaction[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isRevoking, setIsRevoking] = useState<string | null>(null);
+    const { toast } = useToast();
+
+    const fetchHistory = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const q = query(
+                collection(db, 'points_transactions'),
+                where('type', '==', 'manual'),
+                orderBy('timestamp', 'desc')
+            );
+            const snapshot = await getDocs(q);
+            const uniqueBatches: { [key: string]: PointsTransaction } = {};
+            snapshot.docs.forEach(doc => {
+                const data = doc.data() as PointsTransaction;
+                if (data.batchId && !uniqueBatches[data.batchId]) {
+                    uniqueBatches[data.batchId] = data;
+                }
+            });
+            setHistory(Object.values(uniqueBatches));
+        } catch (error) {
+            console.error("Failed to fetch grant history:", error);
+            toast({ title: '加载失败', description: '无法加载手动操作历史。', variant: 'destructive' });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [toast]);
+
+    useEffect(() => {
+        fetchHistory();
+    }, [fetchHistory, refreshKey]);
+
+    const handleRevoke = async (batchId: string | undefined) => {
+        if (!batchId) return;
+        setIsRevoking(batchId);
+        try {
+            const result = await revokePointsGrant({ batchId });
+            toast({ title: '撤销成功', description: `已成功撤销对 ${result.revokedCount} 位用户的赋分操作。` });
+            fetchHistory(); // Refresh history
+        } catch (error: any) {
+            toast({ title: '撤销失败', description: error.message, variant: 'destructive' });
+        } finally {
+            setIsRevoking(null);
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>近期手动操作历史</CardTitle>
+                <CardDescription>此处记录了最近的批量手动赋分操作，您可以对误操作进行紧急撤销。</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader><TableRow><TableHead>操作原因</TableHead><TableHead>积分</TableHead><TableHead>时间</TableHead><TableHead>状态</TableHead><TableHead className="text-right">操作</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                        {isLoading ? <TableRow><TableCell colSpan={5}><Skeleton className="h-10 w-full"/></TableCell></TableRow>
+                         : history.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center h-24">暂无手动操作记录。</TableCell></TableRow>
+                         : history.map(tx => (
+                            <TableRow key={tx.batchId}>
+                                <TableCell>{tx.reason}</TableCell>
+                                <TableCell className="font-medium text-green-600">+{tx.amount}</TableCell>
+                                <TableCell className="text-xs text-muted-foreground">{tx.timestamp ? format(tx.timestamp.toDate(), 'yyyy-MM-dd HH:mm') : 'N/A'}</TableCell>
+                                <TableCell><Badge variant={tx.status === 'revoked' ? 'destructive' : 'default'}>{tx.status === 'revoked' ? '已撤销' : '已生效'}</Badge></TableCell>
+                                <TableCell className="text-right">
+                                    <Button size="sm" variant="destructive" onClick={() => handleRevoke(tx.batchId)} disabled={isRevoking === tx.batchId || tx.status === 'revoked'}>
+                                        {isRevoking === tx.batchId ? <Loader2 className="animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
+                                        紧急撤销
+                                    </Button>
+                                </TableCell>
+                            </TableRow>
+                         ))}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
+}
+
 export default function PointsManagementPage() {
     const { role, isLoading: isAuthLoading } = useAuthStore();
     const router = useRouter();
     const { toast } = useToast();
 
     const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
-    const [pricingConfig, setPricingConfig] = useState<PricingConfig | null>(null);
+    const [pricingConfig, setPricingConfig] = useState<TokenConversionConfig | null>(null);
     const [roleGifts, setRoleGifts] = useState<RoleGiftsConfig | null>(null);
     const [pointsConfig, setPointsConfig] = useState<PointsConfig | null>(null);
+    const [grantHistoryRefreshKey, setGrantHistoryRefreshKey] = useState(0);
 
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -386,13 +586,13 @@ export default function PointsManagementPage() {
         try {
             const [systemDoc, pricingDoc, roleGiftsDoc, pointsDoc] = await Promise.all([
                 getDoc(doc(db, 'configs', 'system')),
-                getDoc(doc(db, 'configs', 'pricing')),
+                getDoc(doc(db, 'configs', 'token_conversion')),
                 getDoc(doc(db, 'configs', 'role_gifts')),
                 getDoc(doc(db, 'configs', 'points')),
             ]);
 
             setSystemConfig(systemDoc.exists() ? (systemDoc.data() as SystemConfig) : { enable_points: true, enable_payments: true, pro_monthly_bonus: 10000, min_balance_for_llm: 0 });
-            setPricingConfig(pricingDoc.exists() ? (pricingDoc.data() as PricingConfig) : { points_per_rmb: 100, min_recharge_rmb: 10 });
+            setPricingConfig(pricingDoc.exists() ? (pricingDoc.data() as TokenConversionConfig) : { tokens_per_point: 100, actions: {} });
             setRoleGifts(roleGiftsDoc.exists() ? (roleGiftsDoc.data() as RoleGiftsConfig) : { 'user_new': 5000, 'creator_pro': 30000 });
             
             const fetchedPointsConfig = pointsDoc.exists() ? (pointsDoc.data() as PointsConfig) : { defaultPricing: {}, rules: {} };
@@ -426,7 +626,7 @@ export default function PointsManagementPage() {
         try {
             await Promise.all([
                 setDoc(doc(db, 'configs', 'system'), systemConfig),
-                setDoc(doc(db, 'configs', 'pricing'), pricingConfig),
+                setDoc(doc(db, 'configs', 'token_conversion'), pricingConfig),
                 setDoc(doc(db, 'configs', 'role_gifts'), roleGifts),
                 setDoc(doc(db, 'configs', 'points'), pointsConfig),
             ]);
@@ -454,6 +654,18 @@ export default function PointsManagementPage() {
                 defaultPricing: { ...prev!.defaultPricing, [action]: numValue }
             }));
         }
+    };
+    
+    const handleTokenConfigChange = (type: 'tokens_per_point' | string, value: string) => {
+        const numValue = parseInt(value, 10);
+        if (isNaN(numValue)) return;
+        setPricingConfig(prev => {
+            if (!prev) return null;
+            if (type === 'tokens_per_point') {
+                return { ...prev, tokens_per_point: numValue };
+            }
+            return { ...prev, actions: { ...(prev.actions || {}), [type]: numValue } };
+        });
     };
 
     const handleAddRule = (action: string) => {
@@ -562,38 +774,35 @@ export default function PointsManagementPage() {
                                     <Label htmlFor="min_balance_for_llm">最低积分余额</Label>
                                     <Input id="min_balance_for_llm" type="number" value={systemConfig?.min_balance_for_llm} onChange={(e) => setSystemConfig(prev => ({...prev!, min_balance_for_llm: parseInt(e.target.value) || 0}))} />
                                 </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="points_per_rmb">每人民币兑换积分</Label>
-                                    <Input id="points_per_rmb" type="number" value={pricingConfig?.points_per_rmb} onChange={(e) => setPricingConfig(prev => ({...prev!, points_per_rmb: parseInt(e.target.value) || 0}))} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="min_recharge_rmb">最低充值金额(元)</Label>
-                                    <Input id="min_recharge_rmb" type="number" value={pricingConfig?.min_recharge_rmb} onChange={(e) => setPricingConfig(prev => ({...prev!, min_recharge_rmb: parseInt(e.target.value) || 0}))} />
-                                </div>
                             </CardContent>
                         </Card>
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>新用户初始赠送积分</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <Table>
-                                    <TableHeader><TableRow><TableHead>角色_级别</TableHead><TableHead>赠送积分</TableHead></TableRow></TableHeader>
-                                    <TableBody>
-                                        {roleGifts && Object.entries(roleGifts).map(([key, value]) => (
-                                            <TableRow key={key}>
-                                                <TableCell className="font-mono">{key}</TableCell>
-                                                <TableCell>
-                                                    <Input type="number" value={value} className="max-w-xs" onChange={e => handleRoleGiftChange(key, e.target.value)} />
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </CardContent>
-                        </Card>
+                        
                     </div>
                  </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>新用户初始赠送积分</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader><TableRow><TableHead>角色_级别</TableHead><TableHead>赠送积分</TableHead></TableRow></TableHeader>
+                                <TableBody>
+                                    {roleGifts && Object.entries(roleGifts).map(([key, value]) => (
+                                        <TableRow key={key}>
+                                            <TableCell className="font-mono">{key}</TableCell>
+                                            <TableCell>
+                                                <Input type="number" value={value} className="max-w-xs" onChange={e => handleRoleGiftChange(key, e.target.value)} />
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                    <ManualGrantForm onSuccessfulGrant={() => setGrantHistoryRefreshKey(k => k + 1)} />
+                </div>
+                <GrantHistory refreshKey={grantHistoryRefreshKey} />
                  <Card>
                     <CardHeader>
                         <CardTitle>AI服务定价</CardTitle>

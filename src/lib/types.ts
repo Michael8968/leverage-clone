@@ -315,6 +315,8 @@ export interface PointsTransaction {
     reason: string;
     timestamp: any; // Firestore Timestamp
     llm_action?: string; // e.g., 'chat_message', 'ai_match'
+    batchId?: string; // To group manual grant operations
+    status?: 'active' | 'revoked'; // For undoing operations
 }
 
 export interface PaymentOrder {
@@ -358,11 +360,13 @@ export interface PointsConfig {
 }
 
 export type TokenConversionConfig = {
-    tokens_per_point: number;
-    actions: {
+    [key: string]: any;
+    tokens_per_point?: number;
+    actions?: {
         [key: string]: number;
     }
 }
+
 
 export type RoleGiftsConfig = {
     [key: string]: number; // e.g. "user_new": 5000
