@@ -1208,12 +1208,12 @@ function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, is
     const { conditions } = rule;
 
     return (
-         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-2xl">
-                <DialogHeader>
-                    <DialogTitle className="font-headline">{isEditing ? '编辑助理规则' : '新增助理规则'}</DialogTitle>
-                    <DialogDescription>创建一条带有优先级的规则，以在特定条件下自动启用具有特定能力的AI助理。</DialogDescription>
-                </DialogHeader>
+         <AlertDialog open={open} onOpenChange={onOpenChange}>
+            <AlertDialogContent className="sm:max-w-2xl">
+                <AlertDialogHeader>
+                    <AlertDialogTitle className="font-headline">{isEditing ? '编辑助理规则' : '新增助理规则'}</AlertDialogTitle>
+                    <AlertDialogDescription>创建一条带有优先级的规则，以在特定条件下自动启用具有特定能力的AI助理。</AlertDialogDescription>
+                </AlertDialogHeader>
                 <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-2">
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1"><Label htmlFor="rule-name">规则名称</Label><Input id="rule-name" value={rule.name} onChange={e => setRule(prev => ({ ...prev, name: e.target.value }))} placeholder="例如：夜间自动回复" /></div>
@@ -1260,12 +1260,12 @@ function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, is
                         </AccordionItem>
                     </Accordion>
                 </div>
-                 <DialogFooter>
-                    <Button variant="ghost" onClick={() => onOpenChange(false)}>取消</Button>
-                    <Button onClick={handleSave} disabled={isSaving}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} 保存规则</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                 <AlertDialogFooter>
+                    <AlertDialogCancel>取消</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleSave} disabled={isSaving}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} 保存规则</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     );
 }
 
@@ -1362,6 +1362,7 @@ export default function CreatorWorkbenchPage() {
 
 
     
+
 
 
 
