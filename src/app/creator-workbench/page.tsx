@@ -869,158 +869,156 @@ function ScheduleAndAssistantTab() {
     const assistantRules = (user.assistantRules || []).sort((a, b) => a.priority - b.priority);
 
     return (
-        <>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-6">
-                    <Card>
-                        <CardHeader><CardTitle className="font-headline">在线状态与接待设置</CardTitle></CardHeader>
-                        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <Card className="p-4 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    {user.status === 'active' ? <Power className="w-6 h-6 text-green-500" /> : <PowerOff className="w-6 h-6 text-red-500" />}
-                                    <div>
-                                        <Label htmlFor="online-status" className="font-semibold">在线接待</Label>
-                                        <p className="text-xs text-muted-foreground">开启后可接收平台分配的实时请求。</p>
-                                    </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+                <Card>
+                    <CardHeader><CardTitle className="font-headline">在线状态与接待设置</CardTitle></CardHeader>
+                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Card className="p-4 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                {user.status === 'active' ? <Power className="w-6 h-6 text-green-500" /> : <PowerOff className="w-6 h-6 text-red-500" />}
+                                <div>
+                                    <Label htmlFor="online-status" className="font-semibold">在线接待</Label>
+                                    <p className="text-xs text-muted-foreground">开启后可接收平台分配的实时请求。</p>
                                 </div>
-                                <Switch id="online-status" checked={user.status === 'active'} onCheckedChange={(checked) => handleStatusChange('status', checked ? 'active' : 'inactive')} />
-                            </Card>
-                            <Card className="p-4 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <Bot className="w-6 h-6 text-muted-foreground" />
-                                    <div>
-                                        <Label htmlFor="ai-assistant-status" className="font-semibold">默认AI助理</Label>
-                                        <p className="text-xs text-muted-foreground">开启后，所有请求将优先由AI助理接待。</p>
-                                    </div>
-                                </div>
-                                <Switch id="ai-assistant-status" checked={!!user.aiAssistantEnabled} onCheckedChange={(checked) => handleStatusChange('aiAssistantEnabled', checked)} />
-                            </Card>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="font-headline">我的排班与预约</CardTitle>
-                        </CardHeader>
-                         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="text-lg font-medium">可预约时间段</CardTitle>
-                                    <div className="flex items-center space-x-2 pt-2">
-                                        <Checkbox id="always-available" checked={!!user.alwaysAvailable} onCheckedChange={(checked) => handleStatusChange('alwaysAvailable', Boolean(checked))} />
-                                        <label htmlFor="always-available" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">全时空闲</label>
-                                    </div>
-                                </CardHeader>
-                                {!user.alwaysAvailable && (
-                                     <CardContent className="space-y-4">
-                                        <div>
-                                            <Label>添加新时段</Label>
-                                            <div className="flex items-center gap-2">
-                                                <Popover>
-                                                    <PopoverTrigger asChild>
-                                                        <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !newSlotDate && "text-muted-foreground")}>
-                                                            <CalendarDays className="mr-2 h-4 w-4" />
-                                                            {newSlotDate ? format(newSlotDate, "yyyy-MM-dd") : <span>选择日期</span>}
-                                                        </Button>
-                                                    </PopoverTrigger>
-                                                    <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={newSlotDate} onSelect={setNewSlotDate} initialFocus/></PopoverContent>
-                                                </Popover>
-                                                <TimePicker date={newSlotDate} setDate={setNewSlotDate} />
-                                                <Button onClick={handleAddSlot} disabled={isAddingSlot}>{isAddingSlot ? <Loader2 className="animate-spin" /> : "添加"}</Button>
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                                            {isSlotsLoading ? <Skeleton className="h-10 w-full" /> : 
-                                             availableSlots.sort((a,b) => a.toMillis() - b.toMillis()).map(slot => (
-                                                <div key={slot.toMillis()} className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
-                                                     <span className="text-sm">{format(slot.toDate(), 'M月d日 HH:mm')}</span>
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDeleteSlot(slot)}><Trash2 className="w-4 h-4 text-destructive"/></Button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </CardContent>
-                                )}
-                            </Card>
-                            <Card>
-                                 <CardHeader><CardTitle className="text-lg font-medium">待处理的预约</CardTitle></CardHeader>
-                                <CardContent className="max-h-72 overflow-y-auto">
-                                    {isAppointmentsLoading ? <Skeleton className="h-20 w-full"/> : 
-                                    appointments.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">暂无预约</p> :
-                                    <Table>
-                                        <TableHeader><TableRow><TableHead>预约人</TableHead><TableHead>时间</TableHead><TableHead>状态</TableHead></TableRow></TableHeader>
-                                        <TableBody>
-                                            {appointments.map(appt => (
-                                                <TableRow key={appt.id}>
-                                                    <TableCell>{appt.requesterName}</TableCell>
-                                                    <TableCell className="text-xs">{format(appt.appointmentTime.toDate(), 'MM/dd HH:mm')}</TableCell>
-                                                    <TableCell>
-                                                        {appt.status === 'pending' ? (
-                                                            <div className="flex gap-1">
-                                                                <Button size="xs" onClick={() => handleAppointmentStatus(appt.id, 'confirmed')}><CheckCircle className="w-3 h-3 mr-1"/>确认</Button>
-                                                                <Button size="xs" variant="ghost" onClick={() => handleAppointmentStatus(appt.id, 'cancelled')}><XCircle className="w-3 h-3 mr-1"/>拒绝</Button>
-                                                            </div>
-                                                        ) : ( <Badge variant={appt.status === 'confirmed' ? 'default' : 'destructive'}>{appt.status}</Badge> )}
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                    }
-                                </CardContent>
-                            </Card>
-                        </div>
-                    </Card>
-                    <Card>
-                        <CardHeader>
-                            <div className="flex items-center justify-between">
-                                <CardTitle className="font-headline">高级助理规则</CardTitle>
-                                <Button onClick={() => { setEditingRule(null); setIsRuleDialogOpen(true); }}>
-                                    <PlusCircle className="w-4 h-4 mr-2" /> 新增规则
-                                </Button>
                             </div>
-                        </CardHeader>
-                        <CardContent>
-                             <Table>
-                                <TableHeader><TableRow><TableHead>优先级</TableHead><TableHead>规则名称</TableHead><TableHead>触发条件</TableHead><TableHead>执行动作 (提示词)</TableHead><TableHead className="text-right">操作</TableHead></TableRow></TableHeader>
-                                <TableBody>
-                                    {assistantRules.length === 0 ? (
-                                        <TableRow><TableCell colSpan={5} className="text-center h-24">暂无高级规则。</TableCell></TableRow>
-                                    ) : (
-                                        assistantRules.map(rule => (
-                                            <TableRow key={rule.id}>
-                                                <TableCell><Badge>{rule.priority}</Badge></TableCell>
-                                                <TableCell className="font-medium">{rule.name}</TableCell>
-                                                <TableCell><Badge variant="outline">{(rule.conditions.repetition && rule.conditions.repetition !== 'none') ? '有时间规则' : '无时间规则'}</Badge></TableCell>
-                                                <TableCell><Badge variant="secondary">{prompts.find(p => p.promptKey === rule.action.promptKey)?.name || '未知'}</Badge></TableCell>
-                                                <TableCell className="text-right">
-                                                    <Button variant="ghost" size="icon" onClick={() => { setEditingRule(rule); setIsRuleDialogOpen(true); }}><Edit className="w-4 h-4" /></Button>
-                                                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteRule(rule.id)}><Trash2 className="w-4 h-4" /></Button>
+                            <Switch id="online-status" checked={user.status === 'active'} onCheckedChange={(checked) => handleStatusChange('status', checked ? 'active' : 'inactive')} />
+                        </Card>
+                        <Card className="p-4 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <Bot className="w-6 h-6 text-muted-foreground" />
+                                <div>
+                                    <Label htmlFor="ai-assistant-status" className="font-semibold">默认AI助理</Label>
+                                    <p className="text-xs text-muted-foreground">开启后，所有请求将优先由AI助理接待。</p>
+                                </div>
+                            </div>
+                            <Switch id="ai-assistant-status" checked={!!user.aiAssistantEnabled} onCheckedChange={(checked) => handleStatusChange('aiAssistantEnabled', checked)} />
+                        </Card>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="font-headline">我的排班与预约</CardTitle>
+                    </CardHeader>
+                     <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-lg font-medium">可预约时间段</CardTitle>
+                                <div className="flex items-center space-x-2 pt-2">
+                                    <Checkbox id="always-available" checked={!!user.alwaysAvailable} onCheckedChange={(checked) => handleStatusChange('alwaysAvailable', Boolean(checked))} />
+                                    <label htmlFor="always-available" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">全时空闲</label>
+                                </div>
+                            </CardHeader>
+                            {!user.alwaysAvailable && (
+                                 <CardContent className="space-y-4">
+                                    <div>
+                                        <Label>添加新时段</Label>
+                                        <div className="flex items-center gap-2">
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !newSlotDate && "text-muted-foreground")}>
+                                                        <CalendarDays className="mr-2 h-4 w-4" />
+                                                        {newSlotDate ? format(newSlotDate, "yyyy-MM-dd") : <span>选择日期</span>}
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={newSlotDate} onSelect={setNewSlotDate} initialFocus/></PopoverContent>
+                                            </Popover>
+                                            <TimePicker date={newSlotDate} setDate={setNewSlotDate} />
+                                            <Button onClick={handleAddSlot} disabled={isAddingSlot}>{isAddingSlot ? <Loader2 className="animate-spin" /> : "添加"}</Button>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                                        {isSlotsLoading ? <Skeleton className="h-10 w-full" /> : 
+                                         availableSlots.sort((a,b) => a.toMillis() - b.toMillis()).map(slot => (
+                                            <div key={slot.toMillis()} className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
+                                                 <span className="text-sm">{format(slot.toDate(), 'M月d日 HH:mm')}</span>
+                                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDeleteSlot(slot)}><Trash2 className="w-4 h-4 text-destructive"/></Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </CardContent>
+                            )}
+                        </Card>
+                        <Card>
+                             <CardHeader><CardTitle className="text-lg font-medium">待处理的预约</CardTitle></CardHeader>
+                            <CardContent className="max-h-72 overflow-y-auto">
+                                {isAppointmentsLoading ? <Skeleton className="h-20 w-full"/> : 
+                                appointments.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">暂无预约</p> :
+                                <Table>
+                                    <TableHeader><TableRow><TableHead>预约人</TableHead><TableHead>时间</TableHead><TableHead>状态</TableHead></TableRow></TableHeader>
+                                    <TableBody>
+                                        {appointments.map(appt => (
+                                            <TableRow key={appt.id}>
+                                                <TableCell>{appt.requesterName}</TableCell>
+                                                <TableCell className="text-xs">{format(appt.appointmentTime.toDate(), 'MM/dd HH:mm')}</TableCell>
+                                                <TableCell>
+                                                    {appt.status === 'pending' ? (
+                                                        <div className="flex gap-1">
+                                                            <Button size="xs" onClick={() => handleAppointmentStatus(appt.id, 'confirmed')}><CheckCircle className="w-3 h-3 mr-1"/>确认</Button>
+                                                            <Button size="xs" variant="ghost" onClick={() => handleAppointmentStatus(appt.id, 'cancelled')}><XCircle className="w-3 h-3 mr-1"/>拒绝</Button>
+                                                        </div>
+                                                    ) : ( <Badge variant={appt.status === 'confirmed' ? 'default' : 'destructive'}>{appt.status}</Badge> )}
                                                 </TableCell>
                                             </TableRow>
-                                        ))
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                </div>
-                <div className="lg:col-span-1">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="font-headline flex items-center gap-2"><Coins className="w-5 h-5 text-amber-500" /> 我的积分与账单</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="text-center p-6 bg-muted rounded-lg">
-                                <p className="text-sm text-muted-foreground">当前积分余额</p>
-                                <p className="text-4xl font-bold font-headline">{user?.points_balance?.toLocaleString() || 0}</p>
-                            </div>
-                             <Button className="w-full" onClick={() => setIsRechargeDialogOpen(true)}>充值积分</Button>
-                            <Button variant="outline" className="w-full" onClick={() => setIsHistoryDialogOpen(true)}>
-                                <History className="mr-2 h-4 w-4" />
-                                查看收支历史
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                                }
+                            </CardContent>
+                        </Card>
+                    </div>
+                </Card>
+                <Card>
+                    <CardHeader>
+                        <div className="flex items-center justify-between">
+                            <CardTitle className="font-headline">高级助理规则</CardTitle>
+                            <Button onClick={() => { setEditingRule(null); setIsRuleDialogOpen(true); }}>
+                                <PlusCircle className="w-4 h-4 mr-2" /> 新增规则
                             </Button>
-                        </CardContent>
-                    </Card>
-                </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                         <Table>
+                            <TableHeader><TableRow><TableHead>优先级</TableHead><TableHead>规则名称</TableHead><TableHead>触发条件</TableHead><TableHead>执行动作 (提示词)</TableHead><TableHead className="text-right">操作</TableHead></TableRow></TableHeader>
+                            <TableBody>
+                                {assistantRules.length === 0 ? (
+                                    <TableRow><TableCell colSpan={5} className="text-center h-24">暂无高级规则。</TableCell></TableRow>
+                                ) : (
+                                    assistantRules.map(rule => (
+                                        <TableRow key={rule.id}>
+                                            <TableCell><Badge>{rule.priority}</Badge></TableCell>
+                                            <TableCell className="font-medium">{rule.name}</TableCell>
+                                            <TableCell><Badge variant="outline">{(rule.conditions.repetition && rule.conditions.repetition !== 'none') ? '有时间规则' : '无时间规则'}</Badge></TableCell>
+                                            <TableCell><Badge variant="secondary">{prompts.find(p => p.promptKey === rule.action.promptKey)?.name || '未知'}</Badge></TableCell>
+                                            <TableCell className="text-right">
+                                                <Button variant="ghost" size="icon" onClick={() => { setEditingRule(rule); setIsRuleDialogOpen(true); }}><Edit className="w-4 h-4" /></Button>
+                                                <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteRule(rule.id)}><Trash2 className="w-4 h-4" /></Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            </div>
+            <div className="lg:col-span-1">
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="font-headline flex items-center gap-2"><Coins className="w-5 h-5 text-amber-500" /> 我的积分与账单</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="text-center p-6 bg-muted rounded-lg">
+                            <p className="text-sm text-muted-foreground">当前积分余额</p>
+                            <p className="text-4xl font-bold font-headline">{user?.points_balance?.toLocaleString() || 0}</p>
+                        </div>
+                         <Button className="w-full" onClick={() => setIsRechargeDialogOpen(true)}>充值积分</Button>
+                        <Button variant="outline" className="w-full" onClick={() => setIsHistoryDialogOpen(true)}>
+                            <History className="mr-2 h-4 w-4" />
+                            查看收支历史
+                        </Button>
+                    </CardContent>
+                </Card>
             </div>
 
             <RuleDialog
@@ -1035,7 +1033,7 @@ function ScheduleAndAssistantTab() {
             
             <RechargeDialog open={isRechargeDialogOpen} onOpenChange={setIsRechargeDialogOpen} />
             <BillingHistoryDialog open={isHistoryDialogOpen} onOpenChange={setIsHistoryDialogOpen} />
-        </>
+        </div>
     );
 }
 
@@ -1205,7 +1203,7 @@ function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, is
         handleConditionChange('targetUserRoles', currentRoles);
     };
     
-    const { conditions } = rule;
+    const { conditions, actions } = rule;
 
     return (
          <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -1362,6 +1360,7 @@ export default function CreatorWorkbenchPage() {
 
 
     
+
 
 
 
