@@ -185,7 +185,7 @@ export function ChatDialog({ open, onOpenChange, demand, currentUser }: {
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[600px] grid-rows-[auto,1fr,auto] max-h-[80vh] flex flex-col">
+        <DialogContent className="sm:max-w-2xl grid-rows-[auto,1fr,auto] max-h-[80vh] flex flex-col">
           <DialogHeader>
             <div className="flex justify-between items-center">
               <div>
