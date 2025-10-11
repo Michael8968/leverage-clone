@@ -192,7 +192,7 @@ export default function LoginPage() {
             <div className="p-3 rounded-full bg-background/50 backdrop-blur-sm">
               <Logo />
             </div>
-            <h1 className="font-headline text-3xl text-white shadow-black [text-shadow:_0_1px_10px_var(--tw-shadow-color)]">Leverage&nbsp;力维利治</h1>
+            <h1 className="font-headline text-3xl text-white shadow-black [text-shadow:_0_1px_10px_var(--tw-shadow-color)]">Leverage</h1>
         </div>
         <Suspense fallback={<LoginFormSkeleton />}>
             <LoginContent />

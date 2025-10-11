@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useState, useRef, useEffect, useTransition } from 'react';
@@ -284,7 +282,7 @@ export function ShoppingAssistant() {
                     </Alert>
                 )}
                 <div className='text-center mb-4'>
-                    <h1 className="text-2xl font-headline font-bold text-white shadow-black [text-shadow:_0_1px_10px_var(--tw-shadow-color)]">欢迎光临 Leverage 力维利治</h1>
+                    <h1 className="text-2xl font-headline font-bold text-white shadow-black [text-shadow:_0_1px_10px_var(--tw-shadow-color)]">欢迎光临 Leverage</h1>
                     <p className="text-gray-200 mt-1 shadow-black [text-shadow:_0_1px_3px_var(--tw-shadow-color)]">与AI导购对话,发现为您量身推荐的独特设计,部分商品更支持个性化定制。</p>
                 </div>
                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1">

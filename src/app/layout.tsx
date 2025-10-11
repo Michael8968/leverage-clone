@@ -16,7 +16,7 @@ const fontHeadline = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "Leverage 力维利治 | AI 智能匹配平台",
+  title: "Leverage | AI 智能匹配平台",
   description: "一个连接创意者、供应商和用户的 AI 智能匹配平台，旨在高效地将创意转化为现实。",
 };
 
