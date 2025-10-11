@@ -22,9 +22,10 @@ import { useAuthStore } from '@/store/auth';
 
 import { auth, db } from '@/lib/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import type { User } from '@/lib/types';
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "姓名必须至少包含2个字符。" }),
@@ -69,22 +70,36 @@ export default function RegisterPage() {
         const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const firebaseUser = userCredential.user;
 
-        const userPayload = {
-            id: firebaseUser.uid,
+        // 2. 在 Firestore 的 users 集合中创建对应的用户文档
+        const userPayload: Omit<User, 'uid' | 'createdAt' | 'last_level_check'> & { uid: string, signup_date: any, total_llm_calls: number, last_level_check: any, createdAt: any } = {
+            uid: firebaseUser.uid,
             email: firebaseUser.email!,
             name: values.name,
             role: values.role,
             gender: values.gender,
             avatar: `https://avatar.iran.liara.run/public/${values.gender === 'female' ? 'girl' : 'boy'}?username=${encodeURIComponent(values.name)}`,
-            createdAt: new Date().toISOString(),
+            status: 'active',
+            // New fields for points system
+            points_balance: 1000, // Default starting points
+            level: 'New',
+            signup_date: serverTimestamp(),
+            last_level_check: serverTimestamp(),
+            total_llm_calls: 0,
+            createdAt: serverTimestamp(), // Keep original createdAt field
         };
         
-        // 2. 在 Firestore 的 users 集合中创建对应的用户文档
         await setDoc(doc(db, "users", firebaseUser.uid), userPayload);
-
+        
         // 3. 更新全局状态并存储会话
-        setUser(userPayload, values.role);
-        sessionStorage.setItem(USER_SESSION_KEY, JSON.stringify({ user: userPayload, role: values.role }));
+        const finalUserData = {
+            ...userPayload,
+            signup_date: new Date(),
+            createdAt: new Date(),
+            last_level_check: new Date(),
+        };
+
+        setUser(finalUserData, values.role);
+        sessionStorage.setItem(USER_SESSION_KEY, JSON.stringify({ user: finalUserData, role: values.role }));
 
         toast({
           title: "注册成功",
@@ -115,7 +130,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-2 text-2xl font-headline font-semibold whitespace-nowrap">
             <Logo />
-            <h1 className="font-headline text-3xl">Leverage&nbsp;力维利治</h1>
+            <h1>Leverage</h1>
         </div>
         <Card>
           <CardHeader>
