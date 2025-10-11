@@ -1176,10 +1176,10 @@ function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, is
     
     const handleDayToggle = (day: DayOfWeek) => {
         const currentDays = rule.conditions.daysOfWeek || [];
-        const newDays = currentDays.includes(day) ? currentDays.filter(d => d !== day) : [...currentDays, day];
+        const newDays = currentDays.includes(day) ? currentDays.filter(d => d !== day) : [...prev, day];
         handleConditionChange('daysOfWeek', newDays);
     };
-
+    
     const handleRoleToggle = (role: Role) => {
         const currentRoles = { ...(rule.conditions.targetUserRoles || {}) };
         if (currentRoles[role]) {
@@ -1201,7 +1201,38 @@ function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, is
         handleConditionChange('targetUserRoles', currentRoles);
     };
     
-    const { conditions, actions } = rule;
+    const renderActionContent = () => {
+        switch (rule.action.type) {
+          case 'use_prompt':
+            return (
+              <div className="space-y-2">
+                <Label>选择AI助理能力 (提示词)</Label>
+                <Select
+                  value={rule.action.promptKey}
+                  onValueChange={(v) =>
+                    setRule((p) => ({
+                      ...p,
+                      action: { ...p.action, promptKey: v },
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="请选择一个提示词..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {prompts.map((p) => (
+                      <SelectItem key={p.promptKey} value={p.promptKey}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            );
+          default:
+            return null;
+        }
+      };
 
     return (
          <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -1223,35 +1254,31 @@ function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, is
                                         <AccordionContent className="space-y-4 pt-2">
                                             <div className="p-4 border rounded-md space-y-4">
                                                 <div className="grid grid-cols-2 gap-4 items-center">
-                                                    <div>
+                                                     <div>
                                                         <Label>重复频率</Label>
-                                                        <Select value={conditions.repetition || 'none'} onValueChange={(v) => handleConditionChange('repetition', v as any)}>
+                                                        <Select value={rule.conditions.repetition || 'none'} onValueChange={(v) => handleConditionChange('repetition', v as any)}>
                                                             <SelectTrigger><SelectValue/></SelectTrigger>
                                                             <SelectContent><SelectItem value="none">不重复</SelectItem><SelectItem value="daily">每天</SelectItem><SelectItem value="weekly">每周</SelectItem></SelectContent>
                                                         </Select>
                                                     </div>
-                                                    {conditions.repetition === 'weekly' && (
-                                                        <div><Label>选择星期</Label><div className="flex flex-wrap gap-x-2 gap-y-1 mt-2">{DAYS_OF_WEEK.map(day => (<div key={day.id} className="flex items-center space-x-1"><Checkbox id={`day-${day.id}`} checked={conditions.daysOfWeek?.includes(day.id)} onCheckedChange={() => handleDayToggle(day.id)} /><Label htmlFor={`day-${day.id}`} className="text-xs font-normal">{day.label}</Label></div>))}</div></div>
+                                                    {rule.conditions.repetition === 'weekly' && (
+                                                        <div><Label>选择星期</Label><div className="flex flex-wrap gap-x-2 gap-y-1 mt-2">{DAYS_OF_WEEK.map(day => (<div key={day.id} className="flex items-center space-x-1"><Checkbox id={`day-${day.id}`} checked={rule.conditions.daysOfWeek?.includes(day.id)} onCheckedChange={() => handleDayToggle(day.id)} /><Label htmlFor={`day-${day.id}`} className="text-xs font-normal">{day.label}</Label></div>))}</div></div>
                                                     )}
                                                 </div>
-                                                {(conditions.repetition && conditions.repetition !== 'none') && <div><Label>生效时间窗口</Label><div className="flex items-center gap-2"><TimePicker date={conditions.startTime ? new Date(`1970-01-01T${conditions.startTime}`) : undefined} setDate={(d) => handleConditionChange('startTime', d ? format(d, 'HH:mm') : undefined)} /><span>-</span><TimePicker date={conditions.endTime ? new Date(`1970-01-01T${conditions.endTime}`) : undefined} setDate={(d) => handleConditionChange('endTime', d ? format(d, 'HH:mm') : undefined)} /></div></div>}
+                                                 {(rule.conditions.repetition && rule.conditions.repetition !== 'none') && <div><Label>生效时间窗口</Label><div className="flex items-center gap-2"><TimePicker date={rule.conditions.startTime ? new Date(`1970-01-01T${rule.conditions.startTime}`) : undefined} setDate={(d) => handleConditionChange('startTime', d ? format(d, 'HH:mm') : undefined)} /><span>-</span><TimePicker date={rule.conditions.endTime ? new Date(`1970-01-01T${rule.conditions.endTime}`) : undefined} setDate={(d) => handleConditionChange('endTime', d ? format(d, 'HH:mm') : undefined)} /></div></div>}
                                             </div>
                                         </AccordionContent>
                                     </AccordionItem>
-                                     <div className="flex items-center justify-center py-2"><RadioGroup value={conditions.ruleLogic} onValueChange={(v) => handleConditionChange('ruleLogic', v as any)} className="flex items-center space-x-4 border p-2 rounded-lg bg-muted/30"><RadioGroupItem value="and" id="logic-and" /><Label htmlFor="logic-and">同时满足 (与)</Label><RadioGroupItem value="or" id="logic-or" /><Label htmlFor="logic-or">满足任意一个 (或)</Label></RadioGroup></div>
+                                     <div className="flex items-center justify-center py-2"><RadioGroup value={rule.conditions.ruleLogic} onValueChange={(v) => handleConditionChange('ruleLogic', v as any)} className="flex items-center space-x-4 border p-2 rounded-lg bg-muted/30"><RadioGroupItem value="and" id="logic-and" /><Label htmlFor="logic-and">同时满足 (与)</Label><RadioGroupItem value="or" id="logic-or" /><Label htmlFor="logic-or">满足任意一个 (或)</Label></RadioGroup></div>
                                     <AccordionItem value="user"><AccordionTrigger><div className="flex items-center gap-2"><Users className="w-4 h-4"/> 用户维度</div></AccordionTrigger>
-                                        <AccordionContent className="pt-4 space-y-4"><p className="text-sm text-muted-foreground">限定目标用户。若不配置，则对所有用户生效。</p><div className="space-y-3">{ALL_ROLES.map(role => (<div key={role} className="p-3 border rounded-md"><div className="flex items-center space-x-2"><Checkbox id={`role-${role}`} checked={!!conditions.targetUserRoles?.[role]} onCheckedChange={() => handleRoleToggle(role)} /><Label htmlFor={`role-${role}`} className="text-sm font-medium">{ROLE_NAMES[role]}</Label></div>{conditions.targetUserRoles?.[role] && (<div className="pt-3 mt-3 border-t"><Label className="text-xs text-muted-foreground flex items-center gap-1 mb-2"><Star className="w-3 h-3"/> 限定星级 (不选则对该角色所有星级生效)</Label><div className="flex flex-wrap gap-x-3 gap-y-1">{Array.from({length: 10}, (_, i) => i + 1).map(rating => (<div key={rating} className="flex items-center space-x-1"><Checkbox id={`rating-${role}-${rating}`} checked={conditions.targetUserRoles?.[role]?.includes(rating)} onCheckedChange={() => handleRatingToggle(role, rating)}/><Label htmlFor={`rating-${role}-${rating}`} className="text-xs font-normal">{rating}星</Label></div>))}</div></div>)}</div>))}</div></AccordionContent>
+                                        <AccordionContent className="pt-4 space-y-4"><p className="text-sm text-muted-foreground">限定目标用户。若不配置，则对所有用户生效。</p><div className="space-y-3">{ALL_ROLES.map(role => (<div key={role} className="p-3 border rounded-md"><div className="flex items-center space-x-2"><Checkbox id={`role-${role}`} checked={!!rule.conditions.targetUserRoles?.[role]} onCheckedChange={() => handleRoleToggle(role)} /><Label htmlFor={`role-${role}`} className="text-sm font-medium">{ROLE_NAMES[role]}</Label></div>{rule.conditions.targetUserRoles?.[role] && (<div className="pt-3 mt-3 border-t"><Label className="text-xs text-muted-foreground flex items-center gap-1 mb-2"><Star className="w-3 h-3"/> 限定星级 (不选则对该角色所有星级生效)</Label><div className="flex flex-wrap gap-x-3 gap-y-1">{Array.from({length: 10}, (_, i) => i + 1).map(rating => (<div key={rating} className="flex items-center space-x-1"><Checkbox id={`rating-${role}-${rating}`} checked={rule.conditions.targetUserRoles?.[role]?.includes(rating)} onCheckedChange={() => handleRatingToggle(role, rating)}/><Label htmlFor={`rating-${role}-${rating}`} className="text-xs font-normal">{rating}星</Label></div>))}</div></div>)}</div>))}</div></AccordionContent>
                                     </AccordionItem>
                                 </Accordion>
                             </AccordionContent>
                         </AccordionItem>
                         <AccordionItem value="action"><AccordionTrigger><div className="flex items-center gap-2 font-semibold"><BrainCircuit className="w-4 h-4"/> 执行动作</div></AccordionTrigger>
                             <AccordionContent className="pt-4 space-y-2">
-                                <Label>选择AI助理能力 (提示词)</Label>
-                                <Select value={rule.action.promptKey} onValueChange={v => setRule(p => ({...p, action: { ...p.action, promptKey: v }}))}>
-                                    <SelectTrigger><SelectValue placeholder="请选择一个提示词..." /></SelectTrigger>
-                                    <SelectContent>{prompts.map(p => <SelectItem key={p.promptKey} value={p.promptKey}>{p.name}</SelectItem>)}</SelectContent>
-                                </Select>
+                                {renderActionContent()}
                             </AccordionContent>
                         </AccordionItem>
                     </Accordion>
@@ -1351,16 +1378,3 @@ export default function CreatorWorkbenchPage() {
     if (role !== 'creator') { return <AppLayout><RestrictedAccess /></AppLayout>; }
     return <AppLayout><CreatorWorkbench /></AppLayout>;
 }
-
-    
-
-    
-
-
-    
-
-
-
-
-
-
