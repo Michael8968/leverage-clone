@@ -373,6 +373,7 @@ function ManualGrantForm({ onSuccessfulGrant }: { onSuccessfulGrant: () => void 
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [isGranting, setIsGranting] = useTransition();
     const { toast } = useToast();
+    const { user: currentUser, setUser } = useAuthStore();
 
     const handleRoleToggle = (role: Role) => {
         setTargetRoles(prev => prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]);
@@ -399,7 +400,16 @@ function ManualGrantForm({ onSuccessfulGrant }: { onSuccessfulGrant: () => void 
                 });
                 if (result.userCount > 0) {
                     toast({ title: "赋分成功", description: `已成功为 ${result.userCount} 位用户增加了 ${pointsAmount} 积分。` });
-                    onSuccessfulGrant(); // Callback to refresh history
+                    onSuccessfulGrant();
+                    
+                    // Check if current user is affected and update global state
+                    if (currentUser && (!targetRoles.length || targetRoles.includes(currentUser.role)) && (!targetRatings.length || (currentUser.rating && targetRatings.includes(currentUser.rating)))) {
+                        const userDocRef = doc(db, 'users', currentUser.uid);
+                        const userDocSnap = await getDoc(userDocRef);
+                        if (userDocSnap.exists()) {
+                            setUser(userDocSnap.data() as User, userDocSnap.data().role);
+                        }
+                    }
                 } else {
                     toast({ title: "操作完成", description: "未找到符合条件的用户。", variant: "default" });
                 }
