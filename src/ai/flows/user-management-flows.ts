@@ -248,7 +248,7 @@ export const revokePointsGrant = ai.defineFlow(
         outputSchema: z.object({ revokedCount: z.number() }),
     },
     async ({ batchId }) => {
-        return await runTransaction(db, async (transaction) => {
+        const result = await runTransaction(db, async (transaction) => {
             const transactionsQuery = query(
                 collection(db, 'points_transactions'),
                 where('batchId', '==', batchId),
@@ -277,5 +277,6 @@ export const revokePointsGrant = ai.defineFlow(
 
             return { revokedCount: transactionsSnapshot.size };
         });
+        return result;
     }
 );
