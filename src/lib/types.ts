@@ -118,11 +118,11 @@ export type User = {
   assistantRules?: AssistantRule[];
   defaultAssistantPromptKey?: string;
   // New fields for points system
-  level?: 'New' | 'Regular' | 'Pro';
-  points_balance?: number;
-  signup_date?: any; // Firestore Timestamp
-  last_level_check?: any; // Firestore Timestamp
-  total_llm_calls?: number;
+  level: 'New' | 'Regular' | 'Pro';
+  points_balance: number;
+  signup_date: any; // Firestore Timestamp
+  last_level_check: any; // Firestore Timestamp
+  total_llm_calls: number;
 };
 
 // Chat-related types
@@ -363,6 +363,10 @@ export type TokenConversionConfig = {
         [key: string]: number;
     }
 }
+
+export type RoleGiftsConfig = {
+    [key: string]: number; // e.g. "user_new": 5000
+};
 
 
 export interface BillingStatement {

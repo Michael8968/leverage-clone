@@ -22,10 +22,9 @@ import { useAuthStore } from '@/store/auth';
 
 import { auth, db } from '@/lib/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { Checkbox } from '@/components/ui/checkbox';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import type { User } from '@/lib/types';
+import type { User, RoleGiftsConfig } from '@/lib/types';
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "姓名必须至少包含2个字符。" }),
@@ -38,13 +37,11 @@ const formSchema = z.object({
   })
 });
 
-const USER_SESSION_KEY = 'user_session';
-
 const getRedirectPath = (role: string | null) => {
-  if (role === 'admin') { // Should not happen on register, but for safety
+  if (role === 'admin') {
       return '/demand-pool';
   }
-  return '/dashboard'; // Default for 'user', 'creator', 'supplier'
+  return '/dashboard'; 
 };
 
 export default function RegisterPage() {
@@ -66,12 +63,21 @@ export default function RegisterPage() {
   const onSubmit = (values: z.infer<typeof formSchema>) => {
     startTransition(async () => {
       try {
-        // 1. 使用 Firebase Authentication 创建新用户
+        // 1. Fetch the role gifts configuration first
+        const roleGiftsDocRef = doc(db, 'configs', 'role_gifts');
+        const roleGiftsSnap = await getDoc(roleGiftsDocRef);
+        const roleGiftsConfig = roleGiftsSnap.exists() ? roleGiftsSnap.data() as RoleGiftsConfig : {};
+        
+        // Determine the initial points based on role and level ('New')
+        const giftKey = `${values.role}_new`;
+        const initialPoints = roleGiftsConfig[giftKey] || 1000; // Fallback to 1000 if not configured
+
+        // 2. Create user in Firebase Authentication
         const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const firebaseUser = userCredential.user;
 
-        // 2. 在 Firestore 的 users 集合中创建对应的用户文档
-        const userPayload: Omit<User, 'uid' | 'createdAt' | 'last_level_check'> & { uid: string, signup_date: any, total_llm_calls: number, last_level_check: any, createdAt: any } = {
+        // 3. Create user document in Firestore with the dynamic initial points
+        const userPayload: Omit<User, 'uid' | 'createdAt' | 'last_level_check' | 'signup_date' | 'points_balance' | 'level' | 'total_llm_calls'> & { uid: string; signup_date: any; total_llm_calls: number; last_level_check: any; createdAt: any; points_balance: number; level: 'New' } = {
             uid: firebaseUser.uid,
             email: firebaseUser.email!,
             name: values.name,
@@ -79,19 +85,18 @@ export default function RegisterPage() {
             gender: values.gender,
             avatar: `https://avatar.iran.liara.run/public/${values.gender === 'female' ? 'girl' : 'boy'}?username=${encodeURIComponent(values.name)}`,
             status: 'active',
-            // New fields for points system
-            points_balance: 1000, // Default starting points
+            points_balance: initialPoints,
             level: 'New',
             signup_date: serverTimestamp(),
             last_level_check: serverTimestamp(),
             total_llm_calls: 0,
-            createdAt: serverTimestamp(), // Keep original createdAt field
+            createdAt: serverTimestamp(),
         };
         
         await setDoc(doc(db, "users", firebaseUser.uid), userPayload);
         
-        // 3. 更新全局状态并存储会话
-        const finalUserData = {
+        // 4. Update global state for immediate login
+        const finalUserData: User = {
             ...userPayload,
             signup_date: new Date(),
             createdAt: new Date(),
@@ -99,14 +104,13 @@ export default function RegisterPage() {
         };
 
         setUser(finalUserData, values.role);
-        sessionStorage.setItem(USER_SESSION_KEY, JSON.stringify({ user: finalUserData, role: values.role }));
 
         toast({
           title: "注册成功",
-          description: `欢迎您, ${values.name}！已为您自动登录并跳转。`,
+          description: `欢迎您, ${values.name}！已为您赠送 ${initialPoints} 初始积分。正在跳转...`,
         });
 
-        // 4. 根据真实角色，直接跳转到对应的最终主页
+        // 5. Redirect to the appropriate dashboard
         const redirectPath = getRedirectPath(values.role);
         router.push(redirectPath);
 

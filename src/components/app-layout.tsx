@@ -87,7 +87,7 @@ const navItems: NavItem[] = [
   { href: '/search', label: '智能搜索', icon: Search, roles: ['user', 'admin', 'supplier', 'creator'] },
   { href: '/suppliers', label: '供应商中心', icon: Building, roles: ['admin', 'supplier'] },
   { href: '/admin-dashboard', label: 'LLM对接', icon: Settings, roles: ['admin'] },
-  { href: '/prompt-management', label: '提示词管理', icon: Workflow, roles: ['admin']},
+  { href: '/prompt-management', label: '提示词管理', icon: Workflow, roles: ['admin', 'creator'] },
   { href: '/ai-scenario-config', label: 'AI场景配置', icon: Puzzle, roles: ['admin'] },
   { href: '/intelligent-routing', label: '智能路由策略', icon: Route, roles: ['admin'] },
   { href: '/points-management', label: '积分与结算', icon: Coins, roles: ['admin'] },
@@ -234,16 +234,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <SidebarFooter>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="w-full justify-start">
+              <Button variant="ghost" className="w-full justify-start h-auto py-2">
                 <div className="flex justify-between items-center w-full">
                     <div className="flex gap-2 items-center">
-                        <Avatar className="h-8 w-8 transition-transform duration-300 hover:scale-110">
+                        <Avatar className="h-10 w-10 transition-transform duration-300 hover:scale-110">
                             {user?.avatar && <AvatarImage src={user.avatar} />}
                             <AvatarFallback>{user?.name.charAt(0)}</AvatarFallback>
                         </Avatar>
-                        <div className="flex flex-col items-start">
+                        <div className="flex flex-col items-start text-left">
                             <span className="text-sm font-medium">{user?.name}</span>
                             <span className="text-xs text-muted-foreground">{user?.email}</span>
+                             <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Coins className="w-3 h-3 text-amber-500" />
+                                <span>{user?.points_balance?.toLocaleString() || 0} 积分</span>
+                            </div>
                         </div>
                     </div>
                     <ChevronDown className="w-4 h-4"/>
