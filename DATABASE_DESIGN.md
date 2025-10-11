@@ -1,7 +1,7 @@
 # **数据库与核心AI流程设计文档**
 
-**版本**: 2.5 (Final)
-**日期**: 2025年9月1日
+**版本**: 2.6 (Points System Update)
+**日期**: 2025年9月2日
 
 ---
 
@@ -31,7 +31,11 @@
 | **createdAt** | `Timestamp`| 用户创建时间。 |
 | **defaultAssistantPromptKey** | `string` | (可选, 针对 'creator') 默认助理使用的提示词Key。 |
 | **assistantRules** | `Array<Object>`| (可选, 针对 'creator') AI助理的高级行为规则数组。 |
-
+| **level** | `string` | (新增) 用户等级 ('New', 'Regular', 'Pro')。 |
+| **points_balance**| `number` | (新增) 当前的积分余额。 |
+| **signup_date** | `Timestamp`| (新增) 用户注册日期。 |
+| **last_level_check**|`Timestamp`| (新增) 上次等级检查的时间。 |
+| **total_llm_calls**|`number` | (新增) LLM调用总次数。 |
 
 ### 1.2. `products` 集合
 
@@ -211,6 +215,35 @@
 | **status** | `string` | 预约状态 (`pending`, `confirmed`, `cancelled`)。 |
 | **createdAt** | `Timestamp` | 预约创建时间。 |
 
+### 1.12. `points_transactions` 集合 (新增)
+
+存储所有积分变动记录。
+
+| 字段名 | 数据类型 | 描述 |
+| :--- | :--- | :--- |
+| **id** | `string` | 文档ID。 |
+| **uid** | `string` | 关联的用户ID。 |
+| **type** | `string` | 交易类型 (`gift`, `deduct`, `manual`, `renewal`, `recharge`)。 |
+| **amount** | `number` | 变动金额 (正数为增加，负数为减少)。 |
+| **reason** | `string` | 变动原因 (例如: 'AI Call: chat-assistant')。 |
+| **timestamp**| `Timestamp` | 交易发生时间。 |
+| **llm_action**| `string` | (可选) 具体的LLM动作标识。 |
+
+### 1.13. `payment_orders` 集合 (新增)
+
+存储用户发起的充值订单。
+
+| 字段名 | 数据类型 | 描述 |
+| :--- | :--- | :--- |
+| **id** | `string` | 订单ID (out_trade_no)。 |
+| **uid** | `string` | 关联的用户ID。 |
+| **amount_rmb** | `number` | 订单金额 (人民币)。 |
+| **points_to_add**| `number` | 此次充值将增加的积分数。 |
+| **status** | `string` | 订单状态 (`pending`, `paid`, `failed`, `proof_uploaded`)。 |
+| **type** | `string` | 支付方式 (`alipay`, `wechat`, `bank`)。 |
+| **timestamp**| `Timestamp` | 订单创建时间。 |
+| **proof_url** | `string` | (可选) 银行转账凭证的存储路径。 |
+
 ---
 
 ## 2. 核心AI流程 (Genkit Flows)
@@ -221,7 +254,7 @@
 *   `generate3dModel`, `generateTripo3dModel`, `generateNanoBananaImage`: 调用各类AI模型生成图像。
 *   `evaluateSellerData`: 批量分析CSV文件内容，评估供应商或产品的匹配度。
 *   `clarifyDemandDetails`: 作为AI助理，分析对话上下文，生成澄清问题。当无法处理时，触发智能路由进行人工转接。
-*   **`executePrompt` (核心网关)**: 统一的API网关，根据场景配置、提示词Key或模型ID，智能路由AI请求。
+*   **`executePrompt` (核心网关)**: 统一的API网关，根据场景配置、提示词Key或模型ID，智能路由AI请求。**内置积分扣除逻辑**。
 *   **`createPrivateDemand` (智能分诊)**: 为用户和设计师创建专属的`private`需求和聊天室，并根据设计师状态决定连接本人还是AI助理。
 *   **`intelligentRoutingFlow` (智能路由中枢)**: 接收来自各方的转人工请求，根据全局策略智能分配给最合适的设计师。
 *   **`batchUpdateUsers`**: 批量更新用户的角色、星级或状态。
