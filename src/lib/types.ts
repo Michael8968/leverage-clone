@@ -8,7 +8,7 @@ export type Demand = {
   id: string;
   type: 'public' | 'private';
   title: string;
-  description: string;
+  description:string;
   category: string;
   budget: number;
   status: '开放中' | '进行中' | '已完成';
@@ -117,6 +117,12 @@ export type User = {
   maxQueueSize?: number;
   assistantRules?: AssistantRule[];
   defaultAssistantPromptKey?: string;
+  // New fields for points system
+  level?: 'New' | 'Regular' | 'Pro';
+  points_balance?: number;
+  signup_date?: any; // Firestore Timestamp
+  last_level_check?: any; // Firestore Timestamp
+  total_llm_calls?: number;
 };
 
 // Chat-related types
@@ -300,6 +306,24 @@ export interface IntelligentRoutingStrategy {
     updatedAt: any; // Firestore Timestamp
 }
 
-    
+// New types for Points and Payment System
+export interface PointsTransaction {
+    id: string;
+    uid: string;
+    type: 'gift' | 'deduct' | 'manual' | 'renewal' | 'recharge';
+    amount: number; // Can be positive or negative
+    reason: string;
+    timestamp: any; // Firestore Timestamp
+    llm_action?: string; // e.g., 'chat_message', 'ai_match'
+}
 
-    
+export interface PaymentOrder {
+    id: string; // out_trade_no
+    uid: string;
+    amount_rmb: number;
+    points_to_add: number;
+    status: 'pending' | 'paid' | 'failed' | 'proof_uploaded';
+    type: 'alipay' | 'wechat' | 'bank';
+    timestamp: any; // Firestore Timestamp
+    proof_url?: string; // GS path for bank transfer proof
+}

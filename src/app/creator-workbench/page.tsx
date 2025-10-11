@@ -3,17 +3,17 @@
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuthStore, type Role } from '@/store/auth';
-import { Frown, Bot, Loader2, ArrowRight, Wand2, Send, PackagePlus, Info, UploadCloud, FileImage, CalendarDays, Clock, Trash2, CheckCircle, XCircle, AlertCircle, ToggleLeft, ToggleRight, PlusCircle, Edit, Settings, Star, BrainCircuit, Users, Power, PowerOff } from 'lucide-react';
+import { Frown, Bot, Loader2, ArrowRight, Wand2, Send, PackagePlus, Info, UploadCloud, FileImage, CalendarDays, Clock, Trash2, CheckCircle, XCircle, AlertCircle, ToggleLeft, ToggleRight, PlusCircle, Edit, Settings, Star, BrainCircuit, Users, Power, PowerOff, Coins, History } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { collection, getDocs, query, where, doc, updateDoc, addDoc, serverTimestamp, getDoc, deleteDoc, Timestamp, setDoc, orderBy, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Demand, ProductService, LlmConnection, Appointment, Availability, AssistantRule, Prompt, User } from '@/lib/types';
+import type { Demand, ProductService, LlmConnection, Appointment, Availability, AssistantRule, Prompt, User, PointsTransaction } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -29,7 +29,7 @@ import { getPrompts } from '@/ai/flows/admin-management-flows';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import Image from 'next/image';
-import { format, formatDistanceToNow, differenceInHours } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
 import { useForm } from 'react-hook-form';
@@ -711,6 +711,8 @@ function ScheduleAndAssistantTab() {
     
     // UI state
     const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
+    const [isRechargeDialogOpen, setIsRechargeDialogOpen] = useState(false);
+    const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
     const [editingRule, setEditingRule] = useState<AssistantRule | null>(null);
     const [prompts, setPrompts] = useState<Prompt[]>([]);
     const [isAppointmentsLoading, setIsAppointmentsLoading] = useState(true);
@@ -868,15 +870,11 @@ function ScheduleAndAssistantTab() {
 
     return (
         <>
-            <Card>
-                <CardHeader>
-                    <CardTitle className="font-headline">排班与AI助理</CardTitle>
-                    <CardDescription>管理您的在线状态、可预约时间，并为您的人工智能助理配置工作规则。</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-8">
-                     <div className="space-y-4">
-                        <h4 className="font-semibold">在线状态与接待设置</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
+                    <Card>
+                        <CardHeader><CardTitle className="font-headline">在线状态与接待设置</CardTitle></CardHeader>
+                        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <Card className="p-4 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     {user.status === 'active' ? <Power className="w-6 h-6 text-green-500" /> : <PowerOff className="w-6 h-6 text-red-500" />}
@@ -887,8 +885,8 @@ function ScheduleAndAssistantTab() {
                                 </div>
                                 <Switch id="online-status" checked={user.status === 'active'} onCheckedChange={(checked) => handleStatusChange('status', checked ? 'active' : 'inactive')} />
                             </Card>
-                             <Card className="p-4 flex items-center justify-between">
-                                 <div className="flex items-center gap-3">
+                            <Card className="p-4 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
                                     <Bot className="w-6 h-6 text-muted-foreground" />
                                     <div>
                                         <Label htmlFor="ai-assistant-status" className="font-semibold">默认AI助理</Label>
@@ -897,11 +895,13 @@ function ScheduleAndAssistantTab() {
                                 </div>
                                 <Switch id="ai-assistant-status" checked={!!user.aiAssistantEnabled} onCheckedChange={(checked) => handleStatusChange('aiAssistantEnabled', checked)} />
                             </Card>
-                        </div>
-                    </div>
-                     <div className="space-y-4">
-                        <h4 className="font-semibold">我的排班与预约</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="font-headline">我的排班与预约</CardTitle>
+                        </CardHeader>
+                         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <Card>
                                 <CardHeader>
                                     <CardTitle className="text-lg font-medium">可预约时间段</CardTitle>
@@ -968,16 +968,18 @@ function ScheduleAndAssistantTab() {
                                 </CardContent>
                             </Card>
                         </div>
-                    </div>
-                     <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <h4 className="font-semibold">高级助理规则</h4>
-                            <Button onClick={() => { setEditingRule(null); setIsRuleDialogOpen(true); }}>
-                                <PlusCircle className="w-4 h-4 mr-2" /> 新增规则
-                            </Button>
-                        </div>
-                        <Card>
-                            <Table>
+                    </Card>
+                    <Card>
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                                <CardTitle className="font-headline">高级助理规则</CardTitle>
+                                <Button onClick={() => { setEditingRule(null); setIsRuleDialogOpen(true); }}>
+                                    <PlusCircle className="w-4 h-4 mr-2" /> 新增规则
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                             <Table>
                                 <TableHeader><TableRow><TableHead>优先级</TableHead><TableHead>规则名称</TableHead><TableHead>触发条件</TableHead><TableHead>执行动作 (提示词)</TableHead><TableHead className="text-right">操作</TableHead></TableRow></TableHeader>
                                 <TableBody>
                                     {assistantRules.length === 0 ? (
@@ -998,10 +1000,28 @@ function ScheduleAndAssistantTab() {
                                     )}
                                 </TableBody>
                             </Table>
-                        </Card>
-                    </div>
-                </CardContent>
-            </Card>
+                        </CardContent>
+                    </Card>
+                </div>
+                <div className="lg:col-span-1">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="font-headline flex items-center gap-2"><Coins className="w-5 h-5 text-amber-500" /> 我的积分与账单</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="text-center p-6 bg-muted rounded-lg">
+                                <p className="text-sm text-muted-foreground">当前积分余额</p>
+                                <p className="text-4xl font-bold font-headline">{user?.points_balance?.toLocaleString() || 0}</p>
+                            </div>
+                             <Button className="w-full" onClick={() => setIsRechargeDialogOpen(true)}>充值积分</Button>
+                            <Button variant="outline" className="w-full" onClick={() => setIsHistoryDialogOpen(true)}>
+                                <History className="mr-2 h-4 w-4" />
+                                查看收支历史
+                            </Button>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
 
             <RuleDialog
                 key={editingRule?.id || 'new'}
@@ -1012,7 +1032,97 @@ function ScheduleAndAssistantTab() {
                 prompts={prompts}
                 isSaving={isTransitioning}
             />
+            
+            <RechargeDialog open={isRechargeDialogOpen} onOpenChange={setIsRechargeDialogOpen} />
+            <BillingHistoryDialog open={isHistoryDialogOpen} onOpenChange={setIsHistoryDialogOpen} />
         </>
+    );
+}
+
+// =================================================================
+// RECHARGE DIALOG (NEW)
+// =================================================================
+function RechargeDialog({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void}) {
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>充值积分</DialogTitle>
+                    <DialogDescription>
+                        功能正在开发中，敬请期待。
+                    </DialogDescription>
+                </DialogHeader>
+                 <div className="py-4 text-center text-muted-foreground">
+                    <p>这里将展示不同的充值选项和支付方式。</p>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>关闭</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+// =================================================================
+// BILLING HISTORY DIALOG (NEW)
+// =================================================================
+function BillingHistoryDialog({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void}) {
+     const [transactions, setTransactions] = useState<PointsTransaction[]>([]);
+     const [isLoading, setIsLoading] = useState(false);
+     const { user } = useAuthStore();
+     const { toast } = useToast();
+
+     useEffect(() => {
+        if (open && user) {
+            setIsLoading(true);
+            const fetchHistory = async () => {
+                try {
+                    const q = query(collection(db, 'points_transactions'), where('uid', '==', user.uid), orderBy('timestamp', 'desc'));
+                    const snapshot = await getDocs(q);
+                    const history = snapshot.docs.map(doc => ({...doc.data(), id: doc.id} as PointsTransaction));
+                    setTransactions(history);
+                } catch (error) {
+                    toast({ title: "加载失败", description: "无法获取账单历史。", variant: "destructive" });
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+            fetchHistory();
+        }
+    }, [open, user, toast]);
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-xl">
+                <DialogHeader>
+                    <DialogTitle>收支历史</DialogTitle>
+                </DialogHeader>
+                 <div className="max-h-[60vh] overflow-y-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>类型</TableHead>
+                                <TableHead>金额</TableHead>
+                                <TableHead>原因</TableHead>
+                                <TableHead>时间</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading ? <TableRow><TableCell colSpan={4} className="text-center"><Loader2 className="animate-spin mx-auto"/></TableCell></TableRow> 
+                            : transactions.length === 0 ? <TableRow><TableCell colSpan={4} className="text-center h-24">暂无记录</TableCell></TableRow>
+                            : transactions.map(tx => (
+                                <TableRow key={tx.id}>
+                                    <TableCell><Badge variant="outline">{tx.type}</Badge></TableCell>
+                                    <TableCell className={cn(tx.amount > 0 ? "text-green-600" : "text-red-600")}>{tx.amount > 0 ? '+' : ''}{tx.amount}</TableCell>
+                                    <TableCell>{tx.reason}</TableCell>
+                                    <TableCell className="text-xs text-muted-foreground">{tx.timestamp ? format(tx.timestamp.toDate(), 'yyyy-MM-dd HH:mm') : 'N/A'}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            </DialogContent>
+        </Dialog>
     );
 }
 
@@ -1212,7 +1322,7 @@ function CreatorWorkbench() {
         <p className="text-muted-foreground mt-2">在这里, 您可以接受任务, 响应需求, 并利用AI工具将您的创意变为现实。</p>
       </header>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4 max-w-2xl mx-auto">
+        <TabsList className="grid w-full grid-cols-4 max-w-3xl mx-auto">
           <TabsTrigger value="tasks">任务与需求</TabsTrigger>
           <TabsTrigger value="schedule-assistant">排班与助理</TabsTrigger>
           <TabsTrigger value="3d-creation">AI 创作</TabsTrigger>
@@ -1252,4 +1362,5 @@ export default function CreatorWorkbenchPage() {
 
 
     
+
 
