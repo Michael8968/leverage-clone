@@ -320,7 +320,7 @@ export interface PointsTransaction {
 export interface PaymentOrder {
     id: string; // out_trade_no
     uid: string;
-    amount_rmb: number;
+    amount_rpb: number;
     points_to_add: number;
     status: 'pending' | 'paid' | 'failed' | 'proof_uploaded';
     type: 'alipay' | 'wechat' | 'bank';
@@ -344,19 +344,26 @@ export type PricingRule = {
     };
     action: {
         type: 'per_call' | 'per_minute' | 'free' | 'add' | 'subtract';
-        value: number; // For per_call, add, subtract
-        // per_minute is a placeholder for future implementation
+        value: number; 
     };
 }
 
 export interface PointsConfig {
     defaultPricing: {
-        [key: string]: number; // e.g., "shopping-assistant": 1
+        [key: string]: number;
     };
     rules: {
-        [action: string]: PricingRule[]; // e.g. "shopping-assistant": [rule1, rule2]
+        [action: string]: PricingRule[];
     }
 }
+
+export type TokenConversionConfig = {
+    tokens_per_point: number;
+    actions: {
+        [key: string]: number;
+    }
+}
+
 
 export interface BillingStatement {
     id: string;

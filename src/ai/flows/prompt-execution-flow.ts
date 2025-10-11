@@ -1,11 +1,12 @@
 
+
 'use server';
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { doc, getDoc, collection, query, where, getDocs, orderBy, limit, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { LlmConnection, AIScenario, User, Prompt, PointsTransaction, TokenConversionConfig } from '@/lib/types';
+import type { LlmConnection, AIScenario, User, Prompt, PointsTransaction, TokenConversionConfig, PricingRule, Role } from '@/lib/types';
 import { getPlatformAssets } from './admin-management-flows';
 import { differenceInMonths } from 'date-fns';
 
@@ -29,69 +30,74 @@ const PromptExecutionOutputSchema = z.object({
 
 async function isRuleSetValid(rules: AIScenario, userId?: string): Promise<boolean> {
     const now = new Date();
-    let timeIsValid = true;
-    let userIsValid = true;
+    let timeIsValid: boolean | null = null;
+    let userIsValid: boolean | null = null;
 
-    // Time-based rule validation
-    if (rules.repetition === 'none') {
-        const startsAt = rules.startsAt?.toDate ? rules.startsAt.toDate() : null;
-        const expiresAt = rules.expiresAt?.toDate ? rules.expiresAt.toDate() : null;
-        if (startsAt && now < startsAt) timeIsValid = false;
-        if (expiresAt && now > expiresAt) timeIsValid = false;
-    } else {
-        const currentDay = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][now.getDay()];
-        if (rules.repetition === 'weekly' && !rules.daysOfWeek?.includes(currentDay as any)) {
-            timeIsValid = false;
-        }
-        if (timeIsValid && (rules.startTime || rules.endTime)) {
-            const currentTime = now.getHours() * 60 + now.getMinutes();
-            const [startH, startM] = (rules.startTime || "00:00").split(':').map(Number);
-            const [endH, endM] = (rules.endTime || "23:59").split(':').map(Number);
-            const startTimeInMinutes = startH * 60 + startM;
-            const endTimeInMinutes = endH * 60 + endM;
-            if (currentTime < startTimeInMinutes || currentTime > endTimeInMinutes) {
+     // Time-based rule validation
+    const hasTimeRules = (rules.repetition && rules.repetition !== 'none') || rules.startsAt || rules.expiresAt;
+    if (hasTimeRules) {
+        timeIsValid = true; // Assume true until a condition fails
+        if (rules.repetition === 'none') {
+            const startsAt = rules.startsAt?.toDate ? rules.startsAt.toDate() : null;
+            const expiresAt = rules.expiresAt?.toDate ? rules.expiresAt.toDate() : null;
+            if ((startsAt && now < startsAt) || (expiresAt && now > expiresAt)) {
                 timeIsValid = false;
+            }
+        } else if (rules.repetition) {
+            const currentDay = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][now.getDay()];
+            if (rules.repetition === 'weekly' && !rules.daysOfWeek?.includes(currentDay as any)) {
+                timeIsValid = false;
+            }
+            if (timeIsValid && (rules.startTime || rules.endTime)) {
+                const currentTime = now.getHours() * 60 + now.getMinutes();
+                const [startH, startM] = (rules.startTime || "00:00").split(':').map(Number);
+                const [endH, endM] = (rules.endTime || "23:59").split(':').map(Number);
+                const startTimeInMinutes = startH * 60 + startM;
+                const endTimeInMinutes = endH * 60 + endM;
+                if (currentTime < startTimeInMinutes || currentTime > endTimeInMinutes) {
+                    timeIsValid = false;
+                }
             }
         }
     }
 
+
     // User-based rule validation
     const targetRoles = rules.targetUserRoles;
-    if (userId && targetRoles && Object.keys(targetRoles).length > 0) {
+    const hasUserRules = targetRoles && Object.keys(targetRoles).length > 0;
+    if (userId && hasUserRules) {
+        userIsValid = false; // Assume false until a condition passes
         const userDocRef = doc(db, 'users', userId);
         const userDocSnap = await getDoc(userDocRef);
         if (userDocSnap.exists()) {
             const user = userDocSnap.data() as User;
-            if (!user.role || !targetRoles[user.role]) {
-                userIsValid = false; // User's role is not in the target list
-            } else {
-                const requiredRatings = targetRoles[user.role];
-                if (requiredRatings && requiredRatings.length > 0) {
-                    if (!user.rating || !requiredRatings.includes(user.rating)) {
-                        userIsValid = false; // User's rating doesn't match
-                    }
+            const userRole = user.role;
+            const userRating = user.rating;
+
+            if (userRole && targetRoles[userRole]) {
+                const requiredRatings = targetRoles[userRole];
+                if (!requiredRatings || requiredRatings.length === 0) {
+                    userIsValid = true; // Role matches and no specific rating is required
+                } else if (userRating && requiredRatings.includes(userRating)) {
+                    userIsValid = true; // Role and rating match
                 }
             }
-        } else {
-            userIsValid = false; // User not found
         }
-    } else if (targetRoles && Object.keys(targetRoles).length > 0 && !userId) {
-        // If roles are specified but no user is provided, the rule is invalid.
+    } else if (hasUserRules && !userId) {
         userIsValid = false;
     }
-
+    
     // Combine rules
     if (rules.ruleLogic === 'or') {
-        // if no user/time rules, it should not be valid
-        const hasTimeRules = rules.repetition || rules.startsAt || rules.expiresAt;
-        const hasUserRules = targetRoles && Object.keys(targetRoles).length > 0;
-        if (!hasTimeRules && !hasUserRules) return false;
-        if (!hasTimeRules) return userIsValid;
-        if (!hasUserRules) return timeIsValid;
-        return timeIsValid || userIsValid;
+        if (!hasTimeRules && !hasUserRules) return false; // If no rules are set, it's not valid for OR logic
+        return (timeIsValid === true) || (userIsValid === true);
     }
-    return timeIsValid && userIsValid;
+    
+    // Default to AND logic
+    if (timeIsValid === null && userIsValid === null) return true; // No rules set at all, defaults to valid
+    return (timeIsValid !== false) && (userIsValid !== false);
 }
+
 
 async function findModelsToTry(promptDoc?: Prompt, allConnections?: LlmConnection[], specificModelId?: string): Promise<LlmConnection[]> {
   const activeConnections = allConnections || [];
