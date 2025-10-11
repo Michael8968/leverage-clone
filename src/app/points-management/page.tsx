@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -115,7 +116,7 @@ export default function PointsManagementPage() {
                 <header>
                     <h1 className="text-2xl font-headline font-bold flex items-center gap-2">
                         <Coins />
-                        积分与支付配置
+                        积分与结算配置
                     </h1>
                     <p className="text-muted-foreground">管理平台的经济系统，包括积分开关、价格、初始赠送额度等核心参数。</p>
                 </header>
