@@ -3,9 +3,9 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { doc, getDoc, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, orderBy, limit, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { LlmConnection, AIScenario, User, Prompt } from '@/lib/types';
+import type { LlmConnection, AIScenario, User, Prompt, PointsTransaction } from '@/lib/types';
 import { getPlatformAssets } from './admin-management-flows';
 
 const PromptMessageSchema = z.object({
@@ -125,6 +125,54 @@ const executePromptFlow = ai.defineFlow(
     outputSchema: PromptExecutionOutputSchema,
   },
   async ({ modelId, promptKey, messages, temperature, scenario, userId }) => {
+    
+    // =================================================================
+    // NEW: Points Deduction Logic
+    // =================================================================
+    if (userId) {
+        const userRef = doc(db, 'users', userId);
+        const userSnap = await getDoc(userRef);
+
+        if (userSnap.exists()) {
+            const user = userSnap.data() as User;
+
+            // Admins are exempt from point deductions
+            if (user.role !== 'admin') {
+                // In a real system, cost would be dynamically determined. Here, we use a default.
+                // We'll fetch this from a config doc later if it exists.
+                const cost = 1; // Default cost for one AI call
+
+                if ((user.points_balance || 0) < cost) {
+                    throw new Error("积分余额不足，请充值后再试。");
+                }
+
+                // Use a transaction to deduct points and log the transaction atomically.
+                await runTransaction(db, async (transaction) => {
+                    const freshUserSnap = await transaction.get(userRef);
+                    if (!freshUserSnap.exists()) throw new Error("User not found.");
+
+                    const newBalance = (freshUserSnap.data().points_balance || 0) - cost;
+                    if (newBalance < 0) throw new Error("积分余额不足。");
+
+                    transaction.update(userRef, { points_balance: newBalance });
+
+                    const transactionRef = doc(collection(db, 'points_transactions'));
+                    const newTransaction: PointsTransaction = {
+                        id: transactionRef.id,
+                        uid: userId,
+                        type: 'deduct',
+                        amount: -cost,
+                        reason: `AI Call: ${scenario || promptKey || 'generic'}`,
+                        timestamp: serverTimestamp(),
+                    }
+                    transaction.set(transactionRef, newTransaction);
+                });
+            }
+        }
+    }
+    // =================================================================
+
+
     let finalPromptKey = promptKey;
     let finalSystemPrompt = messages.find(m => m.role === 'system')?.content || '';
     let finalModelId = modelId;
@@ -241,3 +289,5 @@ const executePromptFlow = ai.defineFlow(
     return { text: llmResponse.text() };
   }
 );
+
+      
