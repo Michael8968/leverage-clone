@@ -26,6 +26,7 @@ const PromptExecutionInputSchema = z.object({
 
 const PromptExecutionOutputSchema = z.object({
   text: z.string(),
+  updatedUser: z.any().optional(), // UPDATED: Add optional field to return the latest user object
 });
 
 // Helper to check if a rule's conditions are met
@@ -134,6 +135,7 @@ const executePromptFlow = ai.defineFlow(
     outputSchema: PromptExecutionOutputSchema,
   },
   async ({ modelId, promptKey, messages, temperature, scenario, userId }) => {
+    let updatedUser: User | null = null;
     
     // =================================================================
     // Points Deduction & User Level Check Logic (UPGRADED)
@@ -180,7 +182,7 @@ const executePromptFlow = ai.defineFlow(
                     }
 
                     // Use a transaction to deduct points and log the transaction atomically.
-                    await runTransaction(db, async (transaction) => {
+                    updatedUser = await runTransaction(db, async (transaction) => {
                         const freshUserSnap = await transaction.get(userRef);
                         if (!freshUserSnap.exists()) throw new Error("User not found.");
                         const freshUser = freshUserSnap.data() as User;
@@ -207,17 +209,17 @@ const executePromptFlow = ai.defineFlow(
                         }
                         transaction.set(transactionRef, newTransaction);
                         
-                        // Update user object for level check after transaction
-                        user.points_balance = newBalance;
-                        user.total_llm_calls = newTotalCalls;
+                        // Return the latest user data from within the transaction
+                        return { ...freshUser, points_balance: newBalance, total_llm_calls: newTotalCalls };
                     });
                 }
 
                 // After successful deduction, check for level up
-                const currentLevel = user.level || 'New';
-                const registrationDate = user.signup_date?.toDate ? user.signup_date.toDate() : new Date();
+                const userForLevelCheck = updatedUser || user;
+                const currentLevel = userForLevelCheck.level || 'New';
+                const registrationDate = userForLevelCheck.signup_date?.toDate ? userForLevelCheck.signup_date.toDate() : new Date();
                 const monthsSinceSignup = differenceInMonths(new Date(), registrationDate);
-                const totalCalls = user.total_llm_calls || 0;
+                const totalCalls = userForLevelCheck.total_llm_calls || 0;
                 let newLevel = currentLevel;
 
                 if (currentLevel === 'New' && monthsSinceSignup >= 1 && totalCalls >= 100) {
@@ -229,6 +231,7 @@ const executePromptFlow = ai.defineFlow(
 
                 if (newLevel !== currentLevel) {
                     await updateDoc(userRef, { level: newLevel, last_level_check: serverTimestamp() });
+                    if (updatedUser) updatedUser.level = newLevel;
                     console.log(`User ${userId} promoted from ${currentLevel} to ${newLevel}.`);
                 }
             }
@@ -327,7 +330,7 @@ const executePromptFlow = ai.defineFlow(
                     }
                     
                     if (outputText) {
-                        return { text: outputText };
+                        return { text: outputText, updatedUser };
                     }
                     throw new Error('API returned a valid response, but no text content was found.');
 
@@ -348,8 +351,6 @@ const executePromptFlow = ai.defineFlow(
         config: { temperature },
     });
     
-    return { text: llmResponse.text() };
+    return { text: llmResponse.text(), updatedUser };
   }
 );
-
-    

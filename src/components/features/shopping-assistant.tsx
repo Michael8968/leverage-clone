@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useRef, useEffect, useTransition } from 'react';
@@ -20,7 +21,7 @@ import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
-import type { ProductService, Supplier, UserProfile, MediaAsset, AIScenario, Appointment } from '@/lib/types';
+import type { ProductService, Supplier, UserProfile, MediaAsset, AIScenario, Appointment, User as AppUser } from '@/lib/types';
 import { getProductRecommendations } from '@/ai/flows/shopping-assistant';
 import { useAuthStore } from '@/store/auth';
 import { executePrompt } from '@/ai/flows/prompt-execution-flow';
@@ -110,7 +111,7 @@ export function ShoppingAssistant() {
     const scrollAreaRef                 = useRef<HTMLDivElement>(null);
     const fileInputRef                  = useRef<HTMLInputElement>(null);
     const { toast }                     = useToast();
-    const { role, user }                = useAuthStore();
+    const { role, user, setUser }       = useAuthStore(); // UPDATED: Get setUser from store
     const router                        = useRouter();
     const form                          = useForm<FormValues>({ resolver: zodResolver(formSchema), defaultValues: { description: "", scenarioId: "default" } });
 
@@ -232,23 +233,31 @@ export function ShoppingAssistant() {
         startAiSearch(async () => {
           let aiMessage: Message;
           try {
+            let result: any;
             // New logic: Check for a selected scenario.
             if (values.scenarioId && values.scenarioId !== 'default') {
-                const result = await executePrompt({
+                result = await executePrompt({
                     scenario: values.scenarioId,
                     userId: user?.uid,
                     messages: [{ role: 'user', content: values.description }],
                 });
                 aiMessage = { id: Date.now() + 2, type: 'ai', text: result.text, isRawText: true };
             } else if (mediaAsset?.id) {
-              const result = await analyzeMediaAsset({ mediaAssetId: mediaAsset.id, prompt: values.description });
+              result = await analyzeMediaAsset({ mediaAssetId: mediaAsset.id, prompt: values.description });
               aiMessage = { id: Date.now() + 2, type: 'ai', text: result.analysis, isRawText: true };
             } else {
               // Fallback to the original product recommendation flow if no scenario is selected.
-              const result = await getProductRecommendations({ description: values.description, products, suppliers });
+              result = await getProductRecommendations({ description: values.description, products, suppliers });
               const recommendedProducts = products.filter(p => result.recommendations.includes(p.id));
               aiMessage = { id: Date.now() + 2, type: 'ai', profile: result.userProfile, recommendations: recommendedProducts, isRawText: false };
             }
+            
+            // UPDATED: Check for user update and refresh global state
+            if (result.updatedUser) {
+                const fullUser = result.updatedUser as AppUser;
+                setUser(fullUser, fullUser.role);
+            }
+            
             setMessages(prev => prev.map(msg => (msg.id === loadingMessage.id ? aiMessage : msg)));
 
           } catch (error: any) {
@@ -409,16 +418,3 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
         </TooltipProvider>
     </CardFooter>
 </Card>))}</div></div> );
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
