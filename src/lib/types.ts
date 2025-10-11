@@ -327,3 +327,10 @@ export interface PaymentOrder {
     timestamp: any; // Firestore Timestamp
     proof_url?: string; // GS path for bank transfer proof
 }
+
+export interface TokenConversionConfig {
+    base_tokens_per_point: number;
+    actions: {
+        [key: string]: number; // e.g., "ai-match": 3, "chat-assistant": 1
+    };
+}
