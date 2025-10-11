@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -1095,7 +1093,7 @@ function BillingHistoryDialog({ open, onOpenChange }: { open: boolean, onOpenCha
                 <DialogHeader>
                     <DialogTitle>收支历史</DialogTitle>
                 </DialogHeader>
-                 <div className="max-h-[60vh] overflow-y-auto">
+                <div className="max-h-[60vh] overflow-y-auto">
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -1360,6 +1358,7 @@ export default function CreatorWorkbenchPage() {
 
 
     
+
 
 
 
