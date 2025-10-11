@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -47,6 +48,7 @@
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 217 89% 51%;
+    --radius: 0.75rem; /* 12px for Cards */
   }
 
   .dark {
@@ -69,6 +71,7 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 211 75% 62%;
+    --radius: 0.75rem; /* 12px for Cards */
   }
   
   .gradient {
@@ -89,8 +92,9 @@
     --destructive: 0 100% 50%;
     --destructive-foreground: 0 0% 100%;
     --border: 228 30% 25%;
-    --input: 228 20% 20%; /* #2a2a3a */
+    --input: #2a2a3a;
     --ring: 150 100% 50%;
+    --radius: 0.75rem; /* 12px for Cards */
   }
 }
 
@@ -125,6 +129,15 @@
       box-shadow: 0 5px 15px rgba(0,0,0,0.3);
   }
 
+  .gradient .card {
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 255, 136, 0.2);
+  }
+
+  .gradient .variant-primary-gradient:hover {
+    box-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+  }
+
   [data-sidebar='menu-button']:hover, .variant-primary-gradient:hover {
     transform: scale(1.05);
     box-shadow: 0 8px 25px -5px hsl(var(--primary) / 0.6), 0 4px 10px -6px hsl(var(--accent) / 0.5);
@@ -140,9 +153,10 @@
   from { height: var(--radix-accordion-content-height); }
   to { height: 0; }
 }
-.gradient [data-state=open] > [data-radix-collapsible-content] {
+
+[data-state=open] > [data-radix-collapsible-content] {
   animation: accordion-down 200ms ease-out;
 }
-.gradient [data-state=closed] > [data-radix-collapsible-content] {
+[data-state=closed] > [data-radix-collapsible-content] {
   animation: accordion-up 200ms ease-out;
 }
