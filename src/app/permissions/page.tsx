@@ -1,202 +1,85 @@
-
-
-'use client';
-
-import { useState, useEffect, useMemo, useCallback } from 'react';
 import { AppLayout } from '@/components/app-layout';
-import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { User } from '@/lib/types';
-import { useAuthStore, type Role } from '@/store/auth';
-import { Frown, Loader2, ChevronsUpDown, UserCog, ShieldCheck, Star, Ban } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { Skeleton } from '@/components/ui/skeleton';
+import { UserManagementClient } from '@/components/features/user-management-client';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, Timestamp } from 'firebase/firestore';
-import { batchUpdateUsers } from '@/ai/flows/user-management-flows';
-import { Input } from '@/components/ui/input';
+import type { User } from '@/lib/types';
+import { Frown } from 'lucide-react';
+import { auth } from '@/lib/firebase-admin';
+import { cookies } from 'next/headers';
+import { Suspense } from 'react';
+import { Skeleton } from '@/components/ui/skeleton';
 
+async function getUsers() {
+    try {
+        const usersSnapshot = await getDocs(query(collection(db, 'users')));
+        const usersData = usersSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                ...data,
+                uid: doc.id,
+                createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : null,
+                last_level_check: data.last_level_check instanceof Timestamp ? data.last_level_check.toDate().toISOString() : null,
+                signup_date: data.signup_date instanceof Timestamp ? data.signup_date.toDate().toISOString() : null,
+            } as User;
+        });
+        return usersData;
+    } catch (error) {
+        console.error("Failed to fetch users on server:", error);
+        return [];
+    }
+}
 
-type SortConfig = { key: keyof User; direction: 'ascending' | 'descending'; };
-
-const ROLE_NAMES: Record<Role, string> = {
-    admin: '管理员',
-    creator: '创意者',
-    supplier: '供应商',
-    user: '普通用户',
-    suspended: '已禁用',
-};
-
-
-export default function PermissionsPage() {
-    const [users, setUsers] = useState<User[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
-    const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
-    const [isActionModalOpen, setIsActionModalOpen] = useState(false);
-    const [modalAction, setModalAction] = useState<'role' | 'starLevel' | 'status' | null>(null);
-    const [actionValue, setActionValue] = useState<string | number>('');
-
-    const { user: currentUser } = useAuthStore();
-    const { toast } = useToast();
-
-    const fetchUsers = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const usersSnapshot = await getDocs(query(collection(db, 'users')));
-            const usersData = usersSnapshot.docs.map(doc => {
-                const data = doc.data();
-                // FIX: Convert Firestore Timestamp to Date object to avoid serialization error.
-                if (data.createdAt && data.createdAt instanceof Timestamp) {
-                    data.createdAt = data.createdAt.toDate();
-                }
-                return { ...data, uid: doc.id } as User
-            });
-            setUsers(usersData);
-        } catch (error) { toast({ title: '加载失败', variant: 'destructive' }); }
-        finally { setIsLoading(false); }
-    }, [toast]);
-
-    useEffect(() => { fetchUsers(); }, [fetchUsers]);
-
-    const sortedUsers = useMemo(() => {
-        let sortableUsers = [...users];
-        if (sortConfig !== null) {
-            sortableUsers.sort((a, b) => {
-                let aVal: any = a[sortConfig.key];
-                let bVal: any = b[sortConfig.key];
-
-                // Robustly handle date sorting
-                if (sortConfig.key === 'createdAt') {
-                    aVal = aVal ? new Date(aVal).getTime() : 0;
-                    bVal = bVal ? new Date(bVal).getTime() : 0;
-                } else {
-                    aVal = aVal || '';
-                    bVal = bVal || '';
-                }
-
-                if (aVal < bVal) return sortConfig.direction === 'ascending' ? -1 : 1;
-                if (aVal > bVal) return sortConfig.direction === 'ascending' ? 1 : -1;
-                return 0;
-            });
+async function getCurrentUser() {
+    try {
+        const sessionCookie = cookies().get('__session')?.value;
+        if (!sessionCookie) return null;
+        const decodedToken = await auth.verifySessionCookie(sessionCookie, true);
+        const userDoc = await getDoc(doc(db, 'users', decodedToken.uid));
+        if (userDoc.exists()) {
+             return { uid: userDoc.id, ...userDoc.data() } as User;
         }
-        return sortableUsers;
-    }, [users, sortConfig]);
+        return null;
+    } catch (error) {
+        console.error("Failed to get current user on server:", error);
+        return null;
+    }
+}
 
-    const handleSort = (key: keyof User) => {
-        let direction: 'ascending' | 'descending' = 'ascending';
-        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
-            direction = 'descending';
-        }
-        setSortConfig({ key, direction });
-    };
+function PermissionsPageSkeleton() {
+    return (
+        <div className="p-4 md:p-8">
+            <header className="mb-8">
+                <Skeleton className="h-10 w-48 mb-2" />
+                <Skeleton className="h-4 w-96" />
+            </header>
+            <Skeleton className="h-[400px] w-full" />
+        </div>
+    )
+}
 
-    const handleSelectAll = (checked: boolean) => { setSelectedUserIds(checked ? users.map(u => u.uid) : []); };
-    const handleSelect = (userId: string, checked: boolean) => { setSelectedUserIds(prev => checked ? [...prev, userId] : prev.filter(id => id !== userId)); };
+function RestrictedAccess() {
+    return (
+        <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+            <Frown className="w-16 h-16 mb-4 text-destructive" />
+            <h2 className="text-2xl font-bold font-headline mb-2">访问受限</h2>
+            <p className="text-muted-foreground">此页面仅对管理员开放。</p>
+        </div>
+    );
+}
 
-    const openActionModal = (action: 'role' | 'starLevel' | 'status') => {
-        setActionValue(''); // Reset action value when opening modal
-        setModalAction(action);
-        setIsActionModalOpen(true);
-    };
+export default async function PermissionsPage() {
+    const initialUsers = await getUsers();
+    const currentUser = await getCurrentUser();
 
-    const handleBatchUpdate = async () => {
-        if (!modalAction || (typeof actionValue !== 'number' && !actionValue) || !currentUser) return;
-        try {
-            let updates: any = {};
-            if (modalAction === 'role') {
-                updates.role = actionValue as string;
-            } else if (modalAction === 'starLevel') {
-                updates.starLevel = Number(actionValue);
-            } else if (modalAction === 'status') {
-                updates.disabled = actionValue === 'suspended';
-            }
-
-            await batchUpdateUsers({
-                userIds: selectedUserIds,
-                updates: updates,
-                currentUserId: currentUser.uid,
-            });
-
-            toast({ title: '批量更新成功！' });
-            fetchUsers();
-            setSelectedUserIds([]);
-            setIsActionModalOpen(false);
-        } catch (error: any) {
-            toast({ title: '更新失败', description: error.message, variant: 'destructive' });
-        }
-    };
+    if (!currentUser || currentUser.role !== 'admin') {
+        return <AppLayout><RestrictedAccess /></AppLayout>;
+    }
 
     return (
         <AppLayout>
-            <div className="p-4 md:p-8">
-                <header className="mb-8"><h1 className="text-3xl font-headline font-bold">用户管理</h1><p className="text-muted-foreground mt-2">查看、排序和批量管理平台所有用户。</p></header>
-                <Card>
-                    <CardHeader>
-                        {selectedUserIds.length > 0 ? (
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm font-medium">{selectedUserIds.length} 位用户已选中</span>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild><Button><UserCog className="mr-2 h-4 w-4"/>批量操作</Button></DropdownMenuTrigger>
-                                    <DropdownMenuContent>
-                                        <DropdownMenuItem onSelect={() => openActionModal('role')}><ShieldCheck className="mr-2 h-4 w-4"/>更改角色</DropdownMenuItem>
-                                        <DropdownMenuItem onSelect={() => openActionModal('starLevel')}><Star className="mr-2 h-4 w-4"/>评定星级</DropdownMenuItem>
-                                        <DropdownMenuItem onSelect={() => openActionModal('status')}><Ban className="mr-2 h-4 w-4"/>启用/禁用</DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </div>
-                        ) : (
-                            <CardTitle className="font-headline">用户列表</CardTitle>
-                        )}
-                    </CardHeader>
-                    <CardContent><Table><TableHeader><TableRow>
-                        <TableHead className="w-[50px]"><Checkbox checked={selectedUserIds.length > 0 && selectedUserIds.length === users.length} onCheckedChange={handleSelectAll} /></TableHead>
-                        <TableHead>用户</TableHead>
-                        <TableHead><Button variant="ghost" onClick={() => handleSort('role')}>角色<ChevronsUpDown className="ml-2 h-4 w-4 inline"/></Button></TableHead>
-                        <TableHead><Button variant="ghost" onClick={() => handleSort('rating')}>星级<ChevronsUpDown className="ml-2 h-4 w-4 inline"/></Button></TableHead>
-                        <TableHead>状态</TableHead>
-                    </TableRow></TableHeader>
-                    <TableBody>
-                        {isLoading ? <TableRow><TableCell colSpan={5}><Skeleton className="h-20 w-full"/></TableCell></TableRow>
-                        : sortedUsers.map(user => (
-                            <TableRow key={user.uid}>
-                                <TableCell><Checkbox checked={selectedUserIds.includes(user.uid)} onCheckedChange={(c) => handleSelect(user.uid, !!c)}/></TableCell>
-                                <TableCell className="font-medium">{user.name} <span className="text-muted-foreground text-xs">{user.email}</span></TableCell>
-                                <TableCell><Badge variant="secondary">{ROLE_NAMES[user.role] || user.role}</Badge></TableCell>
-                                <TableCell>{user.rating ? `${user.rating} 星` : '未评级'}</TableCell>
-                                <TableCell><Badge variant={user.status === 'suspended' ? 'destructive' : 'default'}>{user.status === 'suspended' ? '已禁用' : (user.status === 'active' ? '活跃' : '未知')}</Badge></TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                    </Table></CardContent>
-                </Card>
-            </div>
-
-            <Dialog open={isActionModalOpen} onOpenChange={setIsActionModalOpen}>
-                <DialogContent>
-                    <DialogHeader><DialogTitle>批量更新 {selectedUserIds.length} 位用户</DialogTitle><DialogDescription>请选择要应用的新值。</DialogDescription></DialogHeader>
-                    <div className="py-4">
-                        {modalAction === 'role' && <Select onValueChange={(v) => setActionValue(v)}><SelectTrigger><SelectValue placeholder="选择新角色..."/></SelectTrigger><SelectContent><SelectItem value="user">普通用户</SelectItem><SelectItem value="creator">创意者</SelectItem><SelectItem value="supplier">供应商</SelectItem><SelectItem value="admin">管理员</SelectItem></SelectContent></Select>}
-                        {modalAction === 'starLevel' && (
-                             <Input 
-                                type="number" 
-                                placeholder="输入新的星级 (1-10)" 
-                                onChange={(e) => setActionValue(e.target.value)}
-                                min="1"
-                                max="10"
-                            />
-                        )}
-                        {modalAction === 'status' && <Select onValueChange={(v) => setActionValue(v)}><SelectTrigger><SelectValue placeholder="选择新状态..."/></SelectTrigger><SelectContent><SelectItem value="active">启用</SelectItem><SelectItem value="suspended">禁用</SelectItem></SelectContent></Select>}
-                    </div>
-                    <DialogFooter><Button variant="ghost" onClick={() => setIsActionModalOpen(false)}>取消</Button><Button onClick={handleBatchUpdate}>确认更新</Button></DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <Suspense fallback={<PermissionsPageSkeleton />}>
+                <UserManagementClient initialUsers={initialUsers} currentUser={currentUser} />
+            </Suspense>
         </AppLayout>
     );
 }
