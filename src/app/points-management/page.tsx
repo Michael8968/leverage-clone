@@ -57,6 +57,16 @@ const ALL_ROLES: Role[] = ['admin', 'creator', 'supplier', 'user'];
 const ROLE_NAMES: Record<Role, string> = { admin: '管理员', creator: '创意者', supplier: '供应商', user: '普通用户', suspended: '已禁用' };
 
 
+const getInitialPricingRuleState = (initialRule: PricingRule | null): PricingRule => {
+    return initialRule || {
+        id: `rule_${Date.now()}`,
+        name: '',
+        priority: 10,
+        conditions: { ruleLogic: 'and' },
+        action: { type: 'per_call', value: 1 }
+    };
+};
+
 function PricingRuleDialog({ open, onOpenChange, onSave, rule: initialRule, actionKey }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -65,23 +75,11 @@ function PricingRuleDialog({ open, onOpenChange, onSave, rule: initialRule, acti
     actionKey: string;
 }) {
     const isEditing = !!initialRule;
-    
-    // Correctly initialize state
-    const getInitialState = (): PricingRule => {
-        return initialRule || {
-            id: `rule_${Date.now()}`,
-            name: '',
-            priority: 10,
-            conditions: { ruleLogic: 'and' },
-            action: { type: 'per_call', value: 1 }
-        };
-    };
-    const [rule, setRule] = useState<PricingRule>(getInitialState);
+    const [rule, setRule] = useState<PricingRule>(() => getInitialPricingRuleState(initialRule));
 
      useEffect(() => {
-        // Reset state only when the dialog opens with a new or different rule
         if (open) {
-            setRule(getInitialState());
+            setRule(getInitialPricingRuleState(initialRule));
         }
     }, [initialRule, open]);
 
@@ -124,9 +122,7 @@ function PricingRuleDialog({ open, onOpenChange, onSave, rule: initialRule, acti
         handleConditionChange('targetUserRoles', currentRoles);
     };
 
-    // Safely access nested properties
-    const conditions = rule?.conditions || { ruleLogic: 'and' };
-    const action = rule?.action || { type: 'per_call', value: 1 };
+    const { conditions, action } = rule;
 
 
     return (
@@ -590,7 +586,7 @@ export default function PointsManagementPage() {
     // State for the new dialog
     const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
     const [currentRule, setCurrentRule] = useState<PricingRule | null>(null);
-    const [currentAction, setCurrentAction] = useState<string | null>(null);
+    const [currentActionKey, setCurrentActionKey] = useState<string | null>(null);
 
 
     const fetchData = useCallback(async () => {
@@ -681,13 +677,13 @@ export default function PointsManagementPage() {
     };
 
     const handleAddRule = (action: string) => {
-        setCurrentAction(action);
+        setCurrentActionKey(action);
         setCurrentRule(null);
         setIsRuleDialogOpen(true);
     };
 
     const handleEditRule = (action: string, rule: PricingRule) => {
-        setCurrentAction(action);
+        setCurrentActionKey(action);
         setCurrentRule(rule);
         setIsRuleDialogOpen(true);
     };
@@ -704,10 +700,10 @@ export default function PointsManagementPage() {
     };
     
     const handleSaveRule = (rule: PricingRule) => {
-        if (!currentAction) return;
+        if (!currentActionKey) return;
         setPointsConfig(prev => {
             if (!prev) return null;
-            const rulesForAction = prev.rules[currentAction] || [];
+            const rulesForAction = prev.rules[currentActionKey] || [];
             const existingIndex = rulesForAction.findIndex(r => r.id === rule.id);
             let newRules;
             if (existingIndex > -1) {
@@ -718,7 +714,7 @@ export default function PointsManagementPage() {
             }
             return {
                 ...prev,
-                rules: { ...prev.rules, [currentAction]: newRules }
+                rules: { ...prev.rules, [currentActionKey]: newRules }
             };
         });
     };
@@ -866,12 +862,12 @@ export default function PointsManagementPage() {
                 </div>
             </div>
             
-             {currentAction && <PricingRuleDialog 
+             {currentActionKey && <PricingRuleDialog 
                 open={isRuleDialogOpen}
                 onOpenChange={setIsRuleDialogOpen}
                 rule={currentRule}
                 onSave={handleSaveRule}
-                actionKey={currentAction}
+                actionKey={currentActionKey}
             />}
         </AppLayout>
     );
