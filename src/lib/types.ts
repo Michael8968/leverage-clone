@@ -314,7 +314,8 @@ export interface PointsTransaction {
     timestamp: any; // Can be Date, string, or Firestore Timestamp
     llm_action?: string; // e.g., 'chat_message', 'ai_match'
     batchId?: string; // To group manual grant operations
-    status?: 'active' | 'revoked'; // For undoing operations
+    status?: 'pending' | 'approved' | 'rejected' | 'revoked'; // For approval workflow
+    approvers?: string[]; // Array of admin UIDs who approved
 }
 
 export interface PaymentOrder {

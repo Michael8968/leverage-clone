@@ -33,6 +33,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Select, SelectContent, SelectTrigger, SelectValue, SelectItem } from '@/components/ui/select';
 import { grantPointsToGroup, approveGrantRequest } from '@/ai/flows/user-management-flows';
 import { Textarea } from '@/components/ui/textarea';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
 
 type SystemConfig = {
     enable_points: boolean;
@@ -445,12 +447,33 @@ function GrantHistory({ refreshKey, onHistoryUpdate }: { refreshKey: number, onH
 
     const getStatusBadge = (tx: PointsTransaction) => {
         const approverCount = tx.approvers?.length || 0;
+        let badge: React.ReactNode;
         switch (tx.status) {
-            case 'pending': return <Badge variant="secondary">待审批 ({approverCount}/2)</Badge>;
-            case 'approved': return <Badge className="bg-green-500">已批准</Badge>;
-            case 'rejected': return <Badge variant="destructive">已拒绝</Badge>;
-            default: return <Badge variant="outline">{tx.status || '未知'}</Badge>;
+            case 'pending': 
+                badge = <Badge variant="secondary">待审批 ({approverCount}/2)</Badge>;
+                break;
+            case 'approved': 
+                badge = <Badge className="bg-green-500">已批准</Badge>;
+                break;
+            case 'rejected': 
+                badge = <Badge variant="destructive">已拒绝</Badge>;
+                break;
+            default: 
+                badge = <Badge variant="outline">{tx.status || '未知'}</Badge>;
         }
+
+        return (
+            <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>{badge}</TooltipTrigger>
+                    {tx.approvers && tx.approvers.length > 0 && (
+                        <TooltipContent>
+                            <p>批准人: {tx.approvers.join(', ')}</p>
+                        </TooltipContent>
+                    )}
+                </Tooltip>
+            </TooltipProvider>
+        );
     }
 
     return (
@@ -515,7 +538,6 @@ export default function PointsManagementPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     
-    // State for the new dialog
     const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
     const [currentActionKey, setCurrentActionKey] = useState<string>('');
     const [editingRule, setEditingRule] = useState<PricingRule | null>(null);
@@ -811,41 +833,46 @@ export default function PointsManagementPage() {
 function PricingRuleDialog({
   open,
   onOpenChange,
-  rule,
-  onRuleChange,
+  rule: initialRule,
   onSave,
   onDeleteRule,
   actionKey,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  rule: PricingRule;
-  onRuleChange: (rule: PricingRule) => void;
-  onSave: () => void;
+  rule: PricingRule | null;
+  onSave: (rule: PricingRule) => void;
   onDeleteRule: (actionKey: string, ruleId: string) => void;
   actionKey: string;
 }) {
     const { toast } = useToast();
-    const isEditing = !!(rule.id && !rule.id.startsWith('rule_'));
+    
+    const [rule, setRule] = useState<PricingRule>(() => adaptRuleToSchema(initialRule || {}));
+    
+    useEffect(() => {
+        if(open) {
+            setRule(adaptRuleToSchema(initialRule || {}));
+        }
+    }, [initialRule, open]);
 
     const handleSave = () => {
         if (!rule.name) {
             toast({ title: "信息不完整", description: "规则名称不能为空。", variant: "destructive" });
             return;
         }
-        onSave();
+        onSave(rule);
     };
 
     const handleFieldChange = <T extends keyof PricingRule>(field: T, value: PricingRule[T]) => {
-        onRuleChange({ ...rule, [field]: value });
+        setRule({ ...rule, [field]: value });
     };
 
     const handleConditionChange = <T extends keyof PricingRule['conditions']>(field: T, value: PricingRule['conditions'][T]) => {
-        onRuleChange({ ...rule, conditions: { ...(rule.conditions || {}), [field]: value }});
+        setRule({ ...rule, conditions: { ...(rule.conditions || {}), [field]: value }});
     };
 
     const handleActionChange = <T extends keyof PricingRule['action']>(field: T, value: PricingRule['action'][T]) => {
-        onRuleChange({ ...rule, action: { ...(rule.action || { type: 'per_call', value: 1 }), [field]: value }});
+        setRule({ ...rule, action: { ...(rule.action || { type: 'per_call', value: 1 }), [field]: value }});
     };
     
     const handleDayToggle = (day: DayOfWeek) => {
@@ -872,7 +899,9 @@ function PricingRuleDialog({
         handleConditionChange('targetUserRoles', currentRoles);
     };
     
-    // Defensive access
+    if (!rule) return null;
+
+    const isEditing = !!(rule.id && !rule.id.startsWith('rule_'));
     const conditions = rule.conditions || { ruleLogic: 'and' };
     const action = rule.action || { type: 'per_call', value: 1};
 
