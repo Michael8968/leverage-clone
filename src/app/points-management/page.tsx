@@ -57,9 +57,7 @@ const ALL_ROLES: Role[] = ['admin', 'creator', 'supplier', 'user'];
 const ROLE_NAMES: Record<Role, string> = { admin: '管理员', creator: '创意者', supplier: '供应商', user: '普通用户', suspended: '已禁用' };
 
 // This is a pure helper function, moved outside the component.
-const getInitialPricingRuleState = (existingRule?: PricingRule | null): PricingRule => {
-  if (existingRule) return existingRule;
-  
+const getInitialPricingRuleState = (): PricingRule => {
   return {
     id: `rule_${Date.now()}`,
     name: '',
@@ -69,17 +67,23 @@ const getInitialPricingRuleState = (existingRule?: PricingRule | null): PricingR
   };
 };
 
-function PricingRuleDialog({ open, onOpenChange, onSave, rule, onRuleChange, actionKey }: {
+function PricingRuleDialog({ open, onOpenChange, onSave, rule: initialRule, actionKey }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onSave: () => void;
-    rule: PricingRule; // Now this is guaranteed to be an object, not null
-    onRuleChange: (newRule: PricingRule) => void;
+    onSave: (rule: PricingRule) => void;
+    rule: PricingRule | null;
     actionKey: string;
 }) {
     const { toast } = useToast();
-    
-    // The dialog is now fully controlled by the `rule` prop.
+    const [rule, setRule] = useState<PricingRule>(getInitialPricingRuleState());
+
+    useEffect(() => {
+      // This effect syncs the internal state with the prop when the dialog opens.
+      if (open) {
+        setRule(initialRule || getInitialPricingRuleState());
+      }
+    }, [open, initialRule]);
+
     const isEditing = !!(rule.id && !rule.id.startsWith('rule_'));
     
     const handleSave = () => {
@@ -87,19 +91,19 @@ function PricingRuleDialog({ open, onOpenChange, onSave, rule, onRuleChange, act
             toast({ title: "信息不完整", description: "规则名称不能为空。", variant: "destructive" });
             return;
         }
-        onSave();
+        onSave(rule);
     };
 
     const handleFieldChange = <T extends keyof PricingRule>(field: T, value: PricingRule[T]) => {
-        onRuleChange({ ...rule, [field]: value });
+        setRule({ ...rule, [field]: value });
     };
 
     const handleConditionChange = <T extends keyof PricingRule['conditions']>(field: T, value: PricingRule['conditions'][T]) => {
-        onRuleChange({ ...rule, conditions: { ...rule.conditions, [field]: value }});
+        setRule({ ...rule, conditions: { ...rule.conditions, [field]: value }});
     };
 
     const handleActionChange = <T extends keyof PricingRule['action']>(field: T, value: PricingRule['action'][T]) => {
-        onRuleChange({ ...rule, action: { ...rule.action, [field]: value }});
+        setRule({ ...rule, action: { ...rule.action, [field]: value }});
     };
     
     const handleDayToggle = (day: DayOfWeek) => {
@@ -125,8 +129,8 @@ function PricingRuleDialog({ open, onOpenChange, onSave, rule, onRuleChange, act
         currentRoles[role] = newRatings;
         handleConditionChange('targetUserRoles', currentRoles);
     };
-
-    // Since rule is now guaranteed to be a valid object, this is safe.
+    
+    // Since rule is now guaranteed to be a valid object by the parent, this is safe.
     const { conditions, action } = rule;
 
     return (
@@ -595,7 +599,7 @@ export default function PointsManagementPage() {
     
     // State for the new dialog (State Elevation)
     const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
-    const [currentRule, setCurrentRule] = useState<PricingRule | null>(null); // Can be null when no dialog is open
+    const [currentRule, setCurrentRule] = useState<PricingRule | null>(null);
     const [currentActionKey, setCurrentActionKey] = useState<string>('');
 
 
@@ -688,13 +692,13 @@ export default function PointsManagementPage() {
 
     const handleAddRule = (action: string) => {
         setCurrentActionKey(action);
-        setCurrentRule(getInitialPricingRuleState());
+        setCurrentRule(getInitialPricingRuleState()); // Always create a fresh, valid object
         setIsRuleDialogOpen(true);
     };
 
     const handleEditRule = (action: string, rule: PricingRule) => {
         setCurrentActionKey(action);
-        setCurrentRule(rule);
+        setCurrentRule(rule); // Pass the existing object
         setIsRuleDialogOpen(true);
     };
     
@@ -709,19 +713,17 @@ export default function PointsManagementPage() {
         });
     };
     
-    const handleSaveRule = () => {
-        if (!currentActionKey || !currentRule) return;
-
+    const handleSaveRule = (ruleToSave: PricingRule) => {
         setPointsConfig(prev => {
             if (!prev) return null;
             const rulesForAction = prev.rules[currentActionKey] || [];
-            const existingIndex = rulesForAction.findIndex(r => r.id === currentRule.id);
+            const existingIndex = rulesForAction.findIndex(r => r.id === ruleToSave.id);
             let newRules;
             if (existingIndex > -1) {
                 newRules = [...rulesForAction];
-                newRules[existingIndex] = currentRule;
+                newRules[existingIndex] = ruleToSave;
             } else {
-                newRules = [...rulesForAction, currentRule];
+                newRules = [...rulesForAction, ruleToSave];
             }
             return {
                 ...prev,
@@ -876,11 +878,11 @@ export default function PointsManagementPage() {
             
             {isRuleDialogOpen && currentRule && (
               <PricingRuleDialog 
+                  key={currentRule.id}
                   open={isRuleDialogOpen}
                   onOpenChange={setIsRuleDialogOpen}
                   rule={currentRule}
                   onSave={handleSaveRule}
-                  onRuleChange={setCurrentRule}
                   actionKey={currentActionKey}
               />
             )}

@@ -254,7 +254,7 @@ export const revokePointsGrant = ai.defineFlow(
                 where('batchId', '==', batchId),
                 where('status', '==', 'active')
             );
-            // We use transaction.get inside a transaction to ensure we read the latest data.
+            
             const transactionsSnapshot = await transaction.get(transactionsQuery);
 
             if (transactionsSnapshot.empty) {
