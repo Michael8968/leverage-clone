@@ -977,39 +977,48 @@ function ScheduleAndAssistantTab() {
                         </Card>
                     </div>
                 </Card>
-                <Card>
-                    <CardHeader>
-                        <div className="flex items-center justify-between">
-                            <CardTitle className="font-headline">高级助理规则</CardTitle>
-                            <Button onClick={() => { setEditingRule(null); setIsRuleDialogOpen(true); }}>
-                                <PlusCircle className="w-4 h-4 mr-2" /> 新增规则
-                            </Button>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                         <Table>
-                            <TableHeader><TableRow><TableHead>优先级</TableHead><TableHead>规则名称</TableHead><TableHead>触发条件</TableHead><TableHead>执行动作 (提示词)</TableHead><TableHead className="text-right">操作</TableHead></TableRow></TableHeader>
-                            <TableBody>
-                                {assistantRules.length === 0 ? (
-                                    <TableRow><TableCell colSpan={5} className="text-center h-24">暂无高级规则。</TableCell></TableRow>
-                                ) : (
-                                    assistantRules.map(rule => (
-                                        <TableRow key={rule.id}>
-                                            <TableCell><Badge>{rule.priority}</Badge></TableCell>
-                                            <TableCell className="font-medium">{rule.name}</TableCell>
-                                            <TableCell><Badge variant="outline">{(rule.conditions.repetition && rule.conditions.repetition !== 'none') ? '有时间规则' : '无时间规则'}</Badge></TableCell>
-                                            <TableCell><Badge variant="secondary">{prompts.find(p => p.promptKey === rule.action.promptKey)?.name || '未知'}</Badge></TableCell>
-                                            <TableCell className="text-right">
-                                                <Button variant="ghost" size="icon" onClick={() => { setEditingRule(rule); setIsRuleDialogOpen(true); }}><Edit className="w-4 h-4" /></Button>
-                                                <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteRule(rule.id)}><Trash2 className="w-4 h-4" /></Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
+                <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value="item-1">
+                        <AccordionTrigger>
+                            <CardTitle className="font-headline flex-1 text-left">高级助理规则</CardTitle>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                            <Card>
+                                <CardHeader>
+                                    <div className="flex items-center justify-between">
+                                        <CardDescription>为您的AI助理创建带有优先级和复杂触发条件（时间、用户维度）的行为规则。</CardDescription>
+                                        <Button onClick={() => { setEditingRule(null); setIsRuleDialogOpen(true); }}>
+                                            <PlusCircle className="w-4 h-4 mr-2" /> 新增规则
+                                        </Button>
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                     <Table>
+                                        <TableHeader><TableRow><TableHead>优先级</TableHead><TableHead>规则名称</TableHead><TableHead>触发条件</TableHead><TableHead>执行动作 (提示词)</TableHead><TableHead className="text-right">操作</TableHead></TableRow></TableHeader>
+                                        <TableBody>
+                                            {assistantRules.length === 0 ? (
+                                                <TableRow><TableCell colSpan={5} className="text-center h-24">暂无高级规则。</TableCell></TableRow>
+                                            ) : (
+                                                assistantRules.map(rule => (
+                                                    <TableRow key={rule.id}>
+                                                        <TableCell><Badge>{rule.priority}</Badge></TableCell>
+                                                        <TableCell className="font-medium">{rule.name}</TableCell>
+                                                        <TableCell><Badge variant="outline">{(rule.conditions.repetition && rule.conditions.repetition !== 'none') ? '有时间规则' : '无时间规则'}</Badge></TableCell>
+                                                        <TableCell><Badge variant="secondary">{prompts.find(p => p.promptKey === rule.action.promptKey)?.name || '未知'}</Badge></TableCell>
+                                                        <TableCell className="text-right">
+                                                            <Button variant="ghost" size="icon" onClick={() => { setEditingRule(rule); setIsRuleDialogOpen(true); }}><Edit className="w-4 h-4" /></Button>
+                                                            <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteRule(rule.id)}><Trash2 className="w-4 h-4" /></Button>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </CardContent>
+                            </Card>
+                        </AccordionContent>
+                    </AccordionItem>
+                </Accordion>
             </div>
             <div className="lg:col-span-1">
                 <Card>
