@@ -1,6 +1,6 @@
 # **项目发布与部署指南 (Firebase Studio)**
 
-**版本**: 1.1
+**版本**: 1.0
 **日期**: 2025年9月30日
 **目的**: 本文档为基于 Next.js、Firebase 和 Genkit 的全栈 AI 应用，提供一个通过 Firebase Studio 进行发布和部署的详细技术参考。
 
@@ -69,27 +69,6 @@ runConfig:
     2.  将您的服务账户JSON密钥内容作为 Secret 的值。
     3.  在 Firebase App Hosting 的设置中，将这个 Secret 关联到您的后端服务，并映射为名为 `FIREBASE_SERVICE_ACCOUNT_KEY` 的环境变量。
     4.  这样，在云端运行时，App Hosting 会自动从 Secret Manager 中安全地读取密钥并注入到您的应用环境中。
-
-### **3.4. HTTP 缓存头优化 (新增)**
-为了充分利用 Firebase 的全球 CDN，我们在 `next.config.ts` 中添加了全局的 `Cache-Control` 头：
-```javascript
-async headers() {
-  return [
-    {
-      source: '/:path*',
-      headers: [
-        {
-          key: 'Cache-Control',
-          value: 'public, max-age=300, s-maxage=600',
-        },
-      ],
-    },
-  ]
-},
-```
-- **`max-age=300`**: 浏览器缓存5分钟。
-- **`s-maxage=600`**: CDN 缓存10分钟。
-这能显著减少回源请求，提升性能并降低成本。
 
 ---
 
