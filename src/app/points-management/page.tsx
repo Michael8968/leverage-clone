@@ -56,9 +56,9 @@ const DAYS_OF_WEEK: { id: DayOfWeek; label: string }[] = [ { id: 'mon', label: '
 const ALL_ROLES: Role[] = ['admin', 'creator', 'supplier', 'user'];
 const ROLE_NAMES: Record<Role, string> = { admin: '管理员', creator: '创意者', supplier: '供应商', user: '普通用户', suspended: '已禁用' };
 
-// Moved outside the component to avoid being recreated on every render
-const getInitialPricingRuleState = (rule: PricingRule | null): PricingRule => {
-  return rule || {
+// This is now a pure helper function, moved outside the component.
+const getInitialPricingRuleState = (): PricingRule => {
+  return {
     id: `rule_${Date.now()}`,
     name: '',
     priority: 10,
@@ -67,70 +67,63 @@ const getInitialPricingRuleState = (rule: PricingRule | null): PricingRule => {
   };
 };
 
-function PricingRuleDialog({ open, onOpenChange, onSave, rule: initialRule, actionKey }: {
+function PricingRuleDialog({ open, onOpenChange, onSave, rule, onRuleChange, actionKey }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onSave: (rule: PricingRule) => void;
-    rule: PricingRule | null;
+    onSave: () => void;
+    rule: PricingRule; // Now this is guaranteed to be an object, not null
+    onRuleChange: (newRule: PricingRule) => void;
     actionKey: string;
 }) {
-    const isEditing = !!initialRule;
-    // Use a state that is guaranteed to be initialized with a valid object.
-    const [rule, setRule] = useState<PricingRule>(() => getInitialPricingRuleState(initialRule));
     const { toast } = useToast();
 
-    // The key change is here: useEffect now correctly re-initializes the state when the dialog is reopened for a new rule.
-    useEffect(() => {
-        if (open) {
-            setRule(getInitialPricingRuleState(initialRule));
-        }
-    }, [open, initialRule]);
-
-
+    // The dialog is now fully controlled by the `rule` prop.
+    const isEditing = !!(rule.id && !rule.id.startsWith('rule_'));
+    
     const handleSave = () => {
         if (!rule.name) {
             toast({ title: "信息不完整", description: "规则名称不能为空。", variant: "destructive" });
             return;
         }
-        onSave(rule);
-        onOpenChange(false);
+        onSave();
     };
 
-    const handleConditionChange = (field: keyof PricingRule['conditions'], value: any) => {
-        setRule(prev => ({...prev, conditions: { ...prev.conditions, [field]: value }}));
+    const handleFieldChange = <T extends keyof PricingRule>(field: T, value: PricingRule[T]) => {
+        onRuleChange({ ...rule, [field]: value });
+    };
+
+    const handleConditionChange = <T extends keyof PricingRule['conditions']>(field: T, value: PricingRule['conditions'][T]) => {
+        onRuleChange({ ...rule, conditions: { ...rule.conditions, [field]: value }});
+    };
+
+    const handleActionChange = <T extends keyof PricingRule['action']>(field: T, value: PricingRule['action'][T]) => {
+        onRuleChange({ ...rule, action: { ...rule.action, [field]: value }});
     };
     
     const handleDayToggle = (day: DayOfWeek) => {
-        setRule(prev => {
-            const currentDays = prev.conditions.daysOfWeek || [];
-            const newDays = currentDays.includes(day) ? currentDays.filter(d => d !== day) : [...currentDays, day];
-            return {...prev, conditions: {...prev.conditions, daysOfWeek: newDays}};
-        });
+        const currentDays = rule.conditions.daysOfWeek || [];
+        const newDays = currentDays.includes(day) ? currentDays.filter(d => d !== day) : [...currentDays, day];
+        handleConditionChange('daysOfWeek', newDays);
     };
     
     const handleRoleToggle = (role: Role) => {
-        setRule(prev => {
-            const currentRoles = { ...(prev.conditions.targetUserRoles || {}) };
-            if (currentRoles[role]) {
-                delete currentRoles[role];
-            } else {
-                currentRoles[role] = [];
-            }
-            return {...prev, conditions: {...prev.conditions, targetUserRoles: currentRoles}};
-        });
+        const currentRoles = { ...(rule.conditions.targetUserRoles || {}) };
+        if (currentRoles[role]) {
+            delete currentRoles[role];
+        } else {
+            currentRoles[role] = [];
+        }
+        handleConditionChange('targetUserRoles', currentRoles);
     };
 
     const handleRatingToggle = (role: Role, rating: number) => {
-        setRule(prev => {
-            const currentRoles = { ...(prev.conditions.targetUserRoles || {}) };
-            const currentRatings = currentRoles[role] || [];
-            const newRatings = currentRatings.includes(rating) ? currentRatings.filter(r => r !== rating) : [...currentRatings, rating];
-            currentRoles[role] = newRatings;
-            return {...prev, conditions: {...prev.conditions, targetUserRoles: currentRoles}};
-        });
+        const currentRoles = { ...(rule.conditions.targetUserRoles || {}) };
+        const currentRatings = currentRoles[role] || [];
+        const newRatings = currentRatings.includes(rating) ? currentRatings.filter(r => r !== rating) : [...currentRatings, rating];
+        currentRoles[role] = newRatings;
+        handleConditionChange('targetUserRoles', currentRoles);
     };
 
-    // The component body can now safely destructure `rule` because it's never null.
     const { conditions, action } = rule;
 
     return (
@@ -144,8 +137,14 @@ function PricingRuleDialog({ open, onOpenChange, onSave, rule: initialRule, acti
                 </AlertDialogHeader>
                  <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-2">
                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1"><Label htmlFor="rule-name">规则名称</Label><Input id="rule-name" value={rule.name} onChange={e => setRule(prev => ({ ...prev, name: e.target.value }))} placeholder="例如：VIP用户优惠" /></div>
-                        <div className="space-y-1"><Label htmlFor="rule-priority">优先级 (数字越小越高)</Label><Input id="rule-priority" type="number" value={rule.priority} onChange={e => setRule(prev => ({ ...prev, priority: parseInt(e.target.value) || 10 }))} /></div>
+                        <div className="space-y-1">
+                            <Label htmlFor="rule-name">规则名称</Label>
+                            <Input id="rule-name" value={rule.name} onChange={e => handleFieldChange('name', e.target.value)} placeholder="例如：VIP用户优惠" />
+                        </div>
+                        <div className="space-y-1">
+                            <Label htmlFor="rule-priority">优先级 (数字越小越高)</Label>
+                            <Input id="rule-priority" type="number" value={rule.priority} onChange={e => handleFieldChange('priority', parseInt(e.target.value) || 10)} />
+                        </div>
                     </div>
 
                     <Accordion type="multiple" className="w-full" defaultValue={['conditions', 'action']}>
@@ -180,12 +179,12 @@ function PricingRuleDialog({ open, onOpenChange, onSave, rule: initialRule, acti
                         </AccordionItem>
                          <AccordionItem value="action"><AccordionTrigger>执行动作</AccordionTrigger>
                              <AccordionContent className="pt-4 space-y-4">
-                                <RadioGroup value={action.type} onValueChange={v => setRule(p => ({...p, action: { ...p.action, type: v as any }}))} className="grid grid-cols-2 gap-4">
+                                <RadioGroup value={action.type} onValueChange={v => handleActionChange('type', v as any)} className="grid grid-cols-2 gap-4">
                                     <Label className="flex flex-col gap-2 rounded-lg border p-4 cursor-pointer has-[:checked]:bg-primary/10 has-[:checked]:border-primary"><div className="flex items-center justify-between"><span className="font-semibold">按次计费</span><RadioGroupItem value="per_call"/></div><p className="text-xs text-muted-foreground">每次调用固定扣除积分。</p></Label>
                                     <Label className="flex flex-col gap-2 rounded-lg border p-4 cursor-pointer has-[:checked]:bg-primary/10 has-[:checked]:border-primary"><div className="flex items-center justify-between"><span className="font-semibold">免费</span><RadioGroupItem value="free"/></div><p className="text-xs text-muted-foreground">此条件下调用不扣除积分。</p></Label>
                                     <Label className="flex flex-col gap-2 rounded-lg border p-4 cursor-pointer has-[:checked]:bg-primary/10 has-[:checked]:border-primary"><div className="flex items-center justify-between"><span className="font-semibold">按时计费</span><RadioGroupItem value="per_minute" disabled/></div><p className="text-xs text-muted-foreground">(即将推出) 根据调用时长扣除积分。</p></Label>
                                 </RadioGroup>
-                                 {(action.type === 'per_call' || action.type === 'add' || action.type === 'subtract') && <div className="space-y-1"><Label>积分值</Label><Input type="number" value={action.value} onChange={e => setRule(p => ({...p, action: {...p.action, value: parseInt(e.target.value) || 0}}))} /></div>}
+                                 {(action.type === 'per_call' || action.type === 'add' || action.type === 'subtract') && <div className="space-y-1"><Label>积分值</Label><Input type="number" value={action.value} onChange={e => handleActionChange('value', parseInt(e.target.value) || 0)} /></div>}
                              </AccordionContent>
                          </AccordionItem>
                     </Accordion>
@@ -594,7 +593,7 @@ export default function PointsManagementPage() {
     // State for the new dialog
     const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
     const [currentRule, setCurrentRule] = useState<PricingRule | null>(null);
-    const [currentActionKey, setCurrentActionKey] = useState<string | null>(null);
+    const [currentActionKey, setCurrentActionKey] = useState<string>('');
 
 
     const fetchData = useCallback(async () => {
@@ -686,7 +685,7 @@ export default function PointsManagementPage() {
 
     const handleAddRule = (action: string) => {
         setCurrentActionKey(action);
-        setCurrentRule(null);
+        setCurrentRule(getInitialPricingRuleState());
         setIsRuleDialogOpen(true);
     };
 
@@ -707,24 +706,26 @@ export default function PointsManagementPage() {
         });
     };
     
-    const handleSaveRule = (rule: PricingRule) => {
-        if (!currentActionKey) return;
+    const handleSaveRule = () => {
+        if (!currentActionKey || !currentRule) return;
+
         setPointsConfig(prev => {
             if (!prev) return null;
             const rulesForAction = prev.rules[currentActionKey] || [];
-            const existingIndex = rulesForAction.findIndex(r => r.id === rule.id);
+            const existingIndex = rulesForAction.findIndex(r => r.id === currentRule.id);
             let newRules;
             if (existingIndex > -1) {
                 newRules = [...rulesForAction];
-                newRules[existingIndex] = rule;
+                newRules[existingIndex] = currentRule;
             } else {
-                newRules = [...rulesForAction, rule];
+                newRules = [...rulesForAction, currentRule];
             }
             return {
                 ...prev,
                 rules: { ...prev.rules, [currentActionKey]: newRules }
             };
         });
+        setIsRuleDialogOpen(false);
     };
 
     if (isAuthLoading) {
@@ -870,14 +871,16 @@ export default function PointsManagementPage() {
                 </div>
             </div>
             
-             <PricingRuleDialog 
-                key={currentRule ? currentRule.id : 'new'}
-                open={isRuleDialogOpen}
-                onOpenChange={setIsRuleDialogOpen}
-                rule={currentRule}
-                onSave={handleSaveRule}
-                actionKey={currentActionKey || ''}
-            />
+            {isRuleDialogOpen && currentRule && (
+              <PricingRuleDialog 
+                  open={isRuleDialogOpen}
+                  onOpenChange={setIsRuleDialogOpen}
+                  rule={currentRule}
+                  onSave={handleSaveRule}
+                  onRuleChange={setCurrentRule}
+                  actionKey={currentActionKey}
+              />
+            )}
         </AppLayout>
     );
 }
