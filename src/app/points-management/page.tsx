@@ -65,27 +65,25 @@ function PricingRuleDialog({ open, onOpenChange, onSave, rule: initialRule, acti
     actionKey: string;
 }) {
     const isEditing = !!initialRule;
-    const [rule, setRule] = useState<PricingRule>(
-        initialRule || {
+    
+    // Correctly initialize state
+    const getInitialState = (): PricingRule => {
+        return initialRule || {
             id: `rule_${Date.now()}`,
             name: '',
             priority: 10,
             conditions: { ruleLogic: 'and' },
             action: { type: 'per_call', value: 1 }
-        }
-    );
+        };
+    };
+    const [rule, setRule] = useState<PricingRule>(getInitialState);
 
      useEffect(() => {
-        setRule(
-            initialRule || {
-                id: `rule_${Date.now()}`,
-                name: '',
-                priority: 10,
-                conditions: { ruleLogic: 'and' },
-                action: { type: 'per_call', value: 1 }
-            }
-        );
-    }, [initialRule]);
+        // Reset state only when the dialog opens with a new or different rule
+        if (open) {
+            setRule(getInitialState());
+        }
+    }, [initialRule, open]);
 
     const { toast } = useToast();
 
@@ -126,7 +124,10 @@ function PricingRuleDialog({ open, onOpenChange, onSave, rule: initialRule, acti
         handleConditionChange('targetUserRoles', currentRoles);
     };
 
-    const { conditions, action } = rule;
+    // Safely access nested properties
+    const conditions = rule?.conditions || { ruleLogic: 'and' };
+    const action = rule?.action || { type: 'per_call', value: 1 };
+
 
     return (
         <AlertDialog open={open} onOpenChange={onOpenChange}>
