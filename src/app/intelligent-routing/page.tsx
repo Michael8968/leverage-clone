@@ -37,8 +37,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 type DayOfWeek = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 const DAYS_OF_WEEK: { id: DayOfWeek; label: string }[] = [
     { id: 'mon', label: '周一' }, { id: 'tue', label: '周二' }, { id: 'wed', label: '周三' },
-    { id: 'thu', label: '周四' }, { id: 'fri', label: '周五' }, { id: 'sat', label: '周六' },
-    { id: 'sun', label: '周日' }
+    { id: 'thu', label: '周四' }, { id: 'fri', label: '周五' }, { id: 'sat', label: '周六' }, { id: 'sun', label: '周日' }
 ];
 const ALL_ROLES: Role[] = ['admin', 'creator', 'supplier', 'user'];
 const ROLE_NAMES: Record<Role, string> = {
@@ -517,34 +516,43 @@ export default function IntelligentRoutingModulePage() {
                     </CardFooter>
                 </Card>
 
-                <Card>
-                    <CardHeader>
-                        <div className="flex justify-between items-center">
-                            <div><CardTitle className="font-headline">高级路由策略</CardTitle><CardDescription>创建带有生效条件的优先策略。系统将按优先级从高到低检查，并执行第一个满足条件的策略。</CardDescription></div>
-                            <Button onClick={() => { setCurrentRule(null); setIsRuleModalOpen(true); }}><PlusCircle className="mr-2 h-4 w-4"/>新增策略</Button>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader><TableRow><TableHead>优先级</TableHead><TableHead>策略名称</TableHead><TableHead>生效规则摘要</TableHead><TableHead className="text-right">操作</TableHead></TableRow></TableHeader>
-                            <TableBody>
-                                {advancedRules.length === 0 ? (<TableRow><TableCell colSpan={4} className="h-24 text-center">暂无高级策略。</TableCell></TableRow>) : (
-                                    advancedRules.sort((a, b) => a.priority - b.priority).map(rule => (
-                                        <TableRow key={rule.id}>
-                                            <TableCell><Badge>{rule.priority}</Badge></TableCell>
-                                            <TableCell className="font-semibold">{rule.name}</TableCell>
-                                            <TableCell><Badge variant="outline">{formatRuleSummary(rule)}</Badge></TableCell>
-                                            <TableCell className="text-right">
-                                                <Button variant="ghost" size="sm" onClick={() => { setCurrentRule(rule); setIsRuleModalOpen(true); }}><Edit className="mr-2 h-4 w-4"/>编辑</Button>
-                                                <Button variant="destructive-outline" size="sm" onClick={() => handleDeleteRule(rule.id)}><Trash2 className="mr-2 h-4 w-4"/>删除</Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
+                <Accordion type="single" collapsible className="w-full" defaultValue="advanced-strategies">
+                    <AccordionItem value="advanced-strategies">
+                        <Card>
+                            <AccordionTrigger className="w-full">
+                                <CardHeader className="flex flex-row items-center justify-between w-full p-6">
+                                    <div>
+                                        <CardTitle className="font-headline text-left">高级路由策略</CardTitle>
+                                        <CardDescription className="text-left">创建带有生效条件的优先策略。系统将按优先级从高到低检查，并执行第一个满足条件的策略。</CardDescription>
+                                    </div>
+                                    <Button onClick={(e) => { e.stopPropagation(); setCurrentRule(null); setIsRuleModalOpen(true); }}><PlusCircle className="mr-2 h-4 w-4" />新增策略</Button>
+                                </CardHeader>
+                            </AccordionTrigger>
+                            <AccordionContent>
+                                <CardContent>
+                                    <Table>
+                                        <TableHeader><TableRow><TableHead>优先级</TableHead><TableHead>策略名称</TableHead><TableHead>生效规则摘要</TableHead><TableHead className="text-right">操作</TableHead></TableRow></TableHeader>
+                                        <TableBody>
+                                            {advancedRules.length === 0 ? (<TableRow><TableCell colSpan={4} className="h-24 text-center">暂无高级策略。</TableCell></TableRow>) : (
+                                                advancedRules.sort((a, b) => a.priority - b.priority).map(rule => (
+                                                    <TableRow key={rule.id}>
+                                                        <TableCell><Badge>{rule.priority}</Badge></TableCell>
+                                                        <TableCell className="font-semibold">{rule.name}</TableCell>
+                                                        <TableCell><Badge variant="outline">{formatRuleSummary(rule)}</Badge></TableCell>
+                                                        <TableCell className="text-right">
+                                                            <Button variant="ghost" size="sm" onClick={() => { setCurrentRule(rule); setIsRuleModalOpen(true); }}><Edit className="mr-2 h-4 w-4"/>编辑</Button>
+                                                            <Button variant="destructive-outline" size="sm" onClick={() => handleDeleteRule(rule.id)}><Trash2 className="mr-2 h-4 w-4"/>删除</Button>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </CardContent>
+                            </AccordionContent>
+                        </Card>
+                    </AccordionItem>
+                </Accordion>
                 
                 <div className="flex justify-center mt-8">
                      <Button size="lg" onClick={handleSave} disabled={isLoading || isSaving}>
