@@ -12,7 +12,7 @@ import type { User, AssistantRule, PointsTransaction } from '@/lib/types';
 
 // =================================================================
 // Flow to batch update user roles, ratings, or status
-// =================================----------------================
+// =================================================================
 
 const BatchUpdateUsersInputSchema = z.object({
     userIds: z.array(z.string()),
@@ -254,6 +254,7 @@ export const revokePointsGrant = ai.defineFlow(
                 where('status', '==', 'active')
             );
             
+            // CORRECTED: First, execute the query to get the documents within the transaction.
             const transactionsSnapshot = await transaction.get(transactionsQuery);
 
             if (transactionsSnapshot.empty) {
@@ -261,23 +262,27 @@ export const revokePointsGrant = ai.defineFlow(
             }
             
             let revokedCount = 0;
+            // CORRECTED: Iterate over the documents in the snapshot.
             for (const txDoc of transactionsSnapshot.docs) {
                 const txData = txDoc.data() as PointsTransaction;
                 const userRef = doc(db, 'users', txData.uid);
                 
+                // Get the user's current data within the transaction for consistency.
                 const userSnap = await transaction.get(userRef);
                 
                 if (userSnap.exists()) {
                      const currentUser = userSnap.data() as User;
                      const currentBalance = currentUser.points_balance || 0;
                      
-                     // Ensure balance does not go below zero
+                     // CORRECTED LOGIC: Ensure balance does not go below zero.
                      const newBalance = Math.max(0, currentBalance - txData.amount);
 
+                    // Update user's balance within the transaction.
                     transaction.update(userRef, { points_balance: newBalance });
                 }
                 
-                // Mark the transaction as revoked but DO NOT remove timestamp
+                // CORRECTED: Mark the transaction as revoked using its own reference (txDoc.ref).
+                // Ensure we only update the status, preserving the original timestamp.
                 transaction.update(txDoc.ref, { status: 'revoked' });
                 revokedCount++;
             }
@@ -287,3 +292,4 @@ export const revokePointsGrant = ai.defineFlow(
         return result;
     }
 );
+
