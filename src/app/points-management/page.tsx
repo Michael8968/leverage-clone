@@ -56,15 +56,15 @@ const DAYS_OF_WEEK: { id: DayOfWeek; label: string }[] = [ { id: 'mon', label: '
 const ALL_ROLES: Role[] = ['admin', 'creator', 'supplier', 'user'];
 const ROLE_NAMES: Record<Role, string> = { admin: '管理员', creator: '创意者', supplier: '供应商', user: '普通用户', suspended: '已禁用' };
 
-
-const getInitialPricingRuleState = (initialRule: PricingRule | null): PricingRule => {
-    return initialRule || {
-        id: `rule_${Date.now()}`,
-        name: '',
-        priority: 10,
-        conditions: { ruleLogic: 'and' },
-        action: { type: 'per_call', value: 1 }
-    };
+// Moved outside the component to avoid being recreated on every render
+const getInitialPricingRuleState = (rule: PricingRule | null): PricingRule => {
+  return rule || {
+    id: `rule_${Date.now()}`,
+    name: '',
+    priority: 10,
+    conditions: { ruleLogic: 'and' },
+    action: { type: 'per_call', value: 1 }
+  };
 };
 
 function PricingRuleDialog({ open, onOpenChange, onSave, rule: initialRule, actionKey }: {
@@ -75,15 +75,17 @@ function PricingRuleDialog({ open, onOpenChange, onSave, rule: initialRule, acti
     actionKey: string;
 }) {
     const isEditing = !!initialRule;
+    // Use a state that is guaranteed to be initialized with a valid object.
     const [rule, setRule] = useState<PricingRule>(() => getInitialPricingRuleState(initialRule));
+    const { toast } = useToast();
 
-     useEffect(() => {
+    // The key change is here: useEffect now correctly re-initializes the state when the dialog is reopened for a new rule.
+    useEffect(() => {
         if (open) {
             setRule(getInitialPricingRuleState(initialRule));
         }
-    }, [initialRule, open]);
+    }, [open, initialRule]);
 
-    const { toast } = useToast();
 
     const handleSave = () => {
         if (!rule.name) {
@@ -99,31 +101,37 @@ function PricingRuleDialog({ open, onOpenChange, onSave, rule: initialRule, acti
     };
     
     const handleDayToggle = (day: DayOfWeek) => {
-        const currentDays = rule.conditions.daysOfWeek || [];
-        const newDays = currentDays.includes(day) ? currentDays.filter(d => d !== day) : [...currentDays, day];
-        handleConditionChange('daysOfWeek', newDays);
+        setRule(prev => {
+            const currentDays = prev.conditions.daysOfWeek || [];
+            const newDays = currentDays.includes(day) ? currentDays.filter(d => d !== day) : [...currentDays, day];
+            return {...prev, conditions: {...prev.conditions, daysOfWeek: newDays}};
+        });
     };
     
     const handleRoleToggle = (role: Role) => {
-        const currentRoles = { ...(rule.conditions.targetUserRoles || {}) };
-        if (currentRoles[role]) {
-            delete currentRoles[role];
-        } else {
-            currentRoles[role] = [];
-        }
-        handleConditionChange('targetUserRoles', currentRoles);
+        setRule(prev => {
+            const currentRoles = { ...(prev.conditions.targetUserRoles || {}) };
+            if (currentRoles[role]) {
+                delete currentRoles[role];
+            } else {
+                currentRoles[role] = [];
+            }
+            return {...prev, conditions: {...prev.conditions, targetUserRoles: currentRoles}};
+        });
     };
 
     const handleRatingToggle = (role: Role, rating: number) => {
-        const currentRoles = { ...(rule.conditions.targetUserRoles || {}) };
-        const currentRatings = currentRoles[role] || [];
-        const newRatings = currentRatings.includes(rating) ? currentRatings.filter(r => r !== rating) : [...currentRatings, rating];
-        currentRoles[role] = newRatings;
-        handleConditionChange('targetUserRoles', currentRoles);
+        setRule(prev => {
+            const currentRoles = { ...(prev.conditions.targetUserRoles || {}) };
+            const currentRatings = currentRoles[role] || [];
+            const newRatings = currentRatings.includes(rating) ? currentRatings.filter(r => r !== rating) : [...currentRatings, rating];
+            currentRoles[role] = newRatings;
+            return {...prev, conditions: {...prev.conditions, targetUserRoles: currentRoles}};
+        });
     };
 
+    // The component body can now safely destructure `rule` because it's never null.
     const { conditions, action } = rule;
-
 
     return (
         <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -862,13 +870,14 @@ export default function PointsManagementPage() {
                 </div>
             </div>
             
-             {currentActionKey && <PricingRuleDialog 
+             <PricingRuleDialog 
+                key={currentRule ? currentRule.id : 'new'}
                 open={isRuleDialogOpen}
                 onOpenChange={setIsRuleDialogOpen}
                 rule={currentRule}
                 onSave={handleSaveRule}
-                actionKey={currentActionKey}
-            />}
+                actionKey={currentActionKey || ''}
+            />
         </AppLayout>
     );
 }

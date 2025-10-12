@@ -235,7 +235,7 @@ export const grantPointsToGroup = ai.defineFlow(
 );
 
 // =================================================================
-// Flow to revoke a points grant
+// Flow to revoke a points grant (IMPROVED LOGIC)
 // =================================================================
 const RevokePointsInputSchema = z.object({
     batchId: z.string(),
@@ -254,7 +254,8 @@ export const revokePointsGrant = ai.defineFlow(
                 where('batchId', '==', batchId),
                 where('status', '==', 'active')
             );
-            const transactionsSnapshot = await getDocs(transactionsQuery);
+            // We use transaction.get inside a transaction to ensure we read the latest data.
+            const transactionsSnapshot = await transaction.get(transactionsQuery);
 
             if (transactionsSnapshot.empty) {
                 throw new Error("未找到可撤销的有效赋分记录，或该操作已被撤销。");
@@ -264,14 +265,17 @@ export const revokePointsGrant = ai.defineFlow(
                 const txData = txDoc.data() as PointsTransaction;
                 const userRef = doc(db, 'users', txData.uid);
                 
-                // Use transaction.get to ensure we have the latest user data within the transaction
                 const userSnap = await transaction.get(userRef);
                 if (userSnap.exists()) {
-                     // 1. Revert user's balance
-                    transaction.update(userRef, { points_balance: increment(-txData.amount) });
+                     const currentUser = userSnap.data() as User;
+                     const currentBalance = currentUser.points_balance || 0;
+                     // Ensure balance does not go below zero
+                     const newBalance = Math.max(0, currentBalance - txData.amount);
+
+                    transaction.update(userRef, { points_balance: newBalance });
                 }
                 
-                // 2. Mark the transaction as revoked
+                // Mark the transaction as revoked
                 transaction.update(txDoc.ref, { status: 'revoked' });
             }
 
