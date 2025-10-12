@@ -57,7 +57,10 @@ const ALL_ROLES: Role[] = ['admin', 'creator', 'supplier', 'user'];
 const ROLE_NAMES: Record<Role, string> = { admin: '管理员', creator: '创意者', supplier: '供应商', user: '普通用户', suspended: '已禁用' };
 
 // This is a pure helper function, moved outside the component.
-const getInitialPricingRuleState = (): PricingRule => {
+const getInitialPricingRuleState = (existingRule: PricingRule | null): PricingRule => {
+  if (existingRule) {
+    return JSON.parse(JSON.stringify(existingRule)); // Deep copy
+  }
   return {
     id: `rule_${Date.now()}`,
     name: '',
@@ -71,19 +74,12 @@ function PricingRuleDialog({ open, onOpenChange, onSave, rule: initialRule, acti
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSave: (rule: PricingRule) => void;
-    rule: PricingRule | null;
+    rule: PricingRule;
     actionKey: string;
 }) {
     const { toast } = useToast();
-    const [rule, setRule] = useState<PricingRule>(getInitialPricingRuleState());
-
-    useEffect(() => {
-      // This effect syncs the internal state with the prop when the dialog opens.
-      if (open) {
-        setRule(initialRule || getInitialPricingRuleState());
-      }
-    }, [open, initialRule]);
-
+    const [rule, setRule] = useState<PricingRule>(() => getInitialPricingRuleState(initialRule));
+    
     const isEditing = !!(rule.id && !rule.id.startsWith('rule_'));
     
     const handleSave = () => {
@@ -692,13 +688,13 @@ export default function PointsManagementPage() {
 
     const handleAddRule = (action: string) => {
         setCurrentActionKey(action);
-        setCurrentRule(getInitialPricingRuleState()); // Always create a fresh, valid object
+        setCurrentRule(getInitialPricingRuleState(null));
         setIsRuleDialogOpen(true);
     };
 
     const handleEditRule = (action: string, rule: PricingRule) => {
         setCurrentActionKey(action);
-        setCurrentRule(rule); // Pass the existing object
+        setCurrentRule(rule);
         setIsRuleDialogOpen(true);
     };
     
@@ -731,6 +727,7 @@ export default function PointsManagementPage() {
             };
         });
         setIsRuleDialogOpen(false);
+        setCurrentRule(null);
     };
 
     if (isAuthLoading) {
