@@ -979,12 +979,14 @@ function ScheduleAndAssistantTab() {
                 </Card>
                 <Accordion type="single" collapsible className="w-full">
                     <AccordionItem value="item-1">
-                        <AccordionTrigger>
-                            <CardTitle className="font-headline flex-1 text-left">高级助理规则</CardTitle>
-                        </AccordionTrigger>
-                        <AccordionContent>
-                            <Card>
-                                <CardHeader>
+                        <Card>
+                            <AccordionTrigger className="w-full p-0">
+                                <CardHeader className="flex flex-row items-center justify-between w-full">
+                                    <CardTitle className="font-headline text-left">高级助理规则</CardTitle>
+                                </CardHeader>
+                            </AccordionTrigger>
+                            <AccordionContent>
+                                <CardHeader className="pt-0">
                                     <div className="flex items-center justify-between">
                                         <CardDescription>为您的AI助理创建带有优先级和复杂触发条件（时间、用户维度）的行为规则。</CardDescription>
                                         <Button onClick={() => { setEditingRule(null); setIsRuleDialogOpen(true); }}>
@@ -1015,8 +1017,8 @@ function ScheduleAndAssistantTab() {
                                         </TableBody>
                                     </Table>
                                 </CardContent>
-                            </Card>
-                        </AccordionContent>
+                            </AccordionContent>
+                        </Card>
                     </AccordionItem>
                 </Accordion>
             </div>
@@ -1203,27 +1205,33 @@ function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, is
     };
     
     const handleDayToggle = (day: DayOfWeek) => {
-        const currentDays = rule.conditions.daysOfWeek || [];
-        const newDays = currentDays.includes(day) ? currentDays.filter(d => d !== day) : [...currentDays, day];
-        handleConditionChange('daysOfWeek', newDays);
+        setRule(prev => {
+            const currentDays = prev.conditions.daysOfWeek || [];
+            const newDays = currentDays.includes(day) ? currentDays.filter(d => d !== day) : [...currentDays, day];
+            return { ...prev, conditions: { ...prev.conditions, daysOfWeek: newDays }};
+        });
     };
     
     const handleRoleToggle = (role: Role) => {
-        const currentRoles = { ...(rule.conditions.targetUserRoles || {}) };
-        if (currentRoles[role]) {
-            delete currentRoles[role];
-        } else {
-            currentRoles[role] = [];
-        }
-        handleConditionChange('targetUserRoles', currentRoles);
+        setRule(prev => {
+            const currentRoles = { ...(prev.conditions.targetUserRoles || {}) };
+            if (currentRoles[role]) {
+                delete currentRoles[role];
+            } else {
+                currentRoles[role] = [];
+            }
+            return { ...prev, conditions: { ...prev.conditions, targetUserRoles: currentRoles }};
+        });
     };
 
     const handleRatingToggle = (role: Role, rating: number) => {
-        const currentRoles = { ...(rule.conditions.targetUserRoles || {}) };
-        const currentRatings = currentRoles[role] || [];
-        const newRatings = currentRatings.includes(rating) ? currentRatings.filter(r => r !== rating) : [...currentRatings, rating];
-        currentRoles[role] = newRatings;
-        handleConditionChange('targetUserRoles', currentRoles);
+        setRule(prev => {
+            const currentRoles = { ...(prev.conditions.targetUserRoles || {}) };
+            const currentRatings = currentRoles[role] || [];
+            const newRatings = currentRatings.includes(rating) ? currentRatings.filter(r => r !== rating) : [...currentRatings, rating];
+            currentRoles[role] = newRatings;
+            return { ...prev, conditions: { ...prev.conditions, targetUserRoles: currentRoles }};
+        });
     };
     
     return (

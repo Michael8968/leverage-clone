@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -519,11 +520,11 @@ export default function IntelligentRoutingModulePage() {
                 <Accordion type="single" collapsible className="w-full" defaultValue="advanced-strategies">
                     <AccordionItem value="advanced-strategies">
                         <Card>
-                            <AccordionTrigger className="w-full">
-                                <CardHeader className="flex flex-row items-center justify-between w-full p-6">
+                            <AccordionTrigger className="w-full p-0 data-[state=closed]:rounded-lg data-[state=open]:rounded-t-lg hover:no-underline">
+                                <CardHeader className="flex flex-row items-center justify-between w-full">
                                     <div>
                                         <CardTitle className="font-headline text-left">高级路由策略</CardTitle>
-                                        <CardDescription className="text-left">创建带有生效条件的优先策略。系统将按优先级从高到低检查，并执行第一个满足条件的策略。</CardDescription>
+                                        <CardDescription className="text-left pt-1">创建带有生效条件的优先策略。系统将按优先级从高到低检查，并执行第一个满足条件的策略。</CardDescription>
                                     </div>
                                     <Button onClick={(e) => { e.stopPropagation(); setCurrentRule(null); setIsRuleModalOpen(true); }}><PlusCircle className="mr-2 h-4 w-4" />新增策略</Button>
                                 </CardHeader>
