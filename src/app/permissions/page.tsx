@@ -25,12 +25,14 @@ async function getUsers() {
                 signup_date: data.signup_date instanceof Timestamp ? data.signup_date.toDate().toISOString() : null,
             } as User;
         });
+        // The filter was incorrectly placed here, removing it.
         return usersData;
     } catch (error) {
         console.error("Failed to fetch users on server:", error);
         return [];
     }
 }
+
 
 async function getCurrentUser() {
     try {
