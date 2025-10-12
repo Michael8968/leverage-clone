@@ -1,16 +1,20 @@
+
 import * as admin from 'firebase-admin';
 
-// This is the server-side Firebase Admin SDK initialization.
-// It is intended to be used in server environments like Next.js Server Components, API routes, or Genkit flows.
+/**
+ * Ensures Firebase Admin is initialized, but only once.
+ * This is the robust way to handle initialization in serverless/hot-reload environments.
+ */
+function initializeAdmin() {
+    // Check if the default app is already initialized
+    if (admin.apps.length > 0) {
+        return;
+    }
 
-// The FIREBASE_SERVICE_ACCOUNT_KEY environment variable should be set in your deployment environment.
-// It should contain the JSON string of your service account key.
-
-if (!admin.apps.length) {
     try {
         const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
         if (!serviceAccountKey) {
-            throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set. This is required for server-side authentication and operations.");
+            throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set.");
         }
         
         const parsedServiceAccount = JSON.parse(serviceAccountKey);
@@ -29,11 +33,39 @@ if (!admin.apps.length) {
 
     } catch (e: any) {
         console.error('Firebase Admin initialization error:', e.message);
-        // Depending on the context, you might want to re-throw the error
-        // to fail fast if Firebase Admin is critical for the application's startup.
+        // Re-throw the error to fail fast if Firebase Admin is critical.
+        throw new Error(`Firebase Admin initialization failed: ${e.message}`);
     }
 }
 
-export const auth = admin.auth();
-export const dbAdmin = admin.firestore();
-export const storageAdmin = admin.storage();
+/**
+ * Gets the Firebase Admin Auth instance, initializing the app if necessary.
+ * @returns The Firebase Admin Auth instance.
+ */
+export function getAdminAuth() {
+    initializeAdmin();
+    return admin.auth();
+}
+
+/**
+ * Gets the Firebase Admin Firestore instance, initializing the app if necessary.
+ * @returns The Firebase Admin Firestore instance.
+ */
+export function getAdminDb() {
+    initializeAdmin();
+    return admin.firestore();
+}
+
+/**
+ * Gets the Firebase Admin Storage instance, initializing the app if necessary.
+ * @returns The Firebase Admin Storage instance.
+ */
+export function getAdminStorage() {
+    initializeAdmin();
+    return admin.storage();
+}
+
+// For backward compatibility if some files still use them directly, but usage should be phased out.
+export const auth = getAdminAuth();
+export const dbAdmin = getAdminDb();
+export const storageAdmin = getAdminStorage();

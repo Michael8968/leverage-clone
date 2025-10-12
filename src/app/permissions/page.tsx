@@ -1,11 +1,12 @@
 
+
 import { AppLayout } from '@/components/app-layout';
 import { UserManagementClient } from '@/components/features/user-management-client';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, Timestamp, doc, getDoc, where } from 'firebase/firestore';
 import type { User, PointsApprovalConfig } from '@/lib/types';
 import { Frown } from 'lucide-react';
-import { auth } from '@/lib/firebase-admin';
+import { getAdminAuth } from '@/lib/firebase-admin';
 import { cookies } from 'next/headers';
 import { Suspense } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -35,7 +36,7 @@ async function getCurrentUser() {
     try {
         const sessionCookie = cookies().get('__session')?.value;
         if (!sessionCookie) return null;
-        const decodedToken = await auth.verifySessionCookie(sessionCookie, true);
+        const decodedToken = await getAdminAuth().verifySessionCookie(sessionCookie, true);
         const userDoc = await getDoc(doc(db, 'users', decodedToken.uid));
         if (userDoc.exists()) {
              const data = userDoc.data();

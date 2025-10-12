@@ -1,52 +1,13 @@
+
 'use server';
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { doc, setDoc, getDoc, serverTimestamp, updateDoc, collection } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import * as admin from 'firebase-admin';
+import { getAdminStorage } from '@/lib/firebase-admin';
 import type { MediaAsset } from '@/lib/types';
 import { googleAI } from '@genkit-ai/googleai';
-import { credential } from 'firebase-admin';
-
-// =================================================================
-// Firebase Admin SDK Initialization & Bucket Getter
-// =================================================================
-
-function initializeAdmin() {
-    if (!admin.apps.length) {
-        try {
-            console.log("Attempting to initialize Firebase Admin...");
-            const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-            if (!serviceAccountKey) {
-                throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set.");
-            }
-            const parsedServiceAccount = JSON.parse(serviceAccountKey);
-
-            const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
-            if (!bucketName) {
-                throw new Error("NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET environment variable is not set.");
-            }
-            
-            admin.initializeApp({
-              credential: credential.cert(parsedServiceAccount),
-              storageBucket: bucketName,
-            });
-            console.log("Firebase Admin initialized successfully.");
-
-        } catch (e: any) { 
-            console.error('Firebase Admin initialization error:', e.message); 
-            // Re-throw or handle error appropriately so it doesn't fail silently
-            throw new Error(`Firebase Admin initialization failed: ${e.message}`);
-        }
-    }
-}
-
-function getBucket() {
-    initializeAdmin();
-    return admin.storage().bucket();
-}
-
 
 // =================================================================
 // Flow to get a signed URL for a new media asset
@@ -66,7 +27,7 @@ const GetUploadUrlOutputSchema = z.object({
 export const getUploadUrlForMediaAsset = ai.defineFlow(
     { name: 'getUploadUrlForMediaAsset', inputSchema: GetUploadUrlInputSchema, outputSchema: GetUploadUrlOutputSchema },
     async ({ userId, fileName, contentType }) => {
-        const bucket = getBucket();
+        const bucket = getAdminStorage().bucket();
         const mediaAssetRef = doc(collection(db, 'media_assets'));
         const mediaAssetId = mediaAssetRef.id;
         const filePath = `media_assets/${userId}/${mediaAssetId}-${fileName}`;

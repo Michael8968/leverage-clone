@@ -6,7 +6,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { collection, doc, writeBatch, getDocs, query, where, updateDoc, increment, runTransaction, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { auth } from '@/lib/firebase-admin';
+import { getAdminAuth } from '@/lib/firebase-admin';
 import type { User, AssistantRule, PointsTransaction, PointsApprovalConfig } from '@/lib/types';
 
 
