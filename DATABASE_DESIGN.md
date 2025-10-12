@@ -266,3 +266,4 @@
 *   **`getUploadUrlForMediaAsset` & `analyzeMediaAsset`**: 支持多模态文件的上传和分析。
 *   **`updateUserStatus`**: 更新创作者的在线状态或AI助理模式。
 *   **`updateUserAssistantRules`**: 更新创意者的AI助理规则。
+*   **`grantPointsToGroup` & `approveGrantRequest` (双人审批)**: 管理员发起批量赋分请求，需由两位管理员分别批准后，积分才会最终生效。

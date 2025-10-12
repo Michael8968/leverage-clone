@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuthStore, type Role } from '@/store/auth';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, collection, query, where, getDocs, orderBy, Timestamp } from 'firebase/firestore';
-import { Coins, Frown, Loader2, Save, PlusCircle, Edit, Trash2, Search, Calendar as CalendarIcon, Mail, FileText, Settings, Gift, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Coins, Frown, Loader2, Save, PlusCircle, Edit, Trash2, Search, Calendar as CalendarIcon, Mail, FileText, Settings, Gift, RotateCcw, AlertTriangle, Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useCallback, useTransition } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -31,7 +31,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { TimePicker } from '@/components/ui/time-picker';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Select, SelectContent, SelectTrigger, SelectValue, SelectItem } from '@/components/ui/select';
-import { grantPointsToGroup } from '@/ai/flows/user-management-flows';
+import { grantPointsToGroup, approveGrantRequest } from '@/ai/flows/user-management-flows';
 import { Textarea } from '@/components/ui/textarea';
 
 type SystemConfig = {
@@ -387,10 +387,12 @@ function ManualGrantForm({ onSuccessfulGrant }: { onSuccessfulGrant: () => void 
     );
 }
 
-function GrantHistory({ refreshKey }: { refreshKey: number }) {
+function GrantHistory({ refreshKey, onHistoryUpdate }: { refreshKey: number, onHistoryUpdate: () => void }) {
     const [history, setHistory] = useState<PointsTransaction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [approvingBatchId, setApprovingBatchId] = useState<string | null>(null);
     const { toast } = useToast();
+    const { user: currentUser } = useAuthStore();
 
     const fetchHistory = useCallback(async () => {
         setIsLoading(true);
@@ -405,7 +407,7 @@ function GrantHistory({ refreshKey }: { refreshKey: number }) {
             snapshot.docs.forEach(doc => {
                 const data = doc.data() as PointsTransaction;
                 if (data.batchId && !uniqueBatches[data.batchId]) {
-                    uniqueBatches[data.batchId] = data;
+                    uniqueBatches[data.batchId] = { ...data, id: doc.id };
                 }
             });
             setHistory(Object.values(uniqueBatches));
@@ -421,36 +423,78 @@ function GrantHistory({ refreshKey }: { refreshKey: number }) {
         fetchHistory();
     }, [fetchHistory, refreshKey]);
 
-    const getStatusBadge = (status?: string) => {
-        switch (status) {
-            case 'pending': return <Badge variant="secondary">待审批</Badge>;
+    const handleApprove = async (batchId: string) => {
+        if (!currentUser) return;
+        setApprovingBatchId(batchId);
+        try {
+            const result = await approveGrantRequest({ batchId, approverId: currentUser.uid });
+            if (result.alreadyApproved) {
+                toast({ title: '您已批准', description: '您已经批准过此请求。', variant: 'default' });
+            } else if (result.approvedCount > 0) {
+                toast({ title: '最终批准成功', description: `此批次已获最终批准，共 ${result.approvedCount} 笔交易生效。` });
+            } else {
+                toast({ title: '第一步批准成功', description: '您的批准已记录，等待第二位管理员批准。' });
+            }
+            onHistoryUpdate(); // Trigger a refetch in the parent
+        } catch (error: any) {
+            toast({ title: '批准失败', description: error.message, variant: 'destructive' });
+        } finally {
+            setApprovingBatchId(null);
+        }
+    };
+
+    const getStatusBadge = (tx: PointsTransaction) => {
+        const approverCount = tx.approvers?.length || 0;
+        switch (tx.status) {
+            case 'pending': return <Badge variant="secondary">待审批 ({approverCount}/2)</Badge>;
             case 'approved': return <Badge className="bg-green-500">已批准</Badge>;
             case 'rejected': return <Badge variant="destructive">已拒绝</Badge>;
-            default: return <Badge variant="outline">{status || '未知'}</Badge>;
+            default: return <Badge variant="outline">{tx.status || '未知'}</Badge>;
         }
     }
-
 
     return (
         <Card>
             <CardHeader>
-                <CardTitle>手动操作历史</CardTitle>
+                <CardTitle>手动操作历史与审批</CardTitle>
                 <CardDescription>此处记录了最近的批量手动赋分操作及其审批状态。</CardDescription>
             </CardHeader>
             <CardContent>
                 <Table>
-                    <TableHeader><TableRow><TableHead>操作原因</TableHead><TableHead>积分</TableHead><TableHead>时间</TableHead><TableHead>状态</TableHead></TableRow></TableHeader>
+                    <TableHeader><TableRow><TableHead>操作原因</TableHead><TableHead>积分</TableHead><TableHead>时间</TableHead><TableHead>状态</TableHead><TableHead className="text-right">操作</TableHead></TableRow></TableHeader>
                     <TableBody>
-                        {isLoading ? <TableRow><TableCell colSpan={4}><Skeleton className="h-10 w-full"/></TableCell></TableRow>
-                         : history.length === 0 ? <TableRow><TableCell colSpan={4} className="text-center h-24">暂无手动操作记录。</TableCell></TableRow> 
-                         : history.map(tx => (
-                            <TableRow key={tx.batchId}>
-                                <TableCell>{tx.reason}</TableCell>
-                                <TableCell className="font-medium text-green-600">+{tx.amount}</TableCell>
-                                <TableCell className="text-xs text-muted-foreground">{tx.timestamp instanceof Timestamp ? format(tx.timestamp.toDate(), 'yyyy-MM-dd HH:mm') : 'N/A'}</TableCell>
-                                <TableCell>{getStatusBadge(tx.status)}</TableCell>
-                            </TableRow>
-                         ))}
+                        {isLoading ? <TableRow><TableCell colSpan={5}><Skeleton className="h-10 w-full"/></TableCell></TableRow>
+                         : history.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center h-24">暂无手动操作记录。</TableCell></TableRow> 
+                         : history.map(tx => {
+                             const isPending = tx.status === 'pending';
+                             const alreadyApprovedByCurrentUser = tx.approvers?.includes(currentUser!.uid);
+                             const canApprove = isPending && !alreadyApprovedByCurrentUser;
+                             
+                             return (
+                                <TableRow key={tx.batchId}>
+                                    <TableCell>{tx.reason}</TableCell>
+                                    <TableCell className="font-medium text-green-600">+{tx.amount}</TableCell>
+                                    <TableCell className="text-xs text-muted-foreground">{tx.timestamp instanceof Timestamp ? format(tx.timestamp.toDate(), 'yyyy-MM-dd HH:mm') : 'N/A'}</TableCell>
+                                    <TableCell>{getStatusBadge(tx)}</TableCell>
+                                    <TableCell className="text-right">
+                                        {isPending && (
+                                            <Button
+                                                size="sm"
+                                                variant={canApprove ? 'default' : 'outline'}
+                                                onClick={() => handleApprove(tx.batchId!)}
+                                                disabled={!canApprove || approvingBatchId === tx.batchId}
+                                            >
+                                                {approvingBatchId === tx.batchId
+                                                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                    : <Check className="mr-2 h-4 w-4" />
+                                                }
+                                                {canApprove ? '批准' : '已批准'}
+                                            </Button>
+                                        )}
+                                    </TableCell>
+                                </TableRow>
+                            );
+                         })}
                     </TableBody>
                 </Table>
             </CardContent>
@@ -696,7 +740,7 @@ export default function PointsManagementPage() {
                     </Card>
                     <ManualGrantForm onSuccessfulGrant={() => setGrantHistoryRefreshKey(k => k + 1)} />
                 </div>
-                <GrantHistory refreshKey={grantHistoryRefreshKey} />
+                <GrantHistory refreshKey={grantHistoryRefreshKey} onHistoryUpdate={() => setGrantHistoryRefreshKey(k => k + 1)} />
                  <Card>
                     <CardHeader>
                         <CardTitle>AI服务定价</CardTitle>

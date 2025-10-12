@@ -4,7 +4,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { collection, doc, writeBatch, getDocs, query, where, updateDoc, increment, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, writeBatch, getDocs, query, where, updateDoc, increment, runTransaction, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { auth } from '@/lib/firebase-admin';
 import type { User, AssistantRule, PointsTransaction } from '@/lib/types';
@@ -211,10 +211,6 @@ export const grantPointsToGroup = ai.defineFlow(
         const batchId = `manual-grant-${Date.now()}`;
         
         userSnapshot.docs.forEach(userDoc => {
-            // This logic is now a request, not an immediate grant.
-            // For a two-person approval, you would create a "grant_request" document.
-            // For now, we will just create the transaction with a 'pending' status.
-            
             const transactionRef = doc(collection(db, 'points_transactions'));
             const newTransaction: Omit<PointsTransaction, 'id' | 'timestamp'> = {
                 uid: userDoc.id,
@@ -222,7 +218,8 @@ export const grantPointsToGroup = ai.defineFlow(
                 amount: amount,
                 reason: reason,
                 batchId: batchId,
-                status: 'pending', // This is now a pending request
+                status: 'pending',
+                approvers: [], // Initialize approvers array
             };
             batch.set(transactionRef, { ...newTransaction, timestamp: serverTimestamp() });
         });
@@ -230,5 +227,92 @@ export const grantPointsToGroup = ai.defineFlow(
         await batch.commit();
 
         return { batchId, userCount: userSnapshot.size };
+    }
+);
+
+
+// =================================================================
+// Flow to approve a manual grant request (NEW)
+// =================================================================
+const ApproveGrantRequestInputSchema = z.object({
+    batchId: z.string(),
+    approverId: z.string(),
+});
+
+export const approveGrantRequest = ai.defineFlow(
+    {
+        name: 'approveGrantRequest',
+        inputSchema: ApproveGrantRequestInputSchema,
+        outputSchema: z.object({
+            approvedCount: z.number(),
+            alreadyApproved: z.boolean(),
+        }),
+    },
+    async ({ batchId, approverId }) => {
+        let approvedCount = 0;
+        let alreadyApprovedByThisUser = false;
+
+        await runTransaction(db, async (transaction) => {
+            const transactionsQuery = query(
+                collection(db, 'points_transactions'),
+                where('batchId', '==', batchId),
+                where('status', '==', 'pending')
+            );
+            
+            const transactionsSnapshot = await transaction.get(transactionsQuery);
+
+            if (transactionsSnapshot.empty) {
+                // This could mean it was already approved by someone else, or the batchId is wrong.
+                // Check if it was already approved.
+                 const approvedQuery = query(
+                    collection(db, 'points_transactions'),
+                    where('batchId', '==', batchId),
+                    where('status', '==', 'approved')
+                );
+                 const approvedSnapshot = await getDocs(approvedQuery);
+                 if (!approvedSnapshot.empty) {
+                     throw new Error('此批次请求已被其他管理员批准。');
+                 }
+                 throw new Error('未找到待审批的交易记录，或请求已过期。');
+            }
+            
+            // Check if the current admin has already approved this batch
+            const firstDocApprovers = transactionsSnapshot.docs[0].data().approvers || [];
+            if (firstDocApprovers.includes(approverId)) {
+                alreadyApprovedByThisUser = true;
+                return; // Exit transaction early
+            }
+
+            const isFinalApproval = firstDocApprovers.length === 1;
+
+            for (const txDoc of transactionsSnapshot.docs) {
+                const txRef = txDoc.ref;
+                const txData = txDoc.data() as PointsTransaction;
+
+                if (isFinalApproval) {
+                    // This is the second approval, grant points and finalize
+                    const userRef = doc(db, 'users', txData.uid);
+                    transaction.update(userRef, {
+                        points_balance: increment(txData.amount)
+                    });
+                    transaction.update(txRef, {
+                        status: 'approved',
+                        approvers: arrayUnion(approverId)
+                    });
+                    approvedCount++;
+                } else {
+                    // This is the first approval
+                    transaction.update(txRef, {
+                        approvers: arrayUnion(approverId)
+                    });
+                }
+            }
+        });
+
+        if (alreadyApprovedByThisUser) {
+            return { approvedCount: 0, alreadyApproved: true };
+        }
+
+        return { approvedCount, alreadyApproved: false };
     }
 );
