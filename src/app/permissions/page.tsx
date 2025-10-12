@@ -1,8 +1,9 @@
+
 import { AppLayout } from '@/components/app-layout';
 import { UserManagementClient } from '@/components/features/user-management-client';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, Timestamp, doc, getDoc } from 'firebase/firestore';
-import type { User } from '@/lib/types';
+import { collection, getDocs, query, Timestamp, doc, getDoc, where } from 'firebase/firestore';
+import type { User, PointsApprovalConfig } from '@/lib/types';
 import { Frown } from 'lucide-react';
 import { auth } from '@/lib/firebase-admin';
 import { cookies } from 'next/headers';
@@ -54,6 +55,30 @@ async function getCurrentUser() {
     }
 }
 
+async function getAdmins() {
+    try {
+        const q = query(collection(db, 'users'), where('role', '==', 'admin'));
+        const adminSnapshot = await getDocs(q);
+        return adminSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
+    } catch (error) {
+        console.error("Failed to fetch admins:", error);
+        return [];
+    }
+}
+
+async function getPointsApprovalConfig() {
+    try {
+        const configDoc = await getDoc(doc(db, 'configs', 'points_approval_config'));
+        if (configDoc.exists()) {
+            return configDoc.data() as PointsApprovalConfig;
+        }
+        return { approverUids: [] };
+    } catch (error) {
+        console.error("Failed to fetch points approval config:", error);
+        return { approverUids: [] };
+    }
+}
+
 function PermissionsPageSkeleton() {
     return (
         <div className="p-4 md:p-8">
@@ -77,9 +102,12 @@ function RestrictedAccess() {
 }
 
 export default async function PermissionsPage() {
-    // Fetching data on the server
-    const initialUsers = await getUsers();
-    const currentUser = await getCurrentUser();
+    const [initialUsers, currentUser, allAdmins, initialApprovalConfig] = await Promise.all([
+        getUsers(),
+        getCurrentUser(),
+        getAdmins(),
+        getPointsApprovalConfig(),
+    ]);
 
     if (!currentUser || currentUser.role !== 'admin') {
         return <AppLayout><RestrictedAccess /></AppLayout>;
@@ -88,8 +116,12 @@ export default async function PermissionsPage() {
     return (
         <AppLayout>
             <Suspense fallback={<PermissionsPageSkeleton />}>
-                {/* Passing serialized data to the Client Component */}
-                <UserManagementClient initialUsers={initialUsers} currentUser={currentUser} />
+                <UserManagementClient 
+                    initialUsers={initialUsers} 
+                    currentUser={currentUser}
+                    allAdmins={allAdmins}
+                    initialApprovalConfig={initialApprovalConfig}
+                />
             </Suspense>
         </AppLayout>
     );

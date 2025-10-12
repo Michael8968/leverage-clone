@@ -1,21 +1,25 @@
+
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { User } from '@/lib/types';
+import type { User, PointsApprovalConfig } from '@/lib/types';
 import type { Role } from '@/store/auth';
-import { ChevronsUpDown, UserCog, ShieldCheck, Star, Ban } from 'lucide-react';
+import { ChevronsUpDown, UserCog, ShieldCheck, Star, Ban, Save, Loader2, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { batchUpdateUsers } from '@/ai/flows/user-management-flows';
 import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
+import { Label } from '../ui/label';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 type SortConfig = { key: keyof User; direction: 'ascending' | 'descending'; };
 
@@ -27,7 +31,92 @@ const ROLE_NAMES: Record<Role, string> = {
     suspended: '已禁用',
 };
 
-export function UserManagementClient({ initialUsers, currentUser }: { initialUsers: User[], currentUser: User }) {
+function ApprovalConfigManager({ allAdmins, initialConfig }: { allAdmins: User[], initialConfig: PointsApprovalConfig }) {
+    const [approver1, setApprover1] = useState(initialConfig.approverUids[0] || '');
+    const [approver2, setApprover2] = useState(initialConfig.approverUids[1] || '');
+    const [isSaving, setIsSaving] = useState(false);
+    const { toast } = useToast();
+    const router = useRouter();
+
+    const availableForApprover2 = allAdmins.filter(admin => admin.uid !== approver1);
+    const availableForApprover1 = allAdmins.filter(admin => admin.uid !== approver2);
+
+    const handleSave = async () => {
+        if (!approver1 || !approver2) {
+            toast({ title: '错误', description: '必须指定两位审批人。', variant: 'destructive' });
+            return;
+        }
+        if (approver1 === approver2) {
+            toast({ title: '错误', description: '两位审批人不能是同一个人。', variant: 'destructive' });
+            return;
+        }
+        
+        setIsSaving(true);
+        try {
+            const configRef = doc(db, 'configs', 'points_approval_config');
+            await setDoc(configRef, { approverUids: [approver1, approver2] });
+            toast({ title: '成功', description: '赋分审批人已更新。' });
+            router.refresh();
+        } catch (error) {
+            toast({ title: '保存失败', description: '更新配置时发生错误。', variant: 'destructive' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="font-headline flex items-center gap-2"><Users /> 赋分审批人配置</CardTitle>
+                <CardDescription>指定平台中负责手动赋分审批流程的两位管理员。</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label>第一审批人</Label>
+                        <Select value={approver1} onValueChange={setApprover1}>
+                            <SelectTrigger><SelectValue placeholder="选择管理员..." /></SelectTrigger>
+                            <SelectContent>
+                                {availableForApprover1.map(admin => (
+                                    <SelectItem key={admin.uid} value={admin.uid}>{admin.name} ({admin.email})</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                     <div className="space-y-2">
+                        <Label>第二审批人</Label>
+                        <Select value={approver2} onValueChange={setApprover2}>
+                            <SelectTrigger><SelectValue placeholder="选择管理员..." /></SelectTrigger>
+                            <SelectContent>
+                                {availableForApprover2.map(admin => (
+                                    <SelectItem key={admin.uid} value={admin.uid}>{admin.name} ({admin.email})</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+            </CardContent>
+            <CardFooter>
+                 <Button onClick={handleSave} disabled={isSaving} className="ml-auto">
+                    {isSaving ? <Loader2 className="animate-spin mr-2"/> : <Save className="mr-2"/>}
+                    保存审批配置
+                </Button>
+            </CardFooter>
+        </Card>
+    );
+}
+
+export function UserManagementClient({ 
+    initialUsers, 
+    currentUser,
+    allAdmins,
+    initialApprovalConfig
+}: { 
+    initialUsers: User[], 
+    currentUser: User,
+    allAdmins: User[],
+    initialApprovalConfig: PointsApprovalConfig,
+}) {
     const [users, setUsers] = useState<User[]>(initialUsers);
     const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -92,7 +181,6 @@ export function UserManagementClient({ initialUsers, currentUser }: { initialUse
 
             toast({ title: '批量更新成功！', description: `${selectedUserIds.length} 位用户的权限已更新。` });
             
-            // Optimistically update UI
             const newUsers = users.map(u => {
                 if (selectedUserIds.includes(u.uid)) {
                     if (updates.role) u.role = updates.role;
@@ -106,7 +194,6 @@ export function UserManagementClient({ initialUsers, currentUser }: { initialUse
             setSelectedUserIds([]);
             setIsActionModalOpen(false);
             
-            // Optionally, fully refresh the page data
             router.refresh();
         } catch (error: any) {
             toast({ title: '更新失败', description: error.message, variant: 'destructive' });
@@ -114,11 +201,14 @@ export function UserManagementClient({ initialUsers, currentUser }: { initialUse
     };
 
     return (
-        <div className="p-4 md:p-8">
+        <div className="p-4 md:p-8 space-y-8">
             <header className="mb-8">
-                <h1 className="text-3xl font-headline font-bold">用户管理</h1>
-                <p className="text-muted-foreground mt-2">查看、排序和批量管理平台所有用户。</p>
+                <h1 className="text-3xl font-headline font-bold">用户与权限管理</h1>
+                <p className="text-muted-foreground mt-2">查看、排序和批量管理平台所有用户，并配置核心审批流程。</p>
             </header>
+            
+            <ApprovalConfigManager allAdmins={allAdmins} initialConfig={initialApprovalConfig} />
+
             <Card>
                 <CardHeader>
                     {selectedUserIds.length > 0 ? (

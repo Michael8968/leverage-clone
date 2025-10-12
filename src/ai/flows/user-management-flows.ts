@@ -7,7 +7,7 @@ import { z } from 'genkit';
 import { collection, doc, writeBatch, getDocs, query, where, updateDoc, increment, runTransaction, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { auth } from '@/lib/firebase-admin';
-import type { User, AssistantRule, PointsTransaction } from '@/lib/types';
+import type { User, AssistantRule, PointsTransaction, PointsApprovalConfig } from '@/lib/types';
 
 
 // =================================================================
@@ -232,7 +232,7 @@ export const grantPointsToGroup = ai.defineFlow(
 
 
 // =================================================================
-// Flow to approve a manual grant request (NEW)
+// Flow to approve a manual grant request (UPGRADED)
 // =================================================================
 const ApproveGrantRequestInputSchema = z.object({
     batchId: z.string(),
@@ -252,6 +252,16 @@ export const approveGrantRequest = ai.defineFlow(
         let approvedCount = 0;
         let alreadyApprovedByThisUser = false;
 
+        // 1. Fetch approval configuration first, outside the transaction
+        const approvalConfigRef = doc(db, 'configs', 'points_approval_config');
+        const approvalConfigSnap = await getDoc(approvalConfigRef);
+        const approvalConfig = approvalConfigSnap.exists() ? approvalConfigSnap.data() as PointsApprovalConfig : { approverUids: [] };
+        
+        // 2. Validate if the approver is authorized
+        if (approvalConfig.approverUids.length > 0 && !approvalConfig.approverUids.includes(approverId)) {
+            throw new Error('您没有权限批准此请求。请联系系统管理员。');
+        }
+
         await runTransaction(db, async (transaction) => {
             const transactionsQuery = query(
                 collection(db, 'points_transactions'),
@@ -262,25 +272,22 @@ export const approveGrantRequest = ai.defineFlow(
             const transactionsSnapshot = await transaction.get(transactionsQuery);
 
             if (transactionsSnapshot.empty) {
-                // This could mean it was already approved by someone else, or the batchId is wrong.
-                // Check if it was already approved.
-                 const approvedQuery = query(
+                const approvedQuery = query(
                     collection(db, 'points_transactions'),
                     where('batchId', '==', batchId),
                     where('status', '==', 'approved')
                 );
-                 const approvedSnapshot = await getDocs(approvedQuery);
-                 if (!approvedSnapshot.empty) {
+                const approvedSnapshot = await transaction.get(approvedQuery);
+                if (!approvedSnapshot.empty) {
                      throw new Error('此批次请求已被其他管理员批准。');
-                 }
-                 throw new Error('未找到待审批的交易记录，或请求已过期。');
+                }
+                throw new Error('未找到待审批的交易记录，或请求已过期。');
             }
             
-            // Check if the current admin has already approved this batch
             const firstDocApprovers = transactionsSnapshot.docs[0].data().approvers || [];
             if (firstDocApprovers.includes(approverId)) {
                 alreadyApprovedByThisUser = true;
-                return; // Exit transaction early
+                return;
             }
 
             const isFinalApproval = firstDocApprovers.length === 1;
@@ -288,22 +295,21 @@ export const approveGrantRequest = ai.defineFlow(
             for (const txDoc of transactionsSnapshot.docs) {
                 const txRef = txDoc.ref;
                 const txData = txDoc.data() as PointsTransaction;
+                const newApprovers = [...(txData.approvers || []), approverId];
 
                 if (isFinalApproval) {
-                    // This is the second approval, grant points and finalize
                     const userRef = doc(db, 'users', txData.uid);
                     transaction.update(userRef, {
                         points_balance: increment(txData.amount)
                     });
                     transaction.update(txRef, {
                         status: 'approved',
-                        approvers: arrayUnion(approverId)
+                        approvers: newApprovers
                     });
                     approvedCount++;
                 } else {
-                    // This is the first approval
                     transaction.update(txRef, {
-                        approvers: arrayUnion(approverId)
+                        approvers: newApprovers
                     });
                 }
             }

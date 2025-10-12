@@ -382,3 +382,7 @@ export interface BillingStatement {
     invoice_id?: string;
     generatedAt: any; // Can be Date, string, or Firestore Timestamp
 }
+
+export interface PointsApprovalConfig {
+    approverUids: string[];
+}
