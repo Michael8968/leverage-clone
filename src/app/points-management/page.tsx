@@ -56,151 +56,6 @@ const DAYS_OF_WEEK: { id: DayOfWeek; label: string }[] = [ { id: 'mon', label: '
 const ALL_ROLES: Role[] = ['admin', 'creator', 'supplier', 'user'];
 const ROLE_NAMES: Record<Role, string> = { admin: '管理员', creator: '创意者', supplier: '供应商', user: '普通用户', suspended: '已禁用' };
 
-// This is a pure helper function, moved outside the component.
-const getInitialPricingRuleState = (existingRule: PricingRule | null): PricingRule => {
-  if (existingRule) {
-    return JSON.parse(JSON.stringify(existingRule)); // Deep copy
-  }
-  return {
-    id: `rule_${Date.now()}`,
-    name: '',
-    priority: 10,
-    conditions: { ruleLogic: 'and' },
-    action: { type: 'per_call', value: 1 }
-  };
-};
-
-function PricingRuleDialog({ open, onOpenChange, onSave, rule: initialRule, actionKey }: {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    onSave: (rule: PricingRule) => void;
-    rule: PricingRule;
-    actionKey: string;
-}) {
-    const { toast } = useToast();
-    const [rule, setRule] = useState<PricingRule>(() => getInitialPricingRuleState(initialRule));
-    
-    const isEditing = !!(rule.id && !rule.id.startsWith('rule_'));
-    
-    const handleSave = () => {
-        if (!rule.name) {
-            toast({ title: "信息不完整", description: "规则名称不能为空。", variant: "destructive" });
-            return;
-        }
-        onSave(rule);
-    };
-
-    const handleFieldChange = <T extends keyof PricingRule>(field: T, value: PricingRule[T]) => {
-        setRule({ ...rule, [field]: value });
-    };
-
-    const handleConditionChange = <T extends keyof PricingRule['conditions']>(field: T, value: PricingRule['conditions'][T]) => {
-        setRule({ ...rule, conditions: { ...rule.conditions, [field]: value }});
-    };
-
-    const handleActionChange = <T extends keyof PricingRule['action']>(field: T, value: PricingRule['action'][T]) => {
-        setRule({ ...rule, action: { ...rule.action, [field]: value }});
-    };
-    
-    const handleDayToggle = (day: DayOfWeek) => {
-        const currentDays = rule.conditions.daysOfWeek || [];
-        const newDays = currentDays.includes(day) ? currentDays.filter(d => d !== day) : [...currentDays, day];
-        handleConditionChange('daysOfWeek', newDays);
-    };
-    
-    const handleRoleToggle = (role: Role) => {
-        const currentRoles = { ...(rule.conditions.targetUserRoles || {}) };
-        if (currentRoles[role]) {
-            delete currentRoles[role];
-        } else {
-            currentRoles[role] = [];
-        }
-        handleConditionChange('targetUserRoles', currentRoles);
-    };
-
-    const handleRatingToggle = (role: Role, rating: number) => {
-        const currentRoles = { ...(rule.conditions.targetUserRoles || {}) };
-        const currentRatings = currentRoles[role] || [];
-        const newRatings = currentRatings.includes(rating) ? currentRatings.filter(r => r !== rating) : [...currentRatings, rating];
-        currentRoles[role] = newRatings;
-        handleConditionChange('targetUserRoles', currentRoles);
-    };
-    
-    // Since rule is now guaranteed to be a valid object by the parent, this is safe.
-    const { conditions, action } = rule;
-
-    return (
-        <AlertDialog open={open} onOpenChange={onOpenChange}>
-            <AlertDialogContent className="sm:max-w-2xl">
-                <AlertDialogHeader>
-                    <AlertDialogTitle>{isEditing ? '编辑定价规则' : `为“${actionKey}”新增定价规则`}</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        为特定的时间、用户和场景设置详细的计费规则。
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                 <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                            <Label htmlFor="rule-name">规则名称</Label>
-                            <Input id="rule-name" value={rule.name} onChange={e => handleFieldChange('name', e.target.value)} placeholder="例如：VIP用户优惠" />
-                        </div>
-                        <div className="space-y-1">
-                            <Label htmlFor="rule-priority">优先级 (数字越小越高)</Label>
-                            <Input id="rule-priority" type="number" value={rule.priority} onChange={e => handleFieldChange('priority', parseInt(e.target.value) || 10)} />
-                        </div>
-                    </div>
-
-                    <Accordion type="multiple" className="w-full" defaultValue={['conditions', 'action']}>
-                        <AccordionItem value="conditions"><AccordionTrigger>触发条件</AccordionTrigger>
-                            <AccordionContent className="space-y-4 pt-4">
-                               <Accordion type="multiple" className="w-full">
-                                    <AccordionItem value="time"><AccordionTrigger>时间维度</AccordionTrigger>
-                                        <AccordionContent className="space-y-4 pt-2">
-                                            <div className="p-4 border rounded-md space-y-4">
-                                                <div className="grid grid-cols-2 gap-4 items-center">
-                                                     <div>
-                                                        <Label>重复频率</Label>
-                                                        <Select value={conditions.repetition || 'none'} onValueChange={(v) => handleConditionChange('repetition', v as any)}>
-                                                            <SelectTrigger><SelectValue/></SelectTrigger>
-                                                            <SelectContent><SelectItem value="none">不重复</SelectItem><SelectItem value="daily">每天</SelectItem><SelectItem value="weekly">每周</SelectItem></SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                    {conditions.repetition === 'weekly' && (
-                                                        <div><Label>选择星期</Label><div className="flex flex-wrap gap-x-2 gap-y-1 mt-2">{DAYS_OF_WEEK.map(day => (<div key={day.id} className="flex items-center space-x-1"><Checkbox id={`day-${day.id}`} checked={conditions.daysOfWeek?.includes(day.id)} onCheckedChange={() => handleDayToggle(day.id)} /><Label htmlFor={`day-${day.id}`} className="text-xs font-normal">{day.label}</Label></div>))}</div></div>
-                                                    )}
-                                                </div>
-                                                 {(conditions.repetition && conditions.repetition !== 'none') && <div><Label>生效时间窗口</Label><div className="flex items-center gap-2"><TimePicker date={conditions.startTime ? new Date(`1970-01-01T${conditions.startTime}`) : undefined} setDate={(d) => handleConditionChange('startTime', d ? format(d, 'HH:mm') : undefined)} /><span>-</span><TimePicker date={conditions.endTime ? new Date(`1970-01-01T${conditions.endTime}`) : undefined} setDate={(d) => handleConditionChange('endTime', d ? format(d, 'HH:mm') : undefined)} /></div></div>}
-                                            </div>
-                                        </AccordionContent>
-                                    </AccordionItem>
-                                     <div className="flex items-center justify-center py-2"><RadioGroup value={conditions.ruleLogic} onValueChange={(v) => handleConditionChange('ruleLogic', v as any)} className="flex items-center space-x-4 border p-2 rounded-lg bg-muted/30"><RadioGroupItem value="and" id="logic-and" /><Label htmlFor="logic-and">同时满足 (与)</Label><RadioGroupItem value="or" id="logic-or" /><Label htmlFor="logic-or">满足任意一个 (或)</Label></RadioGroup></div>
-                                    <AccordionItem value="user"><AccordionTrigger>用户维度</AccordionTrigger>
-                                        <AccordionContent className="pt-4 space-y-4"><p className="text-sm text-muted-foreground">限定目标用户。若不配置，则对所有用户生效。</p><div className="space-y-3">{ALL_ROLES.map(role => (<div key={role} className="p-3 border rounded-md"><div className="flex items-center space-x-2"><Checkbox id={`role-${role}`} checked={!!conditions.targetUserRoles?.[role]} onCheckedChange={() => handleRoleToggle(role)} /><Label htmlFor={`role-${role}`} className="text-sm font-medium">{ROLE_NAMES[role]}</Label></div>{conditions.targetUserRoles?.[role] && (<div className="pt-3 mt-3 border-t"><Label className="text-xs text-muted-foreground">限定星级 (不选则对该角色所有星级生效)</Label><div className="flex flex-wrap gap-x-3 gap-y-1">{Array.from({length: 10}, (_, i) => i + 1).map(rating => (<div key={rating} className="flex items-center space-x-1"><Checkbox id={`rating-${role}-${rating}`} checked={conditions.targetUserRoles?.[role]?.includes(rating)} onCheckedChange={() => handleRatingToggle(role, rating)}/><Label htmlFor={`rating-${role}-${rating}`} className="text-xs font-normal">{rating}星</Label></div>))}</div></div>)}</div>))}</div></AccordionContent>
-                                    </AccordionItem>
-                                </Accordion>
-                            </AccordionContent>
-                        </AccordionItem>
-                         <AccordionItem value="action"><AccordionTrigger>执行动作</AccordionTrigger>
-                             <AccordionContent className="pt-4 space-y-4">
-                                <RadioGroup value={action.type} onValueChange={v => handleActionChange('type', v as any)} className="grid grid-cols-2 gap-4">
-                                    <Label className="flex flex-col gap-2 rounded-lg border p-4 cursor-pointer has-[:checked]:bg-primary/10 has-[:checked]:border-primary"><div className="flex items-center justify-between"><span className="font-semibold">按次计费</span><RadioGroupItem value="per_call"/></div><p className="text-xs text-muted-foreground">每次调用固定扣除积分。</p></Label>
-                                    <Label className="flex flex-col gap-2 rounded-lg border p-4 cursor-pointer has-[:checked]:bg-primary/10 has-[:checked]:border-primary"><div className="flex items-center justify-between"><span className="font-semibold">免费</span><RadioGroupItem value="free"/></div><p className="text-xs text-muted-foreground">此条件下调用不扣除积分。</p></Label>
-                                    <Label className="flex flex-col gap-2 rounded-lg border p-4 cursor-pointer has-[:checked]:bg-primary/10 has-[:checked]:border-primary"><div className="flex items-center justify-between"><span className="font-semibold">按时计费</span><RadioGroupItem value="per_minute" disabled/></div><p className="text-xs text-muted-foreground">(即将推出) 根据调用时长扣除积分。</p></Label>
-                                </RadioGroup>
-                                 {(action.type === 'per_call' || action.type === 'add' || action.type === 'subtract') && <div className="space-y-1"><Label>积分值</Label><Input type="number" value={action.value} onChange={e => handleActionChange('value', parseInt(e.target.value) || 0)} /></div>}
-                             </AccordionContent>
-                         </AccordionItem>
-                    </Accordion>
-                 </div>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>取消</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleSave}>保存规则</AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-    );
-}
-
 function BillingManagement() {
     const [searchQuery, setSearchQuery] = useState('');
     const [dateRange, setDateRange] = useState<DateRange | undefined>();
@@ -409,7 +264,6 @@ function ManualGrantForm({ onSuccessfulGrant }: { onSuccessfulGrant: () => void 
                     toast({ title: "赋分成功", description: `已成功为 ${result.userCount} 位用户增加了 ${pointsAmount} 积分。` });
                     onSuccessfulGrant();
                     
-                    // After a successful grant, refetch the current user's data to update the UI.
                     if (currentUser) {
                         const userDocRef = doc(db, 'users', currentUser.uid);
                         const userDocSnap = await getDoc(userDocRef);
@@ -585,9 +439,8 @@ export default function PointsManagementPage() {
     const { toast } = useToast();
 
     const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
-    const [pricingConfig, setPricingConfig] = useState<TokenConversionConfig | null>(null);
-    const [roleGifts, setRoleGifts] = useState<RoleGiftsConfig | null>(null);
     const [pointsConfig, setPointsConfig] = useState<PointsConfig | null>(null);
+    const [roleGifts, setRoleGifts] = useState<RoleGiftsConfig | null>(null);
     const [grantHistoryRefreshKey, setGrantHistoryRefreshKey] = useState(0);
 
     const [isLoading, setIsLoading] = useState(true);
@@ -595,22 +448,20 @@ export default function PointsManagementPage() {
     
     // State for the new dialog (State Elevation)
     const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
-    const [currentRule, setCurrentRule] = useState<PricingRule | null>(null);
+    const [editingRule, setEditingRule] = useState<PricingRule | null>(null);
     const [currentActionKey, setCurrentActionKey] = useState<string>('');
 
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
-            const [systemDoc, pricingDoc, roleGiftsDoc, pointsDoc] = await Promise.all([
+            const [systemDoc, roleGiftsDoc, pointsDoc] = await Promise.all([
                 getDoc(doc(db, 'configs', 'system')),
-                getDoc(doc(db, 'configs', 'token_conversion')),
                 getDoc(doc(db, 'configs', 'role_gifts')),
                 getDoc(doc(db, 'configs', 'points')),
             ]);
 
             setSystemConfig(systemDoc.exists() ? (systemDoc.data() as SystemConfig) : { enable_points: true, enable_payments: true, pro_monthly_bonus: 10000, min_balance_for_llm: 0 });
-            setPricingConfig(pricingDoc.exists() ? (pricingDoc.data() as TokenConversionConfig) : { tokens_per_point: 100, actions: {} });
             setRoleGifts(roleGiftsDoc.exists() ? (roleGiftsDoc.data() as RoleGiftsConfig) : { 'user_new': 5000, 'creator_pro': 30000 });
             
             const fetchedPointsConfig = pointsDoc.exists() ? (pointsDoc.data() as PointsConfig) : { defaultPricing: {}, rules: {} };
@@ -644,7 +495,6 @@ export default function PointsManagementPage() {
         try {
             await Promise.all([
                 setDoc(doc(db, 'configs', 'system'), systemConfig),
-                setDoc(doc(db, 'configs', 'token_conversion'), pricingConfig),
                 setDoc(doc(db, 'configs', 'role_gifts'), roleGifts),
                 setDoc(doc(db, 'configs', 'points'), pointsConfig),
             ]);
@@ -674,27 +524,21 @@ export default function PointsManagementPage() {
         }
     };
     
-    const handleTokenConfigChange = (type: 'tokens_per_point' | string, value: string) => {
-        const numValue = parseInt(value, 10);
-        if (isNaN(numValue)) return;
-        setPricingConfig(prev => {
-            if (!prev) return null;
-            if (type === 'tokens_per_point') {
-                return { ...prev, tokens_per_point: numValue };
-            }
-            return { ...prev, actions: { ...(prev.actions || {}), [type]: numValue } };
-        });
-    };
-
     const handleAddRule = (action: string) => {
         setCurrentActionKey(action);
-        setCurrentRule(getInitialPricingRuleState(null));
+        setEditingRule({
+            id: `rule_${Date.now()}`,
+            name: '',
+            priority: 10,
+            conditions: { ruleLogic: 'and' },
+            action: { type: 'per_call', value: 1 }
+        });
         setIsRuleDialogOpen(true);
     };
 
     const handleEditRule = (action: string, rule: PricingRule) => {
         setCurrentActionKey(action);
-        setCurrentRule(rule);
+        setEditingRule(JSON.parse(JSON.stringify(rule))); // Deep copy to avoid mutation issues
         setIsRuleDialogOpen(true);
     };
     
@@ -727,7 +571,7 @@ export default function PointsManagementPage() {
             };
         });
         setIsRuleDialogOpen(false);
-        setCurrentRule(null);
+        setEditingRule(null);
     };
 
     if (isAuthLoading) {
@@ -873,16 +717,148 @@ export default function PointsManagementPage() {
                 </div>
             </div>
             
-            {isRuleDialogOpen && currentRule && (
-              <PricingRuleDialog 
-                  key={currentRule.id}
-                  open={isRuleDialogOpen}
-                  onOpenChange={setIsRuleDialogOpen}
-                  rule={currentRule}
-                  onSave={handleSaveRule}
-                  actionKey={currentActionKey}
-              />
-            )}
+             {isRuleDialogOpen && editingRule && (
+                <PricingRuleDialog 
+                    key={editingRule.id}
+                    open={isRuleDialogOpen}
+                    onOpenChange={setIsRuleDialogOpen}
+                    rule={editingRule}
+                    onRuleChange={setEditingRule}
+                    onSave={handleSaveRule}
+                    actionKey={currentActionKey}
+                />
+             )}
         </AppLayout>
     );
 }
+
+
+function PricingRuleDialog({ open, onOpenChange, rule, onRuleChange, onSave, actionKey }: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    rule: PricingRule;
+    onRuleChange: (newRule: PricingRule) => void;
+    onSave: () => void;
+    actionKey: string;
+}) {
+    const { toast } = useToast();
+    const isEditing = !!(rule.id && !rule.id.startsWith('rule_'));
+    
+    const handleSave = () => {
+        if (!rule.name) {
+            toast({ title: "信息不完整", description: "规则名称不能为空。", variant: "destructive" });
+            return;
+        }
+        onSave();
+    };
+
+    const handleFieldChange = <T extends keyof PricingRule>(field: T, value: PricingRule[T]) => {
+        onRuleChange({ ...rule, [field]: value });
+    };
+
+    const handleConditionChange = <T extends keyof PricingRule['conditions']>(field: T, value: PricingRule['conditions'][T]) => {
+        onRuleChange({ ...rule, conditions: { ...rule.conditions, [field]: value }});
+    };
+
+    const handleActionChange = <T extends keyof PricingRule['action']>(field: T, value: PricingRule['action'][T]) => {
+        onRuleChange({ ...rule, action: { ...rule.action, [field]: value }});
+    };
+    
+    const handleDayToggle = (day: DayOfWeek) => {
+        const currentDays = rule.conditions.daysOfWeek || [];
+        const newDays = currentDays.includes(day) ? currentDays.filter(d => d !== day) : [...currentDays, day];
+        handleConditionChange('daysOfWeek', newDays);
+    };
+    
+    const handleRoleToggle = (role: Role) => {
+        const currentRoles = { ...(rule.conditions.targetUserRoles || {}) };
+        if (currentRoles[role]) {
+            delete currentRoles[role];
+        } else {
+            currentRoles[role] = [];
+        }
+        handleConditionChange('targetUserRoles', currentRoles);
+    };
+
+    const handleRatingToggle = (role: Role, rating: number) => {
+        const currentRoles = { ...(rule.conditions.targetUserRoles || {}) };
+        const currentRatings = currentRoles[role] || [];
+        const newRatings = currentRatings.includes(rating) ? currentRatings.filter(r => r !== rating) : [...currentRatings, rating];
+        currentRoles[role] = newRatings;
+        handleConditionChange('targetUserRoles', currentRoles);
+    };
+    
+    const { conditions, action } = rule;
+
+    return (
+        <AlertDialog open={open} onOpenChange={onOpenChange}>
+            <AlertDialogContent className="sm:max-w-2xl">
+                <AlertDialogHeader>
+                    <AlertDialogTitle>{isEditing ? '编辑定价规则' : `为“${actionKey}”新增定价规则`}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        为特定的时间、用户和场景设置详细的计费规则。
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                 <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                     <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <Label htmlFor="rule-name">规则名称</Label>
+                            <Input id="rule-name" value={rule.name} onChange={e => handleFieldChange('name', e.target.value)} placeholder="例如：VIP用户优惠" />
+                        </div>
+                        <div className="space-y-1">
+                            <Label htmlFor="rule-priority">优先级 (数字越小越高)</Label>
+                            <Input id="rule-priority" type="number" value={rule.priority} onChange={e => handleFieldChange('priority', parseInt(e.target.value) || 10)} />
+                        </div>
+                    </div>
+
+                    <Accordion type="multiple" className="w-full" defaultValue={['conditions', 'action']}>
+                        <AccordionItem value="conditions"><AccordionTrigger>触发条件</AccordionTrigger>
+                            <AccordionContent className="space-y-4 pt-4">
+                               <Accordion type="multiple" className="w-full">
+                                    <AccordionItem value="time"><AccordionTrigger>时间维度</AccordionTrigger>
+                                        <AccordionContent className="space-y-4 pt-2">
+                                            <div className="p-4 border rounded-md space-y-4">
+                                                <div className="grid grid-cols-2 gap-4 items-center">
+                                                     <div>
+                                                        <Label>重复频率</Label>
+                                                        <Select value={conditions.repetition || 'none'} onValueChange={(v) => handleConditionChange('repetition', v as any)}>
+                                                            <SelectTrigger><SelectValue/></SelectTrigger>
+                                                            <SelectContent><SelectItem value="none">不重复</SelectItem><SelectItem value="daily">每天</SelectItem><SelectItem value="weekly">每周</SelectItem></SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    {conditions.repetition === 'weekly' && (
+                                                        <div><Label>选择星期</Label><div className="flex flex-wrap gap-x-2 gap-y-1 mt-2">{DAYS_OF_WEEK.map(day => (<div key={day.id} className="flex items-center space-x-1"><Checkbox id={`day-${day.id}`} checked={conditions.daysOfWeek?.includes(day.id)} onCheckedChange={() => handleDayToggle(day.id)} /><Label htmlFor={`day-${day.id}`} className="text-xs font-normal">{day.label}</Label></div>))}</div></div>
+                                                    )}
+                                                </div>
+                                                 {(conditions.repetition && conditions.repetition !== 'none') && <div><Label>生效时间窗口</Label><div className="flex items-center gap-2"><TimePicker date={conditions.startTime ? new Date(`1970-01-01T${conditions.startTime}`) : undefined} setDate={(d) => handleConditionChange('startTime', d ? format(d, 'HH:mm') : undefined)} /><span>-</span><TimePicker date={conditions.endTime ? new Date(`1970-01-01T${conditions.endTime}`) : undefined} setDate={(d) => handleConditionChange('endTime', d ? format(d, 'HH:mm') : undefined)} /></div></div>}
+                                            </div>
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                     <div className="flex items-center justify-center py-2"><RadioGroup value={conditions.ruleLogic} onValueChange={(v) => handleConditionChange('ruleLogic', v as any)} className="flex items-center space-x-4 border p-2 rounded-lg bg-muted/30"><RadioGroupItem value="and" id="logic-and" /><Label htmlFor="logic-and">同时满足 (与)</Label><RadioGroupItem value="or" id="logic-or" /><Label htmlFor="logic-or">满足任意一个 (或)</Label></RadioGroup></div>
+                                    <AccordionItem value="user"><AccordionTrigger>用户维度</AccordionTrigger>
+                                        <AccordionContent className="pt-4 space-y-4"><p className="text-sm text-muted-foreground">限定目标用户。若不配置，则对所有用户生效。</p><div className="space-y-3">{ALL_ROLES.map(role => (<div key={role} className="p-3 border rounded-md"><div className="flex items-center space-x-2"><Checkbox id={`role-${role}`} checked={!!conditions.targetUserRoles?.[role]} onCheckedChange={() => handleRoleToggle(role)} /><Label htmlFor={`role-${role}`} className="text-sm font-medium">{ROLE_NAMES[role]}</Label></div>{conditions.targetUserRoles?.[role] && (<div className="pt-3 mt-3 border-t"><Label className="text-xs text-muted-foreground">限定星级 (不选则对该角色所有星级生效)</Label><div className="flex flex-wrap gap-x-3 gap-y-1">{Array.from({length: 10}, (_, i) => i + 1).map(rating => (<div key={rating} className="flex items-center space-x-1"><Checkbox id={`rating-${role}-${rating}`} checked={conditions.targetUserRoles?.[role]?.includes(rating)} onCheckedChange={() => handleRatingToggle(role, rating)}/><Label htmlFor={`rating-${role}-${rating}`} className="text-xs font-normal">{rating}星</Label></div>))}</div></div>)}</div>))}</div></AccordionContent>
+                                    </AccordionItem>
+                                </Accordion>
+                            </AccordionContent>
+                        </AccordionItem>
+                         <AccordionItem value="action"><AccordionTrigger>执行动作</AccordionTrigger>
+                             <AccordionContent className="pt-4 space-y-4">
+                                <RadioGroup value={action.type} onValueChange={v => handleActionChange('type', v as any)} className="grid grid-cols-2 gap-4">
+                                    <Label className="flex flex-col gap-2 rounded-lg border p-4 cursor-pointer has-[:checked]:bg-primary/10 has-[:checked]:border-primary"><div className="flex items-center justify-between"><span className="font-semibold">按次计费</span><RadioGroupItem value="per_call"/></div><p className="text-xs text-muted-foreground">每次调用固定扣除积分。</p></Label>
+                                    <Label className="flex flex-col gap-2 rounded-lg border p-4 cursor-pointer has-[:checked]:bg-primary/10 has-[:checked]:border-primary"><div className="flex items-center justify-between"><span className="font-semibold">免费</span><RadioGroupItem value="free"/></div><p className="text-xs text-muted-foreground">此条件下调用不扣除积分。</p></Label>
+                                    <Label className="flex flex-col gap-2 rounded-lg border p-4 cursor-pointer has-[:checked]:bg-primary/10 has-[:checked]:border-primary"><div className="flex items-center justify-between"><span className="font-semibold">按时计费</span><RadioGroupItem value="per_minute" disabled/></div><p className="text-xs text-muted-foreground">(即将推出) 根据调用时长扣除积分。</p></Label>
+                                </RadioGroup>
+                                 {(action.type === 'per_call' || action.type === 'add' || action.type === 'subtract') && <div className="space-y-1"><Label>积分值</Label><Input type="number" value={action.value} onChange={e => handleActionChange('value', parseInt(e.target.value) || 0)} /></div>}
+                             </AccordionContent>
+                         </AccordionItem>
+                    </Accordion>
+                 </div>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>取消</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleSave}>保存规则</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+}
+
