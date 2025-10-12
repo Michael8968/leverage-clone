@@ -457,10 +457,17 @@ export default function PointsManagementPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     
-    // State for the new dialog (State Elevation)
+    // State for the new dialog
     const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
-    const [editingRule, setEditingRule] = useState<PricingRule | null>(null);
     const [currentActionKey, setCurrentActionKey] = useState<string>('');
+    const [editingRule, setEditingRule] = useState<PricingRule | null>(null);
+
+    // ROOT CAUSE FIX: This useEffect will open the dialog only *after* editingRule has been set.
+    useEffect(() => {
+        if (editingRule) {
+            setIsRuleDialogOpen(true);
+        }
+    }, [editingRule]);
 
 
     const fetchData = useCallback(async () => {
@@ -482,7 +489,8 @@ export default function PointsManagementPage() {
                 if (fetchedPointsConfig.defaultPricing[action] === undefined) {
                     fetchedPointsConfig.defaultPricing[action] = 1; 
                 }
-                 if (fetchedPointsConfig.rules[action] === undefined) {
+                 if (!fetchedPointsConfig.rules || fetchedPointsConfig.rules[action] === undefined) {
+                    if (!fetchedPointsConfig.rules) fetchedPointsConfig.rules = {};
                     fetchedPointsConfig.rules[action] = []; 
                 }
             });
@@ -505,21 +513,14 @@ export default function PointsManagementPage() {
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            // Defensive check to ensure pointsConfig is not null
             if (!systemConfig || !roleGifts || !pointsConfig) {
                  throw new Error("配置数据不完整，无法保存。");
             }
-
-            // Ensure pointsConfig.rules is not null/undefined before saving
-            const dataToSave = {
-                ...pointsConfig,
-                rules: pointsConfig.rules || {},
-            };
             
             await Promise.all([
                 setDoc(doc(db, 'configs', 'system'), systemConfig),
                 setDoc(doc(db, 'configs', 'role_gifts'), roleGifts),
-                setDoc(doc(db, 'configs', 'points'), dataToSave),
+                setDoc(doc(db, 'configs', 'points'), pointsConfig),
             ]);
             toast({ title: '保存成功', description: '所有积分和结算配置已更新。' });
         } catch (error) {
@@ -539,27 +540,22 @@ export default function PointsManagementPage() {
     
     const handleDefaultPriceChange = (action: string, value: string) => {
         const numValue = parseInt(value, 10);
-        if (!isNaN(numValue)) {
-            setPointsConfig(prev => {
-                if (!prev) return null;
-                return {
-                    ...prev,
-                    defaultPricing: { ...prev.defaultPricing, [action]: numValue }
-                };
-            });
+        if (!isNaN(numValue) && pointsConfig) {
+            const newDefaultPricing = { ...pointsConfig.defaultPricing, [action]: numValue };
+            setPointsConfig({ ...pointsConfig, defaultPricing: newDefaultPricing });
         }
     };
     
     const handleAddRule = (action: string) => {
         setCurrentActionKey(action);
         setEditingRule(getInitialPricingRuleState(action));
-        setIsRuleDialogOpen(true);
+        // The useEffect will handle opening the dialog
     };
 
     const handleEditRule = (action: string, rule: PricingRule) => {
         setCurrentActionKey(action);
         setEditingRule(JSON.parse(JSON.stringify(rule)));
-        setIsRuleDialogOpen(true);
+        // The useEffect will handle opening the dialog
     };
     
     const handleDeleteRule = (action: string, ruleId: string) => {
@@ -575,8 +571,8 @@ export default function PointsManagementPage() {
     
     const handleSaveRule = (ruleToSave: PricingRule) => {
         setPointsConfig(prev => {
-            if (!prev) return null;
-            const rules = prev.rules || {};
+            if (!prev || !prev.rules) return null;
+            const rules = prev.rules;
             const rulesForAction = rules[currentActionKey] || [];
             const existingIndex = rulesForAction.findIndex(r => r.id === ruleToSave.id);
             let newRules;
@@ -703,7 +699,7 @@ export default function PointsManagementPage() {
                                             <Input type="number" value={pointsConfig.defaultPricing[action] ?? 1} className="w-24" onChange={e => handleDefaultPriceChange(action, e.target.value)} />
                                         </TableCell>
                                         <TableCell>
-                                            {(pointsConfig.rules[action] || []).length > 0 ? (
+                                            {(pointsConfig.rules?.[action] || []).length > 0 ? (
                                                 <div className="flex flex-wrap gap-1">
                                                     {(pointsConfig.rules[action] || []).map(rule => (
                                                         <Button key={rule.id} variant="outline" size="xs" onClick={() => handleEditRule(action, rule)}>
@@ -742,7 +738,10 @@ export default function PointsManagementPage() {
                 <PricingRuleDialog
                     key={editingRule.id}
                     open={isRuleDialogOpen}
-                    onOpenChange={setIsRuleDialogOpen}
+                    onOpenChange={(isOpen) => {
+                        if (!isOpen) setEditingRule(null);
+                        setIsRuleDialogOpen(isOpen);
+                    }}
                     rule={editingRule}
                     onRuleChange={setEditingRule}
                     onSave={() => handleSaveRule(editingRule)}
@@ -753,44 +752,44 @@ export default function PointsManagementPage() {
     );
 }
 
-function PricingRuleDialog({ open, onOpenChange, rule: initialRule, onSave, actionKey }: {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    rule: PricingRule | null;
-    onSave: (rule: PricingRule) => void;
-    actionKey: string;
+function PricingRuleDialog({
+  open,
+  onOpenChange,
+  rule: initialRule,
+  onRuleChange,
+  onSave,
+  actionKey,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  rule: PricingRule;
+  onRuleChange: (rule: PricingRule) => void;
+  onSave: () => void;
+  actionKey: string;
 }) {
     const { toast } = useToast();
-    const [rule, setRule] = useState<PricingRule | null>(initialRule);
-
-    useEffect(() => {
-        setRule(initialRule);
-    }, [initialRule]);
-    
-    if (!rule) {
-        return null; // Don't render if rule is null
-    }
+    const rule = initialRule; // Direct prop usage
 
     const isEditing = !!(rule.id && !rule.id.startsWith('rule_'));
-    
+
     const handleSave = () => {
         if (!rule.name) {
             toast({ title: "信息不完整", description: "规则名称不能为空。", variant: "destructive" });
             return;
         }
-        onSave(rule);
+        onSave();
     };
 
     const handleFieldChange = <T extends keyof PricingRule>(field: T, value: PricingRule[T]) => {
-        setRule(prev => prev ? { ...prev, [field]: value } : null);
+        onRuleChange({ ...rule, [field]: value });
     };
 
     const handleConditionChange = <T extends keyof PricingRule['conditions']>(field: T, value: PricingRule['conditions'][T]) => {
-        setRule(prev => prev ? { ...prev, conditions: { ...prev.conditions, [field]: value }} : null);
+        onRuleChange({ ...rule, conditions: { ...rule.conditions, [field]: value }});
     };
 
     const handleActionChange = <T extends keyof PricingRule['action']>(field: T, value: PricingRule['action'][T]) => {
-        setRule(prev => prev ? { ...prev, action: { ...prev.action, [field]: value }} : null);
+        onRuleChange({ ...rule, action: { ...rule.action, [field]: value }});
     };
     
     const handleDayToggle = (day: DayOfWeek) => {
