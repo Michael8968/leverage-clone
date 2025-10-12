@@ -57,11 +57,6 @@ const ALL_ROLES: Role[] = ['admin', 'creator', 'supplier', 'user'];
 const ROLE_NAMES: Record<Role, string> = { admin: '管理员', creator: '创意者', supplier: '供应商', user: '普通用户', suspended: '已禁用' };
 
 // ========== DATA ADAPTATION LAYER (Defensive Programming) ==========
-/**
- * Creates a default, structurally complete PricingRule object.
- * @param actionKey - The action this rule applies to.
- * @returns A complete PricingRule object.
- */
 function getInitialPricingRuleState(actionKey: string): PricingRule {
     return {
         id: `rule_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -76,11 +71,6 @@ function getInitialPricingRuleState(actionKey: string): PricingRule {
     };
 }
 
-/**
- * Ensures a rule object from any source (Firestore, old state) is structurally complete.
- * @param partialRule - A potentially incomplete rule object.
- * @returns A structurally complete, safe-to-use PricingRule object.
- */
 function adaptRuleToSchema(partialRule: Partial<PricingRule>): PricingRule {
   const defaults = getInitialPricingRuleState('');
   
@@ -123,7 +113,6 @@ function BillingManagement() {
         setSelectedUser(null);
         try {
             const usersRef = collection(db, 'users');
-            // Allow search by email or name
             const emailQuery = query(usersRef, where('email', '==', searchQuery));
             const nameQuery = query(usersRef, where('name', '==', searchQuery));
             
@@ -512,13 +501,13 @@ export default function PointsManagementPage() {
             
             const fetchedPointsConfig = pointsDoc.exists() ? (pointsDoc.data() as PointsConfig) : { defaultPricing: {}, rules: {} };
             
-            // Ensure all actions have a default price and a rules array
+            if (!fetchedPointsConfig.rules) {
+                fetchedPointsConfig.rules = {};
+            }
+
             ALL_ACTIONS.forEach(action => {
                 if (fetchedPointsConfig.defaultPricing[action] === undefined) {
                     fetchedPointsConfig.defaultPricing[action] = 1; 
-                }
-                 if (!fetchedPointsConfig.rules) {
-                    fetchedPointsConfig.rules = {};
                 }
                 if (fetchedPointsConfig.rules[action] === undefined) {
                     fetchedPointsConfig.rules[action] = []; 
@@ -547,7 +536,6 @@ export default function PointsManagementPage() {
                  throw new Error("配置数据不完整，无法保存。");
             }
             
-            // Defensive check to ensure rules is an object
             const finalPointsConfig = {
                 ...pointsConfig,
                 rules: pointsConfig.rules || {}
@@ -590,15 +578,14 @@ export default function PointsManagementPage() {
 
     const handleEditRule = (actionKey: string, rule: PricingRule) => {
         setCurrentActionKey(actionKey);
-        // Use the adapter to ensure the rule object is complete
         setEditingRule(adaptRuleToSchema(rule));
         setIsRuleDialogOpen(true);
     };
     
     const handleDeleteRule = (actionKey: string, ruleId: string) => {
         setPointsConfig(prev => {
-            if (!prev || !prev.rules) return prev;
-            const newRulesForAction = (prev.rules[actionKey] || []).filter(r => r.id !== ruleId);
+            if (!prev) return prev;
+            const newRulesForAction = (prev.rules?.[actionKey] || []).filter(r => r.id !== ruleId);
             return {
                 ...prev,
                 rules: { ...prev.rules, [actionKey]: newRulesForAction }
@@ -738,7 +725,7 @@ export default function PointsManagementPage() {
                                         <TableCell>
                                             {(pointsConfig.rules?.[action] || []).length > 0 ? (
                                                 <div className="flex flex-wrap gap-1">
-                                                    {(pointsConfig.rules[action] || []).map(rule => (
+                                                    {(pointsConfig.rules?.[action] || []).map(rule => (
                                                         <Button key={rule.id} variant="outline" size="xs" onClick={() => handleEditRule(action, rule)}>
                                                             <Settings className="mr-1 h-3 w-3" /> {rule.name}
                                                         </Button>
@@ -775,13 +762,11 @@ export default function PointsManagementPage() {
                 <PricingRuleDialog
                     key={editingRule.id}
                     open={isRuleDialogOpen}
-                    onOpenChange={(isOpen) => {
-                        if (!isOpen) setEditingRule(null);
-                        setIsRuleDialogOpen(isOpen);
-                    }}
+                    onOpenChange={setIsRuleDialogOpen}
                     rule={editingRule}
                     onRuleChange={setEditingRule}
                     onSave={() => handleSaveRule(editingRule)}
+                    onDeleteRule={handleDeleteRule}
                     actionKey={currentActionKey}
                 />
              )}
@@ -792,9 +777,10 @@ export default function PointsManagementPage() {
 function PricingRuleDialog({
   open,
   onOpenChange,
-  rule,
+  rule: passedRule,
   onRuleChange,
   onSave,
+  onDeleteRule,
   actionKey,
 }: {
   open: boolean;
@@ -802,11 +788,13 @@ function PricingRuleDialog({
   rule: PricingRule;
   onRuleChange: (rule: PricingRule) => void;
   onSave: () => void;
+  onDeleteRule: (actionKey: string, ruleId: string) => void;
   actionKey: string;
 }) {
     const { toast } = useToast();
-    const isEditing = !!(rule.id && !rule.id.startsWith('rule_'));
-
+    const isEditing = !!(passedRule.id && !passedRule.id.startsWith('rule_'));
+    const rule = passedRule; // No internal state needed
+    
     const handleSave = () => {
         if (!rule.name) {
             toast({ title: "信息不完整", description: "规则名称不能为空。", variant: "destructive" });
@@ -852,7 +840,7 @@ function PricingRuleDialog({
     };
     
     // Defensive access
-    const conditions = rule.conditions || {};
+    const conditions = rule.conditions || { ruleLogic: 'and' };
     const action = rule.action || { type: 'per_call', value: 1};
 
     return (
@@ -919,8 +907,18 @@ function PricingRuleDialog({
                     </Accordion>
                  </div>
                 <AlertDialogFooter>
-                    <AlertDialogCancel>取消</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleSave}>保存规则</AlertDialogAction>
+                    <div className="flex justify-between w-full">
+                        {isEditing ? (
+                           <Button variant="destructive" onClick={() => { onDeleteRule(actionKey, rule.id); onOpenChange(false); }}>
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                删除规则
+                           </Button>
+                        ) : <div></div>}
+                         <div className="flex gap-2">
+                             <AlertDialogCancel>取消</AlertDialogCancel>
+                             <AlertDialogAction onClick={handleSave}>保存规则</AlertDialogAction>
+                         </div>
+                    </div>
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>

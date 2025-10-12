@@ -12,7 +12,7 @@ import type { User, AssistantRule, PointsTransaction } from '@/lib/types';
 
 // =================================================================
 // Flow to batch update user roles, ratings, or status
-// =================================================================
+// =================================----------------================
 
 const BatchUpdateUsersInputSchema = z.object({
     userIds: z.array(z.string()),
@@ -216,16 +216,15 @@ export const grantPointsToGroup = ai.defineFlow(
 
             // 2. Create a transaction record
             const transactionRef = doc(collection(db, 'points_transactions'));
-            const newTransaction: Omit<PointsTransaction, 'id'> = {
+            const newTransaction: Omit<PointsTransaction, 'id' | 'timestamp'> = {
                 uid: userDoc.id,
                 type: 'manual',
                 amount: amount,
                 reason: reason,
-                timestamp: serverTimestamp(),
                 batchId: batchId,
                 status: 'active',
             };
-            batch.set(transactionRef, newTransaction);
+            batch.set(transactionRef, { ...newTransaction, timestamp: serverTimestamp() });
         });
 
         await batch.commit();
@@ -266,7 +265,6 @@ export const revokePointsGrant = ai.defineFlow(
                 const txData = txDoc.data() as PointsTransaction;
                 const userRef = doc(db, 'users', txData.uid);
                 
-                // Get the user's current data within the transaction
                 const userSnap = await transaction.get(userRef);
                 
                 if (userSnap.exists()) {
@@ -279,7 +277,7 @@ export const revokePointsGrant = ai.defineFlow(
                     transaction.update(userRef, { points_balance: newBalance });
                 }
                 
-                // Mark the transaction as revoked
+                // Mark the transaction as revoked but DO NOT remove timestamp
                 transaction.update(txDoc.ref, { status: 'revoked' });
                 revokedCount++;
             }
