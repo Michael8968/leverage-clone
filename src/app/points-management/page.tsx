@@ -56,8 +56,10 @@ const DAYS_OF_WEEK: { id: DayOfWeek; label: string }[] = [ { id: 'mon', label: '
 const ALL_ROLES: Role[] = ['admin', 'creator', 'supplier', 'user'];
 const ROLE_NAMES: Record<Role, string> = { admin: '管理员', creator: '创意者', supplier: '供应商', user: '普通用户', suspended: '已禁用' };
 
-// This is now a pure helper function, moved outside the component.
-const getInitialPricingRuleState = (): PricingRule => {
+// This is a pure helper function, moved outside the component.
+const getInitialPricingRuleState = (existingRule?: PricingRule | null): PricingRule => {
+  if (existingRule) return existingRule;
+  
   return {
     id: `rule_${Date.now()}`,
     name: '',
@@ -76,7 +78,7 @@ function PricingRuleDialog({ open, onOpenChange, onSave, rule, onRuleChange, act
     actionKey: string;
 }) {
     const { toast } = useToast();
-
+    
     // The dialog is now fully controlled by the `rule` prop.
     const isEditing = !!(rule.id && !rule.id.startsWith('rule_'));
     
@@ -124,6 +126,7 @@ function PricingRuleDialog({ open, onOpenChange, onSave, rule, onRuleChange, act
         handleConditionChange('targetUserRoles', currentRoles);
     };
 
+    // Since rule is now guaranteed to be a valid object, this is safe.
     const { conditions, action } = rule;
 
     return (
@@ -590,9 +593,9 @@ export default function PointsManagementPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     
-    // State for the new dialog
+    // State for the new dialog (State Elevation)
     const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
-    const [currentRule, setCurrentRule] = useState<PricingRule | null>(null);
+    const [currentRule, setCurrentRule] = useState<PricingRule | null>(null); // Can be null when no dialog is open
     const [currentActionKey, setCurrentActionKey] = useState<string>('');
 
 
