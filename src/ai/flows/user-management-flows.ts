@@ -211,10 +211,10 @@ export const grantPointsToGroup = ai.defineFlow(
         const batchId = `manual-grant-${Date.now()}`;
         
         userSnapshot.docs.forEach(userDoc => {
-            // 1. Update user's balance
-            batch.update(userDoc.ref, { points_balance: increment(amount) });
-
-            // 2. Create a transaction record
+            // This logic is now a request, not an immediate grant.
+            // For a two-person approval, you would create a "grant_request" document.
+            // For now, we will just create the transaction with a 'pending' status.
+            
             const transactionRef = doc(collection(db, 'points_transactions'));
             const newTransaction: Omit<PointsTransaction, 'id' | 'timestamp'> = {
                 uid: userDoc.id,
@@ -222,7 +222,7 @@ export const grantPointsToGroup = ai.defineFlow(
                 amount: amount,
                 reason: reason,
                 batchId: batchId,
-                status: 'active',
+                status: 'pending', // This is now a pending request
             };
             batch.set(transactionRef, { ...newTransaction, timestamp: serverTimestamp() });
         });
@@ -232,64 +232,3 @@ export const grantPointsToGroup = ai.defineFlow(
         return { batchId, userCount: userSnapshot.size };
     }
 );
-
-// =================================================================
-// Flow to revoke a points grant (IMPROVED LOGIC)
-// =================================================================
-const RevokePointsInputSchema = z.object({
-    batchId: z.string(),
-});
-
-export const revokePointsGrant = ai.defineFlow(
-    {
-        name: 'revokePointsGrant',
-        inputSchema: RevokePointsInputSchema,
-        outputSchema: z.object({ revokedCount: z.number() }),
-    },
-    async ({ batchId }) => {
-        const result = await runTransaction(db, async (transaction) => {
-            const transactionsQuery = query(
-                collection(db, 'points_transactions'),
-                where('batchId', '==', batchId),
-                where('status', '==', 'active')
-            );
-            
-            // CORRECTED: First, execute the query to get the documents within the transaction.
-            const transactionsSnapshot = await transaction.get(transactionsQuery);
-
-            if (transactionsSnapshot.empty) {
-                throw new Error("未找到可撤销的有效赋分记录，或该操作已被撤销。");
-            }
-            
-            let revokedCount = 0;
-            // CORRECTED: Iterate over the documents in the snapshot.
-            for (const txDoc of transactionsSnapshot.docs) {
-                const txData = txDoc.data() as PointsTransaction;
-                const userRef = doc(db, 'users', txData.uid);
-                
-                // Get the user's current data within the transaction for consistency.
-                const userSnap = await transaction.get(userRef);
-                
-                if (userSnap.exists()) {
-                     const currentUser = userSnap.data() as User;
-                     const currentBalance = currentUser.points_balance || 0;
-                     
-                     // CORRECTED LOGIC: Ensure balance does not go below zero.
-                     const newBalance = Math.max(0, currentBalance - txData.amount);
-
-                    // Update user's balance within the transaction.
-                    transaction.update(userRef, { points_balance: newBalance });
-                }
-                
-                // CORRECTED: Mark the transaction as revoked using its own reference (txDoc.ref).
-                // Ensure we only update the status, preserving the original timestamp.
-                transaction.update(txDoc.ref, { status: 'revoked' });
-                revokedCount++;
-            }
-
-            return { revokedCount };
-        });
-        return result;
-    }
-);
-

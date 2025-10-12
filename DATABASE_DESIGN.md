@@ -1,7 +1,7 @@
 # **数据库与核心AI流程设计文档**
 
-**版本**: 2.6 (Points System Update)
-**日期**: 2025年9月2日
+**版本**: 2.7 (Points System Update & Approval Workflow)
+**日期**: 2025年9月3日
 
 ---
 
@@ -228,6 +228,10 @@
 | **reason** | `string` | 变动原因 (例如: 'AI Call: chat-assistant')。 |
 | **timestamp**| `Timestamp` | 交易发生时间。 |
 | **llm_action**| `string` | (可选) 具体的LLM动作标识。 |
+| **batchId** | `string` | (可选, 仅 `manual` 类型) 用于标识同一批手动操作的ID。 |
+| **status** | `string` | (新增, 仅 `manual` 类型) 审批状态 (`pending`, `approved`, `rejected`)。 |
+| **approvers**| `Array<string>`| (新增, 仅 `manual` 类型) 存储已批准此操作的管理员UID数组。 |
+
 
 ### 1.13. `payment_orders` 集合 (新增)
 

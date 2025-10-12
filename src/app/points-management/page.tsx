@@ -31,7 +31,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { TimePicker } from '@/components/ui/time-picker';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Select, SelectContent, SelectTrigger, SelectValue, SelectItem } from '@/components/ui/select';
-import { grantPointsToGroup, revokePointsGrant } from '@/ai/flows/user-management-flows';
+import { grantPointsToGroup } from '@/ai/flows/user-management-flows';
 import { Textarea } from '@/components/ui/textarea';
 
 type SystemConfig = {
@@ -245,7 +245,7 @@ function BillingManagement() {
                                         <TableCell><Badge variant="outline">{tx.type}</Badge></TableCell>
                                         <TableCell className={cn(tx.amount > 0 ? "text-green-600" : "text-red-600")}>{tx.amount > 0 ? '+' : ''}{tx.amount}</TableCell>
                                         <TableCell>{tx.reason}</TableCell>
-                                        <TableCell className="text-xs text-muted-foreground">{tx.timestamp ? format(tx.timestamp.toDate(), 'yyyy-MM-dd HH:mm') : 'N/A'}</TableCell>
+                                        <TableCell className="text-xs text-muted-foreground">{tx.timestamp instanceof Timestamp ? format(tx.timestamp.toDate(), 'yyyy-MM-dd HH:mm') : 'N/A'}</TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -297,7 +297,7 @@ function ManualGrantForm({ onSuccessfulGrant }: { onSuccessfulGrant: () => void 
                     reason: grantReason,
                 });
                 if (result.userCount > 0) {
-                    toast({ title: "赋分成功", description: `已成功为 ${result.userCount} 位用户增加了 ${pointsAmount} 积分。` });
+                    toast({ title: "请求已提交", description: `为 ${result.userCount} 位用户增加 ${pointsAmount} 积分的请求已提交，等待审批。` });
                     onSuccessfulGrant();
                     
                     if (currentUser) {
@@ -328,7 +328,7 @@ function ManualGrantForm({ onSuccessfulGrant }: { onSuccessfulGrant: () => void 
             <Card>
                 <CardHeader>
                     <CardTitle>手动积分操作</CardTitle>
-                    <CardDescription>为特定用户群体批量增加积分，常用于活动奖励、补偿等场景。</CardDescription>
+                    <CardDescription>为特定用户群体批量增加积分，常用于活动奖励、补偿等场景。操作将进入审批流程。</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <div>
@@ -359,7 +359,7 @@ function ManualGrantForm({ onSuccessfulGrant }: { onSuccessfulGrant: () => void 
                 <CardFooter>
                     <Button className="w-full md:w-auto ml-auto" onClick={() => setIsConfirmOpen(true)} disabled={!grantReason || pointsAmount <= 0 || isGranting}>
                         <Gift className="mr-2" />
-                        执行赋分
+                        提交赋分请求
                     </Button>
                 </CardFooter>
             </Card>
@@ -368,7 +368,7 @@ function ManualGrantForm({ onSuccessfulGrant }: { onSuccessfulGrant: () => void 
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="text-amber-500" />二次确认</AlertDialogTitle>
-                        <AlertDialogDescription>请检查并确认您的操作。此操作将影响多位用户。</AlertDialogDescription>
+                        <AlertDialogDescription>请检查并确认您的赋分请求。此操作在被批准前不会生效。</AlertDialogDescription>
                     </AlertDialogHeader>
                     <div className="text-sm space-y-2">
                         <p><strong>目标用户:</strong> {targetDescription()} 用户</p>
@@ -378,7 +378,7 @@ function ManualGrantForm({ onSuccessfulGrant }: { onSuccessfulGrant: () => void 
                     <AlertDialogFooter>
                         <AlertDialogCancel>取消</AlertDialogCancel>
                         <AlertDialogAction onClick={handleExecuteGrant} disabled={isGranting}>
-                            {isGranting ? <Loader2 className="animate-spin" /> : "确认执行"}
+                            {isGranting ? <Loader2 className="animate-spin" /> : "确认提交"}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
@@ -390,7 +390,6 @@ function ManualGrantForm({ onSuccessfulGrant }: { onSuccessfulGrant: () => void 
 function GrantHistory({ refreshKey }: { refreshKey: number }) {
     const [history, setHistory] = useState<PointsTransaction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isRevoking, setIsRevoking] = useState<string | null>(null);
     const { toast } = useToast();
 
     const fetchHistory = useCallback(async () => {
@@ -422,44 +421,34 @@ function GrantHistory({ refreshKey }: { refreshKey: number }) {
         fetchHistory();
     }, [fetchHistory, refreshKey]);
 
-    const handleRevoke = async (batchId: string | undefined) => {
-        if (!batchId) return;
-        setIsRevoking(batchId);
-        try {
-            const result = await revokePointsGrant({ batchId });
-            toast({ title: '撤销成功', description: `已成功撤销对 ${result.revokedCount} 位用户的赋分操作。` });
-            fetchHistory(); // Refresh history
-        } catch (error: any) {
-            toast({ title: '撤销失败', description: error.message, variant: 'destructive' });
-        } finally {
-            setIsRevoking(null);
+    const getStatusBadge = (status?: string) => {
+        switch (status) {
+            case 'pending': return <Badge variant="secondary">待审批</Badge>;
+            case 'approved': return <Badge className="bg-green-500">已批准</Badge>;
+            case 'rejected': return <Badge variant="destructive">已拒绝</Badge>;
+            default: return <Badge variant="outline">{status || '未知'}</Badge>;
         }
-    };
+    }
+
 
     return (
         <Card>
             <CardHeader>
-                <CardTitle>近期手动操作历史</CardTitle>
-                <CardDescription>此处记录了最近的批量手动赋分操作，您可以对误操作进行紧急撤销。</CardDescription>
+                <CardTitle>手动操作历史</CardTitle>
+                <CardDescription>此处记录了最近的批量手动赋分操作及其审批状态。</CardDescription>
             </CardHeader>
             <CardContent>
                 <Table>
-                    <TableHeader><TableRow><TableHead>操作原因</TableHead><TableHead>积分</TableHead><TableHead>时间</TableHead><TableHead>状态</TableHead><TableHead className="text-right">操作</TableHead></TableRow></TableHeader>
+                    <TableHeader><TableRow><TableHead>操作原因</TableHead><TableHead>积分</TableHead><TableHead>时间</TableHead><TableHead>状态</TableHead></TableRow></TableHeader>
                     <TableBody>
-                        {isLoading ? <TableRow><TableCell colSpan={5}><Skeleton className="h-10 w-full"/></TableCell></TableRow>
-                         : history.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center h-24">暂无手动操作记录。</TableCell></TableRow> 
+                        {isLoading ? <TableRow><TableCell colSpan={4}><Skeleton className="h-10 w-full"/></TableCell></TableRow>
+                         : history.length === 0 ? <TableRow><TableCell colSpan={4} className="text-center h-24">暂无手动操作记录。</TableCell></TableRow> 
                          : history.map(tx => (
                             <TableRow key={tx.batchId}>
                                 <TableCell>{tx.reason}</TableCell>
                                 <TableCell className="font-medium text-green-600">+{tx.amount}</TableCell>
-                                <TableCell className="text-xs text-muted-foreground">{tx.timestamp ? format(tx.timestamp.toDate(), 'yyyy-MM-dd HH:mm') : 'N/A'}</TableCell>
-                                <TableCell><Badge variant={tx.status === 'revoked' ? 'destructive' : 'default'}>{tx.status === 'revoked' ? '已撤销' : '已生效'}</Badge></TableCell>
-                                <TableCell className="text-right">
-                                    <Button size="sm" variant="destructive" onClick={() => handleRevoke(tx.batchId)} disabled={isRevoking === tx.batchId || tx.status === 'revoked'}>
-                                        {isRevoking === tx.batchId ? <Loader2 className="animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
-                                        紧急撤销
-                                    </Button>
-                                </TableCell>
+                                <TableCell className="text-xs text-muted-foreground">{tx.timestamp instanceof Timestamp ? format(tx.timestamp.toDate(), 'yyyy-MM-dd HH:mm') : 'N/A'}</TableCell>
+                                <TableCell>{getStatusBadge(tx.status)}</TableCell>
                             </TableRow>
                          ))}
                     </TableBody>
@@ -487,6 +476,7 @@ export default function PointsManagementPage() {
     const [currentActionKey, setCurrentActionKey] = useState<string>('');
     const [editingRule, setEditingRule] = useState<PricingRule | null>(null);
 
+
     const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
@@ -509,7 +499,7 @@ export default function PointsManagementPage() {
                 if (fetchedPointsConfig.defaultPricing[action] === undefined) {
                     fetchedPointsConfig.defaultPricing[action] = 1; 
                 }
-                if (fetchedPointsConfig.rules[action] === undefined) {
+                if (!fetchedPointsConfig.rules || fetchedPointsConfig.rules[action] === undefined) {
                     fetchedPointsConfig.rules[action] = []; 
                 }
             });
@@ -584,8 +574,8 @@ export default function PointsManagementPage() {
     
     const handleDeleteRule = (actionKey: string, ruleId: string) => {
         setPointsConfig(prev => {
-            if (!prev) return prev;
-            const newRulesForAction = (prev.rules?.[actionKey] || []).filter(r => r.id !== ruleId);
+            if (!prev || !prev.rules) return prev;
+            const newRulesForAction = (prev.rules[actionKey] || []).filter(r => r.id !== ruleId);
             return {
                 ...prev,
                 rules: { ...prev.rules, [actionKey]: newRulesForAction }
@@ -777,7 +767,7 @@ export default function PointsManagementPage() {
 function PricingRuleDialog({
   open,
   onOpenChange,
-  rule: passedRule,
+  rule,
   onRuleChange,
   onSave,
   onDeleteRule,
@@ -792,9 +782,8 @@ function PricingRuleDialog({
   actionKey: string;
 }) {
     const { toast } = useToast();
-    const isEditing = !!(passedRule.id && !passedRule.id.startsWith('rule_'));
-    const rule = passedRule; // No internal state needed
-    
+    const isEditing = !!(rule.id && !rule.id.startsWith('rule_'));
+
     const handleSave = () => {
         if (!rule.name) {
             toast({ title: "信息不完整", description: "规则名称不能为空。", variant: "destructive" });
@@ -808,21 +797,21 @@ function PricingRuleDialog({
     };
 
     const handleConditionChange = <T extends keyof PricingRule['conditions']>(field: T, value: PricingRule['conditions'][T]) => {
-        onRuleChange({ ...rule, conditions: { ...rule.conditions, [field]: value }});
+        onRuleChange({ ...rule, conditions: { ...(rule.conditions || {}), [field]: value }});
     };
 
     const handleActionChange = <T extends keyof PricingRule['action']>(field: T, value: PricingRule['action'][T]) => {
-        onRuleChange({ ...rule, action: { ...rule.action, [field]: value }});
+        onRuleChange({ ...rule, action: { ...(rule.action || { type: 'per_call', value: 1 }), [field]: value }});
     };
     
     const handleDayToggle = (day: DayOfWeek) => {
-        const currentDays = rule.conditions.daysOfWeek || [];
+        const currentDays = rule.conditions?.daysOfWeek || [];
         const newDays = currentDays.includes(day) ? currentDays.filter(d => d !== day) : [...currentDays, day];
         handleConditionChange('daysOfWeek', newDays);
     };
     
     const handleRoleToggle = (role: Role) => {
-        const currentRoles = { ...(rule.conditions.targetUserRoles || {}) };
+        const currentRoles = { ...(rule.conditions?.targetUserRoles || {}) };
         if (currentRoles[role]) {
             delete currentRoles[role];
         } else {
@@ -832,7 +821,7 @@ function PricingRuleDialog({
     };
 
     const handleRatingToggle = (role: Role, rating: number) => {
-        const currentRoles = { ...(rule.conditions.targetUserRoles || {}) };
+        const currentRoles = { ...(rule.conditions?.targetUserRoles || {}) };
         const currentRatings = currentRoles[role] || [];
         const newRatings = currentRatings.includes(rating) ? currentRatings.filter(r => r !== rating) : [...currentRatings, rating];
         currentRoles[role] = newRatings;
