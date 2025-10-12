@@ -1195,7 +1195,7 @@ function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, is
     
     const handleDayToggle = (day: DayOfWeek) => {
         const currentDays = rule.conditions.daysOfWeek || [];
-        const newDays = currentDays.includes(day) ? currentDays.filter(d => d !== day) : [...prev, day];
+        const newDays = currentDays.includes(day) ? currentDays.filter(d => d !== day) : [...currentDays, day];
         handleConditionChange('daysOfWeek', newDays);
     };
     
@@ -1387,3 +1387,6 @@ export default function CreatorWorkbenchPage() {
 }
 
     
+
+    
+
