@@ -56,14 +56,50 @@ const DAYS_OF_WEEK: { id: DayOfWeek; label: string }[] = [ { id: 'mon', label: '
 const ALL_ROLES: Role[] = ['admin', 'creator', 'supplier', 'user'];
 const ROLE_NAMES: Record<Role, string> = { admin: '管理员', creator: '创意者', supplier: '供应商', user: '普通用户', suspended: '已禁用' };
 
+// ========== DATA ADAPTATION LAYER (Defensive Programming) ==========
+/**
+ * Creates a default, structurally complete PricingRule object.
+ * @param actionKey - The action this rule applies to.
+ * @returns A complete PricingRule object.
+ */
 function getInitialPricingRuleState(actionKey: string): PricingRule {
     return {
-        id: `rule_${Date.now()}`,
+        id: `rule_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
         name: '',
         priority: 10,
-        conditions: { ruleLogic: 'and' },
+        conditions: { 
+            ruleLogic: 'and',
+            daysOfWeek: [],
+            targetUserRoles: {},
+        },
         action: { type: 'per_call', value: 1 }
     };
+}
+
+/**
+ * Ensures a rule object from any source (Firestore, old state) is structurally complete.
+ * @param partialRule - A potentially incomplete rule object.
+ * @returns A structurally complete, safe-to-use PricingRule object.
+ */
+function adaptRuleToSchema(partialRule: Partial<PricingRule>): PricingRule {
+  const defaults = getInitialPricingRuleState('');
+  
+  const conditions = {
+    ...defaults.conditions,
+    ...(partialRule.conditions || {}),
+  };
+
+  const action = {
+    ...defaults.action,
+    ...(partialRule.action || {}),
+  };
+  
+  return {
+    ...defaults,
+    ...partialRule,
+    conditions,
+    action,
+  };
 }
 
 
@@ -422,7 +458,7 @@ function GrantHistory({ refreshKey }: { refreshKey: number }) {
                     <TableHeader><TableRow><TableHead>操作原因</TableHead><TableHead>积分</TableHead><TableHead>时间</TableHead><TableHead>状态</TableHead><TableHead className="text-right">操作</TableHead></TableRow></TableHeader>
                     <TableBody>
                         {isLoading ? <TableRow><TableCell colSpan={5}><Skeleton className="h-10 w-full"/></TableCell></TableRow>
-                         : history.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center h-24">暂无手动操作记录。</TableCell></TableRow>
+                         : history.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center h-24">暂无手动操作记录。</TableCell></TableRow> 
                          : history.map(tx => (
                             <TableRow key={tx.batchId}>
                                 <TableCell>{tx.reason}</TableCell>
@@ -462,14 +498,6 @@ export default function PointsManagementPage() {
     const [currentActionKey, setCurrentActionKey] = useState<string>('');
     const [editingRule, setEditingRule] = useState<PricingRule | null>(null);
 
-    // ROOT CAUSE FIX: This useEffect will open the dialog only *after* editingRule has been set.
-    useEffect(() => {
-        if (editingRule) {
-            setIsRuleDialogOpen(true);
-        }
-    }, [editingRule]);
-
-
     const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
@@ -489,8 +517,10 @@ export default function PointsManagementPage() {
                 if (fetchedPointsConfig.defaultPricing[action] === undefined) {
                     fetchedPointsConfig.defaultPricing[action] = 1; 
                 }
-                 if (!fetchedPointsConfig.rules || fetchedPointsConfig.rules[action] === undefined) {
-                    if (!fetchedPointsConfig.rules) fetchedPointsConfig.rules = {};
+                 if (!fetchedPointsConfig.rules) {
+                    fetchedPointsConfig.rules = {};
+                }
+                if (fetchedPointsConfig.rules[action] === undefined) {
                     fetchedPointsConfig.rules[action] = []; 
                 }
             });
@@ -517,10 +547,16 @@ export default function PointsManagementPage() {
                  throw new Error("配置数据不完整，无法保存。");
             }
             
+            // Defensive check to ensure rules is an object
+            const finalPointsConfig = {
+                ...pointsConfig,
+                rules: pointsConfig.rules || {}
+            };
+
             await Promise.all([
                 setDoc(doc(db, 'configs', 'system'), systemConfig),
                 setDoc(doc(db, 'configs', 'role_gifts'), roleGifts),
-                setDoc(doc(db, 'configs', 'points'), pointsConfig),
+                setDoc(doc(db, 'configs', 'points'), finalPointsConfig),
             ]);
             toast({ title: '保存成功', description: '所有积分和结算配置已更新。' });
         } catch (error) {
@@ -546,33 +582,34 @@ export default function PointsManagementPage() {
         }
     };
     
-    const handleAddRule = (action: string) => {
-        setCurrentActionKey(action);
-        setEditingRule(getInitialPricingRuleState(action));
-        // The useEffect will handle opening the dialog
+    const handleAddRule = (actionKey: string) => {
+        setCurrentActionKey(actionKey);
+        setEditingRule(getInitialPricingRuleState(actionKey));
+        setIsRuleDialogOpen(true);
     };
 
-    const handleEditRule = (action: string, rule: PricingRule) => {
-        setCurrentActionKey(action);
-        setEditingRule(JSON.parse(JSON.stringify(rule)));
-        // The useEffect will handle opening the dialog
+    const handleEditRule = (actionKey: string, rule: PricingRule) => {
+        setCurrentActionKey(actionKey);
+        // Use the adapter to ensure the rule object is complete
+        setEditingRule(adaptRuleToSchema(rule));
+        setIsRuleDialogOpen(true);
     };
     
-    const handleDeleteRule = (action: string, ruleId: string) => {
+    const handleDeleteRule = (actionKey: string, ruleId: string) => {
         setPointsConfig(prev => {
             if (!prev || !prev.rules) return prev;
-            const newRulesForAction = (prev.rules[action] || []).filter(r => r.id !== ruleId);
+            const newRulesForAction = (prev.rules[actionKey] || []).filter(r => r.id !== ruleId);
             return {
                 ...prev,
-                rules: { ...prev.rules, [action]: newRulesForAction }
+                rules: { ...prev.rules, [actionKey]: newRulesForAction }
             };
         });
     };
     
     const handleSaveRule = (ruleToSave: PricingRule) => {
         setPointsConfig(prev => {
-            if (!prev || !prev.rules) return null;
-            const rules = prev.rules;
+            if (!prev) return null;
+            const rules = prev.rules || {};
             const rulesForAction = rules[currentActionKey] || [];
             const existingIndex = rulesForAction.findIndex(r => r.id === ruleToSave.id);
             let newRules;
@@ -755,7 +792,7 @@ export default function PointsManagementPage() {
 function PricingRuleDialog({
   open,
   onOpenChange,
-  rule: initialRule,
+  rule,
   onRuleChange,
   onSave,
   actionKey,
@@ -768,8 +805,6 @@ function PricingRuleDialog({
   actionKey: string;
 }) {
     const { toast } = useToast();
-    const rule = initialRule; // Direct prop usage
-
     const isEditing = !!(rule.id && !rule.id.startsWith('rule_'));
 
     const handleSave = () => {
@@ -816,7 +851,9 @@ function PricingRuleDialog({
         handleConditionChange('targetUserRoles', currentRoles);
     };
     
-    const { conditions, action } = rule;
+    // Defensive access
+    const conditions = rule.conditions || {};
+    const action = rule.action || { type: 'per_call', value: 1};
 
     return (
         <AlertDialog open={open} onOpenChange={onOpenChange}>

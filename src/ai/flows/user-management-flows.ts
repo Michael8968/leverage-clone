@@ -260,15 +260,19 @@ export const revokePointsGrant = ai.defineFlow(
             if (transactionsSnapshot.empty) {
                 throw new Error("未找到可撤销的有效赋分记录，或该操作已被撤销。");
             }
-
+            
+            let revokedCount = 0;
             for (const txDoc of transactionsSnapshot.docs) {
                 const txData = txDoc.data() as PointsTransaction;
                 const userRef = doc(db, 'users', txData.uid);
                 
+                // Get the user's current data within the transaction
                 const userSnap = await transaction.get(userRef);
+                
                 if (userSnap.exists()) {
                      const currentUser = userSnap.data() as User;
                      const currentBalance = currentUser.points_balance || 0;
+                     
                      // Ensure balance does not go below zero
                      const newBalance = Math.max(0, currentBalance - txData.amount);
 
@@ -277,9 +281,10 @@ export const revokePointsGrant = ai.defineFlow(
                 
                 // Mark the transaction as revoked
                 transaction.update(txDoc.ref, { status: 'revoked' });
+                revokedCount++;
             }
 
-            return { revokedCount: transactionsSnapshot.size };
+            return { revokedCount };
         });
         return result;
     }
