@@ -56,6 +56,17 @@ const DAYS_OF_WEEK: { id: DayOfWeek; label: string }[] = [ { id: 'mon', label: '
 const ALL_ROLES: Role[] = ['admin', 'creator', 'supplier', 'user'];
 const ROLE_NAMES: Record<Role, string> = { admin: '管理员', creator: '创意者', supplier: '供应商', user: '普通用户', suspended: '已禁用' };
 
+function getInitialPricingRuleState(actionKey: string): PricingRule {
+    return {
+        id: `rule_${Date.now()}`,
+        name: '',
+        priority: 10,
+        conditions: { ruleLogic: 'and' },
+        action: { type: 'per_call', value: 1 }
+    };
+}
+
+
 function BillingManagement() {
     const [searchQuery, setSearchQuery] = useState('');
     const [dateRange, setDateRange] = useState<DateRange | undefined>();
@@ -466,11 +477,12 @@ export default function PointsManagementPage() {
             
             const fetchedPointsConfig = pointsDoc.exists() ? (pointsDoc.data() as PointsConfig) : { defaultPricing: {}, rules: {} };
             
+            // Ensure all actions have a default price and a rules array
             ALL_ACTIONS.forEach(action => {
-                if (!fetchedPointsConfig.defaultPricing.hasOwnProperty(action)) {
+                if (fetchedPointsConfig.defaultPricing[action] === undefined) {
                     fetchedPointsConfig.defaultPricing[action] = 1; 
                 }
-                 if (!fetchedPointsConfig.rules.hasOwnProperty(action)) {
+                 if (fetchedPointsConfig.rules[action] === undefined) {
                     fetchedPointsConfig.rules[action] = []; 
                 }
             });
@@ -493,10 +505,21 @@ export default function PointsManagementPage() {
     const handleSave = async () => {
         setIsSaving(true);
         try {
+            // Defensive check to ensure pointsConfig is not null
+            if (!systemConfig || !roleGifts || !pointsConfig) {
+                 throw new Error("配置数据不完整，无法保存。");
+            }
+
+            // Ensure pointsConfig.rules is not null/undefined before saving
+            const dataToSave = {
+                ...pointsConfig,
+                rules: pointsConfig.rules || {},
+            };
+            
             await Promise.all([
                 setDoc(doc(db, 'configs', 'system'), systemConfig),
                 setDoc(doc(db, 'configs', 'role_gifts'), roleGifts),
-                setDoc(doc(db, 'configs', 'points'), pointsConfig),
+                setDoc(doc(db, 'configs', 'points'), dataToSave),
             ]);
             toast({ title: '保存成功', description: '所有积分和结算配置已更新。' });
         } catch (error) {
@@ -517,34 +540,31 @@ export default function PointsManagementPage() {
     const handleDefaultPriceChange = (action: string, value: string) => {
         const numValue = parseInt(value, 10);
         if (!isNaN(numValue)) {
-            setPointsConfig(prev => ({
-                ...prev!,
-                defaultPricing: { ...prev!.defaultPricing, [action]: numValue }
-            }));
+            setPointsConfig(prev => {
+                if (!prev) return null;
+                return {
+                    ...prev,
+                    defaultPricing: { ...prev.defaultPricing, [action]: numValue }
+                };
+            });
         }
     };
     
     const handleAddRule = (action: string) => {
         setCurrentActionKey(action);
-        setEditingRule({
-            id: `rule_${Date.now()}`,
-            name: '',
-            priority: 10,
-            conditions: { ruleLogic: 'and' },
-            action: { type: 'per_call', value: 1 }
-        });
+        setEditingRule(getInitialPricingRuleState(action));
         setIsRuleDialogOpen(true);
     };
 
     const handleEditRule = (action: string, rule: PricingRule) => {
         setCurrentActionKey(action);
-        setEditingRule(JSON.parse(JSON.stringify(rule))); // Deep copy to avoid mutation issues
+        setEditingRule(JSON.parse(JSON.stringify(rule)));
         setIsRuleDialogOpen(true);
     };
     
     const handleDeleteRule = (action: string, ruleId: string) => {
         setPointsConfig(prev => {
-            if (!prev) return null;
+            if (!prev || !prev.rules) return prev;
             const newRulesForAction = (prev.rules[action] || []).filter(r => r.id !== ruleId);
             return {
                 ...prev,
@@ -556,7 +576,8 @@ export default function PointsManagementPage() {
     const handleSaveRule = (ruleToSave: PricingRule) => {
         setPointsConfig(prev => {
             if (!prev) return null;
-            const rulesForAction = prev.rules[currentActionKey] || [];
+            const rules = prev.rules || {};
+            const rulesForAction = rules[currentActionKey] || [];
             const existingIndex = rulesForAction.findIndex(r => r.id === ruleToSave.id);
             let newRules;
             if (existingIndex > -1) {
@@ -567,7 +588,7 @@ export default function PointsManagementPage() {
             }
             return {
                 ...prev,
-                rules: { ...prev.rules, [currentActionKey]: newRules }
+                rules: { ...rules, [currentActionKey]: newRules }
             };
         });
         setIsRuleDialogOpen(false);
@@ -718,13 +739,13 @@ export default function PointsManagementPage() {
             </div>
             
              {isRuleDialogOpen && editingRule && (
-                <PricingRuleDialog 
+                <PricingRuleDialog
                     key={editingRule.id}
                     open={isRuleDialogOpen}
                     onOpenChange={setIsRuleDialogOpen}
                     rule={editingRule}
                     onRuleChange={setEditingRule}
-                    onSave={handleSaveRule}
+                    onSave={() => handleSaveRule(editingRule)}
                     actionKey={currentActionKey}
                 />
              )}
@@ -732,16 +753,24 @@ export default function PointsManagementPage() {
     );
 }
 
-
-function PricingRuleDialog({ open, onOpenChange, rule, onRuleChange, onSave, actionKey }: {
+function PricingRuleDialog({ open, onOpenChange, rule: initialRule, onSave, actionKey }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    rule: PricingRule;
-    onRuleChange: (newRule: PricingRule) => void;
-    onSave: () => void;
+    rule: PricingRule | null;
+    onSave: (rule: PricingRule) => void;
     actionKey: string;
 }) {
     const { toast } = useToast();
+    const [rule, setRule] = useState<PricingRule | null>(initialRule);
+
+    useEffect(() => {
+        setRule(initialRule);
+    }, [initialRule]);
+    
+    if (!rule) {
+        return null; // Don't render if rule is null
+    }
+
     const isEditing = !!(rule.id && !rule.id.startsWith('rule_'));
     
     const handleSave = () => {
@@ -749,19 +778,19 @@ function PricingRuleDialog({ open, onOpenChange, rule, onRuleChange, onSave, act
             toast({ title: "信息不完整", description: "规则名称不能为空。", variant: "destructive" });
             return;
         }
-        onSave();
+        onSave(rule);
     };
 
     const handleFieldChange = <T extends keyof PricingRule>(field: T, value: PricingRule[T]) => {
-        onRuleChange({ ...rule, [field]: value });
+        setRule(prev => prev ? { ...prev, [field]: value } : null);
     };
 
     const handleConditionChange = <T extends keyof PricingRule['conditions']>(field: T, value: PricingRule['conditions'][T]) => {
-        onRuleChange({ ...rule, conditions: { ...rule.conditions, [field]: value }});
+        setRule(prev => prev ? { ...prev, conditions: { ...prev.conditions, [field]: value }} : null);
     };
 
     const handleActionChange = <T extends keyof PricingRule['action']>(field: T, value: PricingRule['action'][T]) => {
-        onRuleChange({ ...rule, action: { ...rule.action, [field]: value }});
+        setRule(prev => prev ? { ...prev, action: { ...prev.action, [field]: value }} : null);
     };
     
     const handleDayToggle = (day: DayOfWeek) => {
@@ -848,7 +877,7 @@ function PricingRuleDialog({ open, onOpenChange, rule, onRuleChange, onSave, act
                                     <Label className="flex flex-col gap-2 rounded-lg border p-4 cursor-pointer has-[:checked]:bg-primary/10 has-[:checked]:border-primary"><div className="flex items-center justify-between"><span className="font-semibold">免费</span><RadioGroupItem value="free"/></div><p className="text-xs text-muted-foreground">此条件下调用不扣除积分。</p></Label>
                                     <Label className="flex flex-col gap-2 rounded-lg border p-4 cursor-pointer has-[:checked]:bg-primary/10 has-[:checked]:border-primary"><div className="flex items-center justify-between"><span className="font-semibold">按时计费</span><RadioGroupItem value="per_minute" disabled/></div><p className="text-xs text-muted-foreground">(即将推出) 根据调用时长扣除积分。</p></Label>
                                 </RadioGroup>
-                                 {(action.type === 'per_call' || action.type === 'add' || action.type === 'subtract') && <div className="space-y-1"><Label>积分值</Label><Input type="number" value={action.value} onChange={e => handleActionChange('value', parseInt(e.target.value) || 0)} /></div>}
+                                 {action.type === 'per_call' && <div className="space-y-1"><Label>积分值</Label><Input type="number" value={action.value} onChange={e => handleActionChange('value', parseInt(e.target.value) || 0)} /></div>}
                              </AccordionContent>
                          </AccordionItem>
                     </Accordion>
@@ -861,4 +890,3 @@ function PricingRuleDialog({ open, onOpenChange, rule, onRuleChange, onSave, act
         </AlertDialog>
     );
 }
-
