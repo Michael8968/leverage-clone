@@ -6,7 +6,7 @@ import * as admin from 'firebase-admin';
  * This is the robust way to handle initialization in serverless/hot-reload environments.
  */
 function initializeAdmin() {
-    // Check if the default app is already initialized.
+    // Check if the default app is already initialized to prevent re-initialization error.
     if (admin.apps.length > 0) {
         return;
     }

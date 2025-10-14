@@ -73,9 +73,12 @@ export const analyzeMediaAsset = ai.defineFlow(
         
         const asset = mediaAssetSnap.data() as MediaAsset;
         const bucket = getAdminStorage().bucket();
+        // Construct the public URL after upload
         const publicUrl = `https://storage.googleapis.com/${bucket.name}/${asset.storagePath}`;
 
-        // Construct the prompt for the vision model
+        // Update the document with the final public URL
+        await updateDoc(mediaAssetRef, { publicUrl });
+
         const visionPrompt = [
             { media: { url: publicUrl, contentType: asset.mimeType } },
             { text: prompt }
@@ -87,7 +90,7 @@ export const analyzeMediaAsset = ai.defineFlow(
         });
         
         const analysis = llmResponse.text();
-        await updateDoc(mediaAssetRef, { status: 'ready', analysis: analysis, publicUrl: publicUrl });
+        await updateDoc(mediaAssetRef, { status: 'ready', analysis: analysis });
 
         return { analysis };
     }

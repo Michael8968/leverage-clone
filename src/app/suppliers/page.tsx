@@ -458,9 +458,7 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
                 headers: { 'Content-Type': file.type },
             });
             
-            // Get public URL after upload
-            const assetDoc = await getDoc(doc(db, 'media_assets', mediaAssetId));
-            const publicUrl = assetDoc.data()?.publicUrl;
+            const publicUrl = `https://storage.googleapis.com/${process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}/media_assets/${user.uid}/${mediaAssetId}-${file.name}`;
 
             updateImage(index, { url: publicUrl, mediaAssetId: mediaAssetId });
             
@@ -480,7 +478,6 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
 
     const handleAnalyzeImage = async (image: ProductImage, index: number) => {
         if (!image.mediaAssetId || !user) {
-            // This case should be prevented by a disabled button, but as a safeguard:
             toast({ title: '错误', description: '图片资源ID无效或用户未登录。请先上传图片。', variant: 'destructive' });
             return;
         }
@@ -570,7 +567,6 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      {/* The TooltipTrigger needs a child that can accept a ref. A div wrapper works well. */}
                       <div>
                         <Button 
                             variant="link" 
@@ -656,7 +652,7 @@ const Lightbox = ({ image, onClose }: { image: ProductImage; onClose: () => void
                 onMouseDown={handleMouseDown}
                 onMouseUp={handleMouseUp}
                 onMouseMove={handleMouseMove}
-                onMouseLeave={handleMouseUp} // Stop dragging if mouse leaves the dialog
+                onMouseLeave={handleMouseUp}
                 style={{ cursor: isDragging.current ? 'grabbing' : 'grab' }}
             >
                 <div className="w-full h-full overflow-hidden flex items-center justify-center">
@@ -718,7 +714,6 @@ function AdminDataTools() {
             const querySnapshot = await getDocs(collection(db, type));
             const data = querySnapshot.docs.map(doc => {
                 const docData = doc.data();
-                // Convert Timestamps to ISO strings
                 Object.keys(docData).forEach(key => {
                     if (docData[key] instanceof Timestamp) {
                         docData[key] = docData[key].toDate().toISOString();
