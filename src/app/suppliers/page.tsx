@@ -403,15 +403,7 @@ function ProductServiceItem({ product, onUpdate, onRemove }: { product: ProductS
 
 function ImageManager({ product, onImagesChange }: { product: ProductService, onImagesChange: (images: ProductImage[]) => void }) {
     const images = product.images || [];
-    const { user } = useAuthStore();
-    const { toast } = useToast();
-    const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
-    const [analyzingIndex, setAnalyzingIndex] = useState<number | null>(null);
-    const [analysisResult, setAnalysisResult] = useState<{ index: number; result: string } | null>(null);
     const [lightboxImage, setLightboxImage] = useState<ProductImage | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const activeImageIndex = useRef<number | null>(null);
-    const [isTransitioning, startTransition] = useTransition();
 
     const addImage = () => {
         onImagesChange([...images, { url: '', view: '默认', mediaAssetId: '' }]);
@@ -426,87 +418,19 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
     const removeImage = (index: number) => {
         onImagesChange(images.filter((_, i) => i !== index));
     };
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file && activeImageIndex.current !== null) {
-            handleUpload(file, activeImageIndex.current);
-        }
-    };
-    
-    const triggerFileUpload = (index: number) => {
-        activeImageIndex.current = index;
-        fileInputRef.current?.click();
-    };
-
-    const handleUpload = async (file: File, index: number) => {
-        if (!user) {
-            toast({ title: '错误', description: '请先登录', variant: 'destructive' });
-            return;
-        }
-        setUploadingIndex(index);
-        try {
-            const { uploadUrl, mediaAssetId } = await getUploadUrlForMediaAsset({
-                userId: user.uid,
-                fileName: file.name,
-                contentType: file.type,
-            });
-
-            await fetch(uploadUrl, {
-                method: 'PUT',
-                body: file,
-                headers: { 'Content-Type': file.type },
-            });
-            
-            const publicUrl = `https://storage.googleapis.com/${process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}/media_assets/${user.uid}/${mediaAssetId}-${file.name}`;
-
-            updateImage(index, { url: publicUrl, mediaAssetId: mediaAssetId });
-            
-            toast({ title: '上传成功', description: '图片已成功上传并保存。' });
-
-        } catch (error) {
-            console.error("Upload failed", error);
-            toast({ title: '上传失败', description: '上传过程中发生错误，请重试。', variant: 'destructive' });
-        } finally {
-            setUploadingIndex(null);
-            if (fileInputRef.current) {
-                fileInputRef.current.value = "";
-            }
-            activeImageIndex.current = null;
-        }
-    };
-
-    const handleAnalyzeImage = async (image: ProductImage, index: number) => {
-        if (!image.mediaAssetId || !user) {
-            toast({ title: '错误', description: '图片资源ID无效或用户未登录。请先上传图片。', variant: 'destructive' });
-            return;
-        }
-        setAnalyzingIndex(index);
-        setAnalysisResult(null);
-        startTransition(async () => {
-            try {
-                 const result = await analyzeMediaAsset({
-                    mediaAssetId: image.mediaAssetId!,
-                    prompt: "请分析这张产品图片，并从商业角度提供优化建议，例如构图、光照、背景、卖点展示等方面。"
-                });
-
-                setAnalysisResult({ index, result: result.analysis });
-
-            } catch (error) {
-                console.error("AI Analysis failed:", error);
-                toast({ title: 'AI分析失败', description: '分析图片时发生错误。', variant: 'destructive' });
-            } finally {
-                setAnalyzingIndex(null);
-            }
-        });
-    };
     
     const viewOptions: ProductImage['view'][] = ['默认', '前', '后', '左', '右', '上', '下', '整体'];
 
     return (
       <div className="space-y-4">
-        <h4 className="font-semibold">产品媒体集</h4>
-        <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*" onChange={handleFileChange} />
+        <h4 className="font-semibold">产品媒体集 (请直接粘贴URL)</h4>
+        <Alert variant="default">
+          <Info className="h-4 w-4" />
+          <AlertTitle>提示</AlertTitle>
+          <AlertDescription>
+            由于尚未配置存储服务，当前仅支持通过粘贴外部URL的方式关联图片或视频。文件上传功能将在后续版本开放。
+          </AlertDescription>
+        </Alert>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {(images || []).map((image, index) => (
             <Card key={index} className="group relative flex flex-col">
@@ -538,23 +462,10 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
                  <Input 
                   value={image.url || ''}
                   onChange={(e) => updateImage(index, { url: e.target.value })}
-                  placeholder="输入图片/视频URL..."
+                  placeholder="粘贴图片/视频URL..."
                   className="col-span-2"
                 />
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => triggerFileUpload(index)}
-                    disabled={uploadingIndex === index}
-                  >
-                    {uploadingIndex === index ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Upload className="w-4 h-4 mr-2" />
-                    )}
-                    上传
-                  </Button>
+                <div className="grid grid-cols-1 gap-2">
                   <Select value={image.view} onValueChange={(value) => updateImage(index, { view: value as ProductImage['view'] })}>
                     <SelectTrigger>
                       <SelectValue />
@@ -563,37 +474,27 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
                       {viewOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                </div>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div>
-                        <Button 
-                            variant="link" 
-                            size="sm" 
-                            className="w-full gap-2"
-                            onClick={() => handleAnalyzeImage(image, index)}
-                            disabled={analyzingIndex === index || !image.mediaAssetId}
-                        >
-                          {analyzingIndex === index ? <Loader2 className="w-4 h-4 animate-spin"/> : <BrainCircuit className="w-4 h-4"/>}
-                            AI分析与建议
-                        </Button>
-                      </div>
-                    </TooltipTrigger>
-                    {!image.mediaAssetId && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="w-full">
+                          <Button 
+                              variant="link" 
+                              size="sm" 
+                              className="w-full gap-2 text-muted-foreground"
+                              disabled={true}
+                          >
+                            <BrainCircuit className="w-4 h-4"/>
+                              AI分析与建议
+                          </Button>
+                        </div>
+                      </TooltipTrigger>
                       <TooltipContent>
-                        <p>请先上传图片，才能使用AI分析功能。</p>
+                        <p>请先配置存储并上传内部文件，才能使用AI分析功能。</p>
                       </TooltipContent>
-                    )}
-                  </Tooltip>
-                </TooltipProvider>
-
-                {analysisResult && analysisResult.index === index && (
-                    <Alert>
-                        <AlertTitle className="flex items-center gap-2"><BrainCircuit className="w-4 h-4"/> AI分析结果</AlertTitle>
-                        <AlertDescription className="text-xs whitespace-pre-wrap">{analysisResult.result}</AlertDescription>
-                    </Alert>
-                )}
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
               </CardContent>
             </Card>
           ))}
