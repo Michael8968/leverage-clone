@@ -31,12 +31,10 @@ export const getUploadUrlForMediaAsset = ai.defineFlow(
         const mediaAssetRef = doc(collection(db, 'media_assets'));
         const mediaAssetId = mediaAssetRef.id;
         const filePath = `media_assets/${userId}/${mediaAssetId}-${fileName}`;
-        const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
-
+        
         await setDoc(mediaAssetRef, {
             userId,
             storagePath: filePath,
-            publicUrl: publicUrl,
             mediaType: contentType.split('/')[0],
             mimeType: contentType,
             status: 'uploading',
@@ -74,11 +72,12 @@ export const analyzeMediaAsset = ai.defineFlow(
         if (!mediaAssetSnap.exists()) throw new Error("Media asset not found.");
         
         const asset = mediaAssetSnap.data() as MediaAsset;
-        if (!asset.publicUrl) throw new Error("Media asset does not have a public URL.");
+        const bucket = getAdminStorage().bucket();
+        const publicUrl = `https://storage.googleapis.com/${bucket.name}/${asset.storagePath}`;
 
         // Construct the prompt for the vision model
         const visionPrompt = [
-            { media: { url: asset.publicUrl, contentType: asset.mimeType } },
+            { media: { url: publicUrl, contentType: asset.mimeType } },
             { text: prompt }
         ];
 
@@ -88,7 +87,7 @@ export const analyzeMediaAsset = ai.defineFlow(
         });
         
         const analysis = llmResponse.text();
-        await updateDoc(mediaAssetRef, { status: 'ready', analysis: analysis });
+        await updateDoc(mediaAssetRef, { status: 'ready', analysis: analysis, publicUrl: publicUrl });
 
         return { analysis };
     }

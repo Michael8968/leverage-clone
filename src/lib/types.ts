@@ -89,6 +89,7 @@ export type AssistantRule = {
         endTime?: string; // HH:mm format
         startsAt?: any; // Can be Date, string, or Firestore Timestamp
         expiresAt?: any; // Can be Date, string, or Firestore Timestamp
+        targetUserRoles?: { [key in Role]?: number[] };
     };
     // Action to take when conditions are met
     action: {

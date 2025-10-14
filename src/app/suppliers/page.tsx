@@ -458,7 +458,10 @@ function ImageManager({ product, onImagesChange }: { product: ProductService, on
                 headers: { 'Content-Type': file.type },
             });
             
-            const publicUrl = `https://storage.googleapis.com/${process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}/media_assets/${user.uid}/${mediaAssetId}-${file.name}`;
+            // Get public URL after upload
+            const assetDoc = await getDoc(doc(db, 'media_assets', mediaAssetId));
+            const publicUrl = assetDoc.data()?.publicUrl;
+
             updateImage(index, { url: publicUrl, mediaAssetId: mediaAssetId });
             
             toast({ title: '上传成功', description: '图片已成功上传并保存。' });
