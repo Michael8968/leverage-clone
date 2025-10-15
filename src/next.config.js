@@ -3,6 +3,7 @@
 const path = require('path');
 
 const nextConfig = {
+  output: 'standalone',
   /* config options here */
   typescript: {
     ignoreBuildErrors: true,
