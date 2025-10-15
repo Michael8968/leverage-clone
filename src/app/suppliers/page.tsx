@@ -8,7 +8,7 @@ import type { SupplementaryField, Supplier } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Building, FileCog, Frown, Loader2, CalendarIcon } from 'lucide-react';
+import { Building, FileCog, Frown, Loader2, CalendarIcon, Package } from 'lucide-react';
 import { DataProcessor } from '@/components/features/data-processor';
 import { useAuthStore } from '@/store/auth';
 import { db } from '@/lib/firebase';
