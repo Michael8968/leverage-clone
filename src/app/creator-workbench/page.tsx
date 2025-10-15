@@ -777,9 +777,13 @@ function ScheduleAndAssistantTab() {
         if (!user) return;
         const optimisticUser = { ...user, [type]: value };
         setUser(optimisticUser, user.role);
+
+        let payload:any = { userId: user.uid };
+        payload[type] = value;
+        
         try {
-            await updateUserStatus({ userId: user.uid, status: newStatus });
-            toast({ title: '状态已更新', description: `您现在处于“${newStatus === 'active' ? '在线接待' : '挂起示忙'}”状态。` });
+            await updateUserStatus(payload);
+            toast({ title: '设置已更新' });
         } catch (error) {
             toast({ title: '更新失败', variant: 'destructive' });
             setUser(user, user.role); // Revert
@@ -928,13 +932,17 @@ function ScheduleAndAssistantTab() {
                                                     <PopoverTrigger asChild>
                                                         <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !newSlotDate && "text-muted-foreground")}>
                                                             <CalendarDays className="mr-2 h-4 w-4" />
-                                                            {newSlotDate ? format(newSlotDate, "yyyy-MM-dd") : <span>选择日期</span>}
+                                                            {newSlotDate ? format(newSlotDate, "yyyy-MM-dd HH:mm") : <span>选择日期与时间</span>}
                                                         </Button>
                                                     </PopoverTrigger>
-                                                    <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={newSlotDate} onSelect={setNewSlotDate} initialFocus/></PopoverContent>
+                                                    <PopoverContent className="w-auto p-0">
+                                                        <Calendar mode="single" selected={newSlotDate} onSelect={setNewSlotDate} initialFocus/>
+                                                        <div className="p-3 border-t border-border flex items-center justify-center">
+                                                            <TimePicker setDate={setNewSlotDate} date={newSlotDate} />
+                                                        </div>
+                                                    </PopoverContent>
                                                 </Popover>
-                                                <TimePicker date={newSlotDate} setDate={setNewSlotDate} />
-                                                <Button onClick={handleAddSlot} disabled={isAddingSlot}>{isAddingSlot ? <Loader2 className="animate-spin" /> : "添加"}</Button>
+                                                <Button onClick={handleAddSlot} disabled={isAddingSlot} size="icon">{isAddingSlot ? <Loader2 className="animate-spin" /> : <PlusCircle/>}</Button>
                                             </div>
                                         </div>
                                         <div className="space-y-2 max-h-48 overflow-y-auto">
