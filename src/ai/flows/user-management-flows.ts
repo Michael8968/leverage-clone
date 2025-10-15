@@ -124,6 +124,7 @@ const UpdateUserStatusInputSchema = z.object({
     userId: z.string(),
     status: z.enum(['active', 'inactive']).optional(),
     aiAssistantEnabled: z.boolean().optional(),
+    alwaysAvailable: z.boolean().optional(),
 });
 
 export const updateUserStatus = ai.defineFlow(
@@ -132,7 +133,7 @@ export const updateUserStatus = ai.defineFlow(
         inputSchema: UpdateUserStatusInputSchema,
         outputSchema: z.void(),
     },
-    async ({ userId, status, aiAssistantEnabled }) => {
+    async ({ userId, status, aiAssistantEnabled, alwaysAvailable }) => {
         const userRef = doc(db, 'users', userId);
         const dataToUpdate: Partial<User> = {};
 
@@ -141,6 +142,9 @@ export const updateUserStatus = ai.defineFlow(
         }
         if (aiAssistantEnabled !== undefined) {
             dataToUpdate.aiAssistantEnabled = aiAssistantEnabled;
+        }
+        if (alwaysAvailable !== undefined) {
+            dataToUpdate.alwaysAvailable = alwaysAvailable;
         }
 
         if (Object.keys(dataToUpdate).length > 0) {
