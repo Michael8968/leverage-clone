@@ -1,12 +1,11 @@
 
-
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuthStore, type Role } from '@/store/auth';
-import { Frown, Bot, Loader2, ArrowRight, Wand2, Send, PackagePlus, Info, UploadCloud, FileImage, CalendarDays, Clock, Trash2, CheckCircle, XCircle, AlertCircle, ToggleLeft, ToggleRight, PlusCircle, Edit, Settings, Star, BrainCircuit, Users, Power, PowerOff, Coins, History } from 'lucide-react';
+import { Frown, Bot, Loader2, ArrowRight, Wand2, Send, PackagePlus, Info, UploadCloud, FileImage, CalendarDays, Clock, Trash2, CheckCircle, XCircle, AlertCircle, ToggleLeft, ToggleRight, PlusCircle, Edit, Settings, Star, BrainCircuit, Users, Power, PowerOff, Coins, History, Package } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
@@ -24,6 +23,7 @@ import { generateNanoBananaImage } from '@/ai/flows/generate-nanobanana-image';
 import { getUploadUrlForMediaAsset } from '@/ai/flows/multimodal-flows';
 import { updateUserStatus, updateUserAssistantRules } from '@/ai/flows/user-management-flows';
 import { getPrompts } from '@/ai/flows/admin-management-flows';
+import { ProductManagement } from '@/components/features/product-management';
 
 
 import { Input } from '@/components/ui/input';
@@ -1371,14 +1371,16 @@ function CreatorWorkbench() {
         <p className="text-muted-foreground mt-2">在这里, 您可以接受任务, 响应需求, 并利用AI工具将您的创意变为现实。</p>
       </header>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4 max-w-3xl mx-auto">
+        <TabsList className="grid w-full grid-cols-5 max-w-4xl mx-auto">
           <TabsTrigger value="tasks">任务与需求</TabsTrigger>
           <TabsTrigger value="schedule-assistant">排班与助理</TabsTrigger>
+          <TabsTrigger value="product-publishing">产品发布</TabsTrigger>
           <TabsTrigger value="3d-creation">AI 创作</TabsTrigger>
           <TabsTrigger value="submissions">我的提交</TabsTrigger>
         </TabsList>
         <TabsContent value="tasks" className="mt-6"><TasksTab /></TabsContent>
         <TabsContent value="schedule-assistant" className="mt-6"><ScheduleAndAssistantTab /></TabsContent>
+        <TabsContent value="product-publishing" className="mt-6"><ProductManagement userType="creator" /></TabsContent>
         <TabsContent value="3d-creation" className="mt-6"><CreationsTab onSubmissionSuccess={handleSubmissionSuccess}/></TabsContent>
         <TabsContent value="submissions" className="mt-6"><SubmissionsTab refreshKey={submissionsRefreshKey} /></TabsContent>
       </Tabs>
