@@ -1,6 +1,5 @@
-
-'use client';
 // firebase-storage-fetch
+'use client';
 
 import { AppLayout } from '@/components/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -779,8 +778,8 @@ function ScheduleAndAssistantTab() {
         const optimisticUser = { ...user, [type]: value };
         setUser(optimisticUser, user.role);
         try {
-            await updateDoc(doc(db, 'users', user.uid), { [type]: value });
-            toast({ title: '状态已更新' });
+            await updateUserStatus({ userId: user.uid, status: newStatus });
+            toast({ title: '状态已更新', description: `您现在处于“${newStatus === 'active' ? '在线接待' : '挂起示忙'}”状态。` });
         } catch (error) {
             toast({ title: '更新失败', variant: 'destructive' });
             setUser(user, user.role); // Revert
