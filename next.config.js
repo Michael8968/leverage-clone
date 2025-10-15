@@ -3,7 +3,7 @@
 const path = require('path');
 
 const nextConfig = {
-  /* config options here */
+  output: 'standalone',
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -49,6 +49,19 @@ const nextConfig = {
         pathname: '/**',
       },
     ],
+  },
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=300, s-maxage=600',
+          },
+        ],
+      },
+    ]
   },
   env: {
     NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: process.env.FIREBASE_STORAGE_BUCKET,
