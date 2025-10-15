@@ -13,7 +13,7 @@
 ## 核心技术栈
 
 *   **前端**: Next.js, React, TypeScript, ShadCN UI, Tailwind CSS
-*   **后端 & 数据库**: Firebase (Authentication & Firestore)
+*   **后端 & 数据库**: Firebase (Authentication & Firestore) v11.9.1
 *   **AI**: Google Genkit (Gemini) 及通过原生API对接的多个第三方LLM
 
 ## 主要功能模块
