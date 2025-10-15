@@ -1,3 +1,5 @@
+
+
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -46,8 +48,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { cn } from '@/lib/utils';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { cn } from '@/lib/utils';
 
 
 
@@ -231,7 +233,7 @@ function SubmissionForm({
                 // Step 4: Save the product data with the public URL to Firestore
                 await addDoc(collection(db, "products"), {
                     ...values,
-                    imageUrl: publicUrl, // &lt;-- Use the public URL from Firebase Storage
+                    imageUrl: publicUrl,
                     creatorId: user.uid,
                     status: '审核中',
                     createdAt: serverTimestamp(),
@@ -876,7 +878,7 @@ function ScheduleAndAssistantTab() {
     const assistantRules = (user.assistantRules || []).sort((a, b) => a.priority - b.priority);
 
     return (
-        &lt;&gt;
+        <>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
                     <Card>
@@ -974,7 +976,7 @@ function ScheduleAndAssistantTab() {
                                     }
                                 </CardContent>
                             </Card>
-                        </div>
+                        </CardContent>
                     </Card>
                     <Accordion type="single" collapsible className="w-full">
                         <AccordionItem value="item-1">
@@ -1053,7 +1055,7 @@ function ScheduleAndAssistantTab() {
             
             <RechargeDialog open={isRechargeDialogOpen} onOpenChange={setIsRechargeDialogOpen} />
             <BillingHistoryDialog open={isHistoryDialogOpen} onOpenChange={setIsHistoryDialogOpen} />
-        &lt;/>
+        </>
     );
 }
 
@@ -1158,7 +1160,7 @@ function BillingHistoryDialog({ open, onOpenChange }: { open: boolean, onOpenCha
 type DayOfWeek = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 const DAYS_OF_WEEK: { id: DayOfWeek; label: string }[] = [ { id: 'mon', label: '一' }, { id: 'tue', label: '二' }, { id: 'wed', label: '三' }, { id: 'thu', label: '四' }, { id: 'fri', label: '五' }, { id: 'sat', label: '六' }, { id: 'sun', label: '日' } ];
 const ALL_ROLES: Role[] = ['admin', 'creator', 'supplier', 'user'];
-const ROLE_NAMES: Record&lt;Role, string> = { admin: '管理员', creator: '创意者', supplier: '供应商', user: '普通用户', suspended: '已禁用' };
+const ROLE_NAMES: Record<Role, string> = { admin: '管理员', creator: '创意者', supplier: '供应商', user: '普通用户', suspended: '已禁用' };
 
 function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, isSaving }: {
     open: boolean;
@@ -1271,7 +1273,7 @@ function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, is
                                     </AccordionItem>
                                      <div className="flex items-center justify-center py-2"><RadioGroup value={rule.conditions.ruleLogic} onValueChange={(v) => handleConditionChange('ruleLogic', v as any)} className="flex items-center space-x-4 border p-2 rounded-lg bg-muted/30"><RadioGroupItem value="and" id="logic-and" /><Label htmlFor="logic-and">同时满足 (与)</Label><RadioGroupItem value="or" id="logic-or" /><Label htmlFor="logic-or">满足任意一个 (或)</Label></RadioGroup></div>
                                     <AccordionItem value="user"><AccordionTrigger><div className="flex items-center gap-2"><Users className="w-4 h-4"/> 用户维度</div></AccordionTrigger>
-                                        <AccordionContent className="pt-4 space-y-4"><p className="text-sm text-muted-foreground">限定目标用户。若不配置，则对所有用户生效。</p><div className="space-y-3">{ALL_ROLES.map(role => (<div key={role} className="p-3 border rounded-md"><div className="flex items-center space-x-2"><Checkbox id={`role-${role}`} checked={!!rule.conditions.targetUserRoles?.[role]} onCheckedChange={() => handleRoleToggle(role)} /><Label htmlFor={`role-${role}`} className="text-sm font-medium">{ROLE_NAMES[role]}</Label></div>{rule.conditions.targetUserRoles?.[role] && (<div className="pt-3 mt-3 border-t"><Label className="text-xs text-muted-foreground flex items-center gap-1 mb-2"><Star className="w-3 h-3"/> 限定星级 (不选则对该角色所有星级生效)</Label><div className="flex flex-wrap gap-x-3 gap-y-1">{Array.from({length: 10}, (_, i) => i + 1).map(rating => (<div key={rating} className="flex items-center space-x-1"><Checkbox id={`rating-${role}-${rating}`} checked={rule.conditions.targetUserRoles?.[role]?.includes(rating)} onCheckedChange={() => handleRatingToggle(role, rating)}/><Label htmlFor={`rating-${role}-${rating}`} className="text-xs font-normal">{rating}星</Label></div>))}</div></div>)}</div>))}</div></AccordionContent>
+                                        <AccordionContent className="pt-4 space-y-4"><p className="text-sm text-muted-foreground">限定目标用户。若不配置，则对所有用户生效。</p><div className="space-y-3">{ALL_ROLES.map(role => (<div key={role} className="p-3 border rounded-md"><div className="flex items-center space-x-2"><Checkbox id={`role-${role}`} checked={!!rule.conditions.targetUserRoles?.[role]} onCheckedChange={() => handleRoleToggle(role)} /><Label htmlFor={`role-${role}`} className="text-sm font-medium">{ROLE_NAMES[role]}</Label></div>{rule.conditions.targetUserRoles?.[role] && (<div className="pt-3 mt-3 border-t"><Label className="text-xs text-muted-foreground">限定星级 (不选则对该角色所有星级生效)</Label><div className="flex flex-wrap gap-x-3 gap-y-1">{Array.from({length: 10}, (_, i) => i + 1).map(rating => (<div key={rating} className="flex items-center space-x-1"><Checkbox id={`rating-${role}-${rating}`} checked={rule.conditions.targetUserRoles?.[role]?.includes(rating)} onCheckedChange={() => handleRatingToggle(role, rating)}/><Label htmlFor={`rating-${role}-${rating}`} className="text-xs font-normal">{rating}星</Label></div>))}</div></div>)}</div>))}</div></AccordionContent>
                                     </AccordionItem>
                                 </Accordion>
                             </AccordionContent>
@@ -1402,4 +1404,3 @@ export default function CreatorWorkbenchPage() {
     if (role !== 'creator') { return <AppLayout><RestrictedAccess /></AppLayout>; }
     return <AppLayout><CreatorWorkbench /></AppLayout>;
 }
-
