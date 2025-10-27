@@ -1,0 +1,4 @@
+<view class="container">
+  <button bindtap="recharge">充值 100 积分</button>
+  <text>余额: {{balance}}</text>
+</view>

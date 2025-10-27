@@ -1,0 +1,10 @@
+
+> nextn@0.1.0 build
+> next build
+
+   鈻?Next.js 15.5.6
+   - Environments: .env.local, .env
+   - Experiments (use with caution):
+     路 optimizePackageImports
+
+   Creating an optimized production build ...
