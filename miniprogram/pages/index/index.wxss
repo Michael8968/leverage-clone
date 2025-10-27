@@ -1,0 +1,1 @@
+.container{padding:16px}.title{font-size:20px;margin-bottom:12px}.input{border:1px solid #ddd;padding:8px;margin-bottom:8px}.btn{background:#1aad19;color:#fff;padding:10px;border-radius:4px}.output{margin-top:12px;white-space:pre-wrap}

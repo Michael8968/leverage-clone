@@ -1,0 +1,19 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run test-hello via tsx",
+			"type": "shell",
+			"command": "npx",
+			"args": [
+				"tsx",
+				"--env-file=.env",
+				"scripts/test-hello.ts"
+			],
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "build"
+		}
+	]
+}

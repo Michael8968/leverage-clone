@@ -1,0 +1,44 @@
+# Docker build context exclusions
+# Reduces build context size and improves layer caching
+
+# Build artifacts
+.next/cache
+.next/trace
+node_modules
+
+# Version control
+.git
+.gitignore
+
+# Environment and secrets
+.env*
+*.local
+
+# Logs and debugging
+*.log
+npm-debug.log
+yarn-error.log
+logs
+
+# IDE and OS
+.vscode
+.DS_Store
+
+# Documentation
+README*.md
+*.md
+
+# Development and testing
+coverage
+tmp
+dist
+workspace
+
+# Large media files
+videos
+public/videos
+
+# Docker files
+Dockerfile*
+docker-compose*.yml
+.dockerignore
