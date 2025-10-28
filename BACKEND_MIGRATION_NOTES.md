@@ -1,8 +1,14 @@
 # 后端迁移进展 — Firebase Admin → TCB SDK
 
+> **📌 迁移状态**: ✅ **已完成** (2025年10月28日)  
+> **当前架构**: 纯 TCB (Tencent CloudBase)，Firebase 依赖已完全移除  
+> **本文档用途**: 迁移历史记录，供参考和知识传承
+
+---
+
 ## 📋 概览
 
-后端已从 **Firebase Admin SDK** 迁移到 **Tencent CloudBase (TCB) Admin SDK**，采用兼容层设计确保平滑过渡。
+后端已从 **Firebase Admin SDK** 完全迁移到 **Tencent CloudBase (TCB) Admin SDK**。原采用兼容层设计，现已移除 Firebase 回退逻辑，仅保留 TCB 实现。
 
 ## ✅ 已完成的工作
 
