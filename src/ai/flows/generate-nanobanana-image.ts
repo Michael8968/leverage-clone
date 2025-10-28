@@ -1,8 +1,14 @@
 
 'use server';
 /**
+ * ⚠️ DEPRECATED - UI 中已移除此功能 (2025年10月28日)
+ * 
  * @fileOverview A flow for generating images with AI image generation models.
  *
+ * 状态: 占位符实现，未配置实际 API
+ * 原因: 腾讯混元暂不支持图像生成
+ * 如需启用: 配置 Google Gemini/Stability AI/DALL-E API
+ * 
  * - generateNanoBananaImage - A function that takes a text prompt and an optional image and returns a generated image.
  */
 

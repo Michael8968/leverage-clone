@@ -1,8 +1,14 @@
 
 'use server';
 /**
+ * ⚠️ DEPRECATED - UI 中已移除此功能 (2025年10月28日)
+ * 
  * @fileOverview A flow for generating 3D models from text prompts.
  *
+ * 状态: 占位符实现，未配置实际 API
+ * 替代方案: 使用 Tripo3D (generate-tripo3d-model.ts) - 已完整实现
+ * 如需启用: 配置 Google Imagen API 或类似服务
+ * 
  * - generate3dModel - A function that takes a text prompt and returns an image data URI of the generated model.
  * - Generate3dModelOutput - The return type for the generate3dModel function.
  */
