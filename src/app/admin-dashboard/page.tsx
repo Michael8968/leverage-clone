@@ -227,7 +227,13 @@ function LlmConnectionForm({ llm, onSave, onCancel, onTest, isTesting }: {
     };
     
     const scopeOptions = [{value: '通用', label: '通用'}, {value: '专属', label: '专属'}];
-    const categoryOptions = [{value: '文本', label: '文本'}, {value: '图像', label: '图像'}, {value: '推理', label: '推理'}, {value: '多模态', label: '多模态'}];
+    const categoryOptions = [
+        {value: '文本', label: '文本'}, 
+        {value: '图像', label: '图像'}, 
+        {value: '推理', label: '推理'}, 
+        {value: '多模态', label: '多模态'},
+        {value: '3D模型', label: '3D模型'}
+    ];
 
 
     return (
