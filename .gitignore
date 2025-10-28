@@ -63,3 +63,6 @@ leverage.zip
 /data/local-seeded-users.json
 
 docs/backup/
+
+# Ignore deploy artifacts
+.deploy/
