@@ -1,0 +1,6 @@
+tree 4acf1b0f77a9a7b124798f9de5f0c2b3ba6e0c2b
+parent bc97565f1a50fdd21346f5fa8dccf8d8c16f4dad
+author anguo liu <angusliu9898@gmail.com> 1758610323 +0000
+committer anguo liu <angusliu9898@gmail.com> 1758610323 +0000
+
+LLM模型连接 功能可参考此设计，主要体现功能完整性，不要在意UI.
