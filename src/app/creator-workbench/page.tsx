@@ -21,6 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 // import { generateNanoBananaImage } from '@/ai/flows/generate-nanobanana-image';
 import { generateTripo3dModel } from '@/ai/flows/generate-tripo3d-model';
 import { getTripo3dModelStatus } from '@/ai/flows/get-tripo3d-model-status';
+import { generate3DModelUniversal, get3DModelTaskStatus } from '@/ai/flows/generate-3d-model-universal';
 import { getUploadUrlForMediaAsset } from '@/ai/flows/multimodal-flows';
 import { updateUserStatus, updateUserAssistantRules } from '@/ai/flows/user-management-flows';
 import { getPrompts } from '@/ai/flows/admin-management-flows';
@@ -349,7 +350,237 @@ function BuiltInGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
 
 
 // =================================================================
-// TRIPO3D AI TAB
+// UNIVERSAL 3D MODEL GENERATOR (支持多个服务提供商)
+// =================================================================
+function Universal3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => void }) {
+    const [available3DServices, setAvailable3DServices] = useState<LlmConnection[]>([]);
+    const [selectedServiceId, setSelectedServiceId] = useState<string>('');
+    const [personalApiKey, setPersonalApiKey] = useState('');
+    const [prompt, setPrompt] = useState('');
+    const [taskId, setTaskId] = useState<string | null>(null);
+    const [taskProvider, setTaskProvider] = useState<string>('');
+    const [taskStatus, setTaskStatus] = useState<any>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [isGenerating, setIsGenerating] = useState(false);
+    const { toast } = useToast();
+
+    // 获取可用的 3D 服务
+    useEffect(() => {
+        const fetch3DServices = async () => {
+            try {
+                const q = query(
+                    collection('llm_connections'),
+                    where('category', '==', '3D模型'),
+                    where('status', '==', '活跃')
+                );
+                const snapshot = await getDocs(q as any);
+                const services = snapshot.docs.map((doc: any) => ({
+                    id: doc.id,
+                    ...doc.data(),
+                })) as LlmConnection[];
+                
+                // 按优先级排序
+                services.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+                
+                setAvailable3DServices(services);
+                
+                // 默认选择优先级最高的服务
+                if (services.length > 0 && !selectedServiceId) {
+                    setSelectedServiceId(services[0].id);
+                }
+            } catch (err) {
+                console.error('Failed to fetch 3D services:', err);
+            }
+        };
+        fetch3DServices();
+    }, [selectedServiceId]);
+
+    const pollTaskStatus = useCallback(async (currentTaskId: string, provider: string, apiKey?: string) => {
+        const interval = setInterval(async () => {
+            try {
+                const data = await get3DModelTaskStatus(currentTaskId, provider, apiKey);
+                setTaskStatus(data);
+
+                if (data.status === 'success' || data.status === 'failed') {
+                    clearInterval(interval);
+                    setIsGenerating(false);
+                    if (data.status === 'failed') {
+                        setError('任务生成失败，请检查提示词或 API Key。');
+                    }
+                }
+            } catch (err: any) {
+                setError(err.message || 'Failed to fetch task status');
+                clearInterval(interval);
+                setIsGenerating(false);
+            }
+        }, 5000);
+        return interval;
+    }, []);
+
+    const handleGenerate = async () => {
+        if (!prompt) {
+            toast({ title: '提示', description: '请输入您的创意描述。' });
+            return;
+        }
+
+        setError(null);
+        setTaskStatus(null);
+        setIsGenerating(true);
+
+        try {
+            const result = await generate3DModelUniversal({
+                prompt,
+                providerId: selectedServiceId || undefined,
+                apiKey: personalApiKey || undefined,
+            });
+
+            setTaskId(result.taskId);
+            setTaskProvider(result.provider);
+            
+            toast({
+                title: '任务已提交',
+                description: `使用 ${result.provider} 生成中，预计 ${Math.ceil((result.estimatedTime || 120) / 60)} 分钟完成`,
+            });
+
+            // 开始轮询状态
+            pollTaskStatus(result.taskId, result.provider, personalApiKey || undefined);
+        } catch (error: any) {
+            console.error('3D generation failed:', error);
+            setError(error.message);
+            setIsGenerating(false);
+            toast({
+                title: '生成失败',
+                description: error.message,
+                variant: 'destructive',
+            });
+        }
+    };
+
+    const handleSuccess = () => {
+        setPrompt('');
+        setTaskId(null);
+        setTaskStatus(null);
+        setTaskProvider('');
+        onSubmissionSuccess();
+    };
+
+    const selectedService = available3DServices.find(s => s.id === selectedServiceId);
+
+    return (
+        <div className="space-y-6">
+            {/* 服务选择器 */}
+            {available3DServices.length > 0 ? (
+                <div className="space-y-2">
+                    <Label htmlFor="service-select">选择 3D 模型服务</Label>
+                    <Select value={selectedServiceId} onValueChange={setSelectedServiceId}>
+                        <SelectTrigger id="service-select">
+                            <SelectValue placeholder="选择服务提供商..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {available3DServices.map(service => (
+                                <SelectItem key={service.id} value={service.id}>
+                                    {service.provider} - {service.modelName} (优先级: {service.priority})
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    {selectedService && (
+                        <p className="text-sm text-muted-foreground">
+                            当前选择: {selectedService.provider} | 状态: {selectedService.status}
+                        </p>
+                    )}
+                </div>
+            ) : (
+                <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertTitle>未配置 3D 服务</AlertTitle>
+                    <AlertDescription>
+                        请联系管理员在"管理面板"中配置 3D 模型生成服务（类别选择"3D模型"）
+                    </AlertDescription>
+                </Alert>
+            )}
+
+            {/* 自定义 API Key（可选） */}
+            {available3DServices.length > 0 && (
+                <div className="space-y-2">
+                    <Label htmlFor="custom-api-key">自定义 API Key（可选，优先使用）</Label>
+                    <Input
+                        id="custom-api-key"
+                        type="password"
+                        placeholder="sk-..."
+                        value={personalApiKey}
+                        onChange={(e) => setPersonalApiKey(e.target.value)}
+                    />
+                </div>
+            )}
+
+            {/* 提示词输入 */}
+            <div className="space-y-2">
+                <Label htmlFor="prompt-input">3D 模型描述</Label>
+                <Textarea
+                    id="prompt-input"
+                    placeholder="例如：a sports car, masterpiece, high quality"
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    rows={3}
+                    disabled={isGenerating}
+                />
+            </div>
+
+            {/* 生成按钮 */}
+            <Button
+                onClick={handleGenerate}
+                disabled={isGenerating || !prompt || available3DServices.length === 0}
+                className="w-full"
+            >
+                {isGenerating ? (
+                    <>
+                        <Loader2 className="mr-2 animate-spin" />
+                        生成中...
+                    </>
+                ) : (
+                    <>
+                        <Wand2 className="mr-2" />
+                        生成 3D 模型
+                    </>
+                )}
+            </Button>
+
+            {/* 错误提示 */}
+            {error && (
+                <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                </Alert>
+            )}
+
+            {/* 进度显示 */}
+            {isGenerating && taskId && (
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                        <span>生成进度</span>
+                        <span>{taskStatus?.progress || 0}%</span>
+                    </div>
+                    <Progress value={taskStatus?.progress || 0} />
+                    <p className="text-xs text-muted-foreground text-center">
+                        使用 {taskProvider}，请耐心等待...
+                    </p>
+                </div>
+            )}
+
+            {/* 成功结果 */}
+            {taskStatus?.status === 'success' && taskStatus.output_image_url && (
+                <SubmissionForm
+                    imageUrl={taskStatus.output_image_url}
+                    onSubmissionSuccess={handleSuccess}
+                    toolName={`${taskProvider} 3D`}
+                />
+            )}
+        </div>
+    );
+}
+
+// =================================================================
+// TRIPO3D AI TAB (Legacy - 保留向后兼容)
 // =================================================================
 function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => void }) {
     const [personalApiKey, setPersonalApiKey] = useState('');
@@ -1357,21 +1588,12 @@ function CreationsTab({ onSubmissionSuccess }: { onSubmissionSuccess: () => void
             <CardHeader>
                 <CardTitle className="font-headline">AI 3D 模型创作</CardTitle>
                 <CardDescription>
-                    使用 Tripo3D 专业工具生成高质量 3D 模型。输入创意描述，AI 将为您生成预览图，完成后可直接提交入库审核。
+                    支持多个 3D 模型生成服务（Tripo3D、Meshy 等）。通过"管理面板"配置服务后，即可在此选择使用。输入创意描述，AI 将为您生成预览图，完成后可直接提交入库审核。
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                {/* 简化为单一 Tripo3D 工具，移除占位符功能 */}
-                <Tripo3DGenerator onSubmissionSuccess={onSubmissionSuccess} />
-                
-                {/* 未来功能提示 */}
-                <Alert className="mt-6">
-                    <Info className="h-4 w-4" />
-                    <AlertTitle>更多 AI 创作工具即将推出</AlertTitle>
-                    <AlertDescription>
-                        我们正在集成更多 AI 图像生成工具（如 Stable Diffusion、DALL-E 等），敬请期待！
-                    </AlertDescription>
-                </Alert>
+                {/* 使用通用 3D 生成器，支持多个服务 */}
+                <Universal3DGenerator onSubmissionSuccess={onSubmissionSuccess} />
             </CardContent>
         </Card>
     );

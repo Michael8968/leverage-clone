@@ -152,10 +152,12 @@ export interface LlmConnection {
     priority: number;
     status: '活跃' | '已禁用';
     scope?: '通用' | '专属';
-    category?: '文本' | '图像' | '多模态' | '推理';
+    category?: '文本' | '图像' | '多模态' | '推理' | '3D模型';
     lastTestStatus?: 'success' | 'failed' | 'untested';
     lastTestTimestamp?: any; // Can be Date, string, or Firestore Timestamp
     createdAt?: any; // Can be Date, string, or Firestore Timestamp
+    baseUrl?: string; // For custom API endpoints
+    config?: Record<string, any>; // For provider-specific configurations
 }
 
 export interface LlmProvider {
