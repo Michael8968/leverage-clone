@@ -15,10 +15,12 @@ import type { Demand, ProductService, LlmConnection, Appointment, Availability, 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { generate3dModel, type Generate3dModelOutput } from '@/ai/flows/generate-3d-model';
+// Removed: generate3dModel (占位符功能已移除)
+// Removed: generateNanoBananaImage (占位符功能已移除)
+// import { generate3dModel, type Generate3dModelOutput } from '@/ai/flows/generate-3d-model';
+// import { generateNanoBananaImage } from '@/ai/flows/generate-nanobanana-image';
 import { generateTripo3dModel } from '@/ai/flows/generate-tripo3d-model';
 import { getTripo3dModelStatus } from '@/ai/flows/get-tripo3d-model-status';
-import { generateNanoBananaImage } from '@/ai/flows/generate-nanobanana-image';
 import { getUploadUrlForMediaAsset } from '@/ai/flows/multimodal-flows';
 import { updateUserStatus, updateUserAssistantRules } from '@/ai/flows/user-management-flows';
 import { getPrompts } from '@/ai/flows/admin-management-flows';
@@ -285,8 +287,10 @@ function SubmissionForm({
 }
 
 // =================================================================
-// BUILT-IN AI TAB
+// DEPRECATED - BUILT-IN AI TAB (Removed from UI)
+// 占位符功能，已从 UI 中移除。如需图像生成，请配置 API 密钥。
 // =================================================================
+/*
 function BuiltInGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => void }) {
     const [prompt, setPrompt] = useState('');
     const [isGenerating, startGeneration] = useTransition();
@@ -341,6 +345,7 @@ function BuiltInGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
         </div>
     );
 }
+*/
 
 
 // =================================================================
@@ -500,6 +505,11 @@ const fileToDataUri = (file: File): Promise<string> => {
     });
 };
 
+// =================================================================
+// DEPRECATED - NANO-BANANA (GEMINI IMAGE) TAB (Removed from UI)
+// 占位符功能，已从 UI 中移除。如需图像生成，请配置 Gemini API。
+// =================================================================
+/*
 function NanoBananaGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => void }) {
     const [prompt, setPrompt] = useState('');
     const [imageFile, setImageFile] = useState<File | null>(null);
@@ -601,6 +611,7 @@ function NanoBananaGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () 
         </div>
     );
 }
+*/
 
 
 // =================================================================
@@ -1338,30 +1349,29 @@ function RuleDialog({ open, onOpenChange, rule: initialRule, onSave, prompts, is
 // =================================================================
 // 3D AI CREATION TAB (New structure with sub-tabs)
 // =================================================================
+// CREATIONS TAB - AI 图像创作
+// =================================================================
 function CreationsTab({ onSubmissionSuccess }: { onSubmissionSuccess: () => void }) {
     return (
         <Card>
             <CardHeader>
-                <CardTitle className="font-headline">AI 图像创作</CardTitle>
-                <CardDescription>选择您偏好的创作工具，输入创意描述，AI将为您生成预览图，完成后可直接提交入库审核。</CardDescription>
+                <CardTitle className="font-headline">AI 3D 模型创作</CardTitle>
+                <CardDescription>
+                    使用 Tripo3D 专业工具生成高质量 3D 模型。输入创意描述，AI 将为您生成预览图，完成后可直接提交入库审核。
+                </CardDescription>
             </CardHeader>
             <CardContent>
-                 <Tabs defaultValue="nano-banana" className="w-full">
-                    <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="built-in">内置模型</TabsTrigger>
-                        <TabsTrigger value="tripo3d">Tripo3D</TabsTrigger>
-                        <TabsTrigger value="nano-banana">Gemini Image</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="built-in" className="pt-6">
-                        <BuiltInGenerator onSubmissionSuccess={onSubmissionSuccess} />
-                    </TabsContent>
-                    <TabsContent value="tripo3d" className="pt-6">
-                        <Tripo3DGenerator onSubmissionSuccess={onSubmissionSuccess} />
-                    </TabsContent>
-                    <TabsContent value="nano-banana" className="pt-6">
-                        <NanoBananaGenerator onSubmissionSuccess={onSubmissionSuccess} />
-                    </TabsContent>
-                </Tabs>
+                {/* 简化为单一 Tripo3D 工具，移除占位符功能 */}
+                <Tripo3DGenerator onSubmissionSuccess={onSubmissionSuccess} />
+                
+                {/* 未来功能提示 */}
+                <Alert className="mt-6">
+                    <Info className="h-4 w-4" />
+                    <AlertTitle>更多 AI 创作工具即将推出</AlertTitle>
+                    <AlertDescription>
+                        我们正在集成更多 AI 图像生成工具（如 Stable Diffusion、DALL-E 等），敬请期待！
+                    </AlertDescription>
+                </Alert>
             </CardContent>
         </Card>
     );
