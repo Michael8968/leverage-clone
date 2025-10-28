@@ -9,14 +9,24 @@ export async function POST(req: Request) {
     if (!email || !password || !name) return NextResponse.json({ error: '缺少参数' }, { status: 400 });
 
     const db = getTcbDb();
-    // Check exists
+    
+    // Check if email already exists
     const exists = await db.collection('users').where({ email }).limit(1).get();
     if (exists?.data?.length) return NextResponse.json({ error: '邮箱已注册' }, { status: 409 });
 
+    // Check admin count limit (maximum 10 platform admins)
+    if (role === 'admin') {
+      const adminQuery = await db.collection('users').where({ role: 'admin' }).get();
+      const adminCount = adminQuery?.data?.length || 0;
+      if (adminCount >= 10) {
+        return NextResponse.json({ error: '平台管理员数量已达上限（最多10个）' }, { status: 403 });
+      }
+    }
+
     const hash = await bcrypt.hash(password, 10);
-    const uid = db.createCollection ? undefined : undefined; // placeholder, we will use email as uid or generated
+    const uid = `u_${Date.now()}`;
     const userDoc = {
-      uid: `u_${Date.now()}`,
+      uid,
       email,
       name,
       role: role || 'user',

@@ -1,0 +1,47 @@
+﻿[
+    {
+        "bodySummary":  "{\"status\":\"ok\",\"time\":\"2025-10-28T07:27:57.611Z\"}",
+        "endpoint":  "/api/health",
+        "status":  200
+    },
+    {
+        "endpoint":  "/api/auth/me",
+        "error":  "远程服务器返回错误: (404) 未找到。",
+        "status":  404
+    },
+    {
+        "bodySummary":  "{\"ok\":true,\"credentials\":{\"admin\":[{\"email\":\"admin.e2e.1761636135728.0@example.com\",\"password\":\"Passw0rd!1\",\"uid\":\"u_1761636136096\",\"role\":\"admin\",\"ok\":true},{\"email\":\"admin.e2e.1761636135728.1@example.com\",\"password\":\"Passw0rd!2\",\"uid\":\"u_1761636136177\",\"role\":\"admin\",\"ok\":true},{\"email\":\"admin.e2e.1761636135728.2@example.com\",\"password\":\"Passw0rd!3\",\"uid\":\"u_1761636136259\",\"role\":\"admin\",\"ok\":true}],\"creator\":[{\"email\":\"creator.e2e.1761636135728.0@example.com\",\"password\":\"Passw0rd!4\",\"uid\":\"u_1761636136356\",\"role\":\"creator\",\"ok\":true},{\"email\":\"creator.e2e.1761636135728.1@example.com\",\"password\":\"Passw0rd!5\",\"uid\":\"u_1761636136448\",\"role\":\"creator\",\"ok\":true},{\"email\":\"creator.e2e.1761636135728.2@example.com\",\"password\":\"Passw0rd!6\",\"uid\":\"u_1761636136537\",\"role\":\"creator\",\"ok\":true}],\"s...[truncated]",
+        "endpoint":  "/api/dev/test-accounts",
+        "status":  200
+    },
+    {
+        "bodySummary":  "{\"items\":[{\"uid\":\"admin1\",\"name\":\"å¹³å°ç®¡çå\",\"email\":\"admin1@example.com\",\"role\":\"admin\",\"avatar\":\"https://example.com/avatar/admin1.png\",\"rating\":9.5,\"status\":\"active\",\"createdAt\":\"2024-01-01T08:00:00.000Z\",\"level\":\"Pro\",\"points_balance\":1000,\"signup_date\":\"2024-01-01T08:00:00.000Z\",\"total_llm_calls\":100},{\"uid\":\"supplier1\",\"name\":\"ä¾åºå A\",\"email\":\"supplier1@example.com\",\"role\":\"supplier\",\"avatar\":\"https://example.com/avatar/supplier1.png\",\"rating\":8.2,\"status\":\"active\",\"createdAt\":\"2024-02-10T09:00:00.000Z\",\"level\":\"Regular\",\"points_balance\":500,\"signup_date\":\"2024-02-10T09:00:00.000Z\",\"total_llm_calls\":20},{\"uid\":\"creator1\",\"name\":\"åä½è\u0085 ä¸\",\"email\":\"creator1@example.com\",\"role\":\"creator\",\"avatar\":\"https://example.com/avatar/creator1.png\",\"rating\":7.8,\"status\":\"active\",\"...[truncated]",
+        "endpoint":  "/api/users",
+        "status":  200
+    },
+    {
+        "bodySummary":  "[{\"id\":\"demand1\",\"type\":\"public\",\"title\":\"3Däº§åå»ºæ¨¡éæ±\",\"description\":\"éè¦ä¸ä¸ªé«è´¨éç3Däº§åæ¨¡åç¨äºæ¸²æå±ç¤º\",\"budget\":2000,\"category\":\"3Dæ¨¡å\",\"status\":\"å¼æ¾ä¸­\",\"requesterId\":\"user1\",\"requesterName\":\"æ®éç¨æ· ä¸\",\"requesterAvatar\":\"https://example.com/avatar/user1.png\",\"creatorId\":null,\"createdAt\":\"2024-09-01T10:00:00.000Z\"},{\"id\":\"demand3\",\"type\":\"public\",\"title\":\"äº§åæ¸²æå¾\",\"description\":\"éè¦ä¸å¼ é«åè¾¨çæ¸²æå¾\",\"budget\":1200,\"category\":\"æ¸²æ\",\"status\":\"è¿è¡ä¸­\",\"requesterId\":\"user3\",\"requesterName\":\"æ®éç¨æ· ä¸\",\"requesterAvatar\":\"https://example.com/avatar/user3.png\",\"creatorId\":\"creator3\",\"createdAt\":\"2024-09-03T12:00:00.000Z\"},{\"id\":\"demand4\",\"type\":\"public\",\"title\":\"UIå¾æ è®¾è®¡\",\"description\":\"ä¸ç» 50 ä¸ªç¢éå¾æ...[truncated]",
+        "endpoint":  "/api/demands",
+        "status":  200
+    },
+    {
+        "bodySummary":  "[{\"id\":\"product1\",\"name\":\"é«ç²¾åº¦3Dæ¨¡åå\u0085\",\"description\":\"å\u0085å«å¤è§åº¦ãè´´å¾çé«ç²¾åº¦ 3D æ¨¡å\",\"price\":1200,\"category\":\"3Dæ¨¡å\",\"supplierId\":\"supplier1\",\"creatorId\":\"creator1\",\"purchaseUrl\":\"\",\"imageUrl\":\"https://example.com/images/product1.png\",\"thumbnailUrl\":\"https://example.com/images/product1-thumb.png\",\"images\":[],\"details\":[],\"status\":\"å·²å\u0085¥åº\",\"createdAt\":\"2024-01-10T10:00:00.000Z\"},{\"id\":\"product2\",\"name\":\"æ¸²ææå¡å\u0085\",\"description\":\"æå¼ è®¡è´¹çæ¸²ææå¡\",\"price\":200,\"category\":\"æ¸²æ\",\"supplierId\":\"supplier2\",\"creatorId\":\"creator2\",\"purchaseUrl\":\"\",\"imageUrl\":\"https://example.com/images/product2.png\",\"thumbnailUrl\":\"https://example.com/images/product2-thumb.png\",\"images\":[],\"details\":[],\"status\":\"å·²å\u0085¥åº\",\"createdAt\":\"2024-02-01T11:00:00.000Z\"},{\"...[truncated]",
+        "endpoint":  "/api/products",
+        "status":  200
+    },
+    {
+        "bodySummary":  "[{\"id\":\"supplier1\",\"name\":\"ä¾åºå A\",\"shortName\":\"ä¾A\",\"region\":\"ä¸æµ·\",\"address\":\"ä¸æµ·å¸éå®åºç¤ºä¾è·¯1å·\",\"establishedDate\":\"2018-06-01T00:00:00.000Z\",\"registeredCapital\":\"500ä¸\",\"creditCode\":\"91310000MA1EXAMPLE\",\"email\":\"supplier1@example.com\",\"supplementaryFields\":[]},{\"id\":\"supplier2\",\"name\":\"ä¾åºå B\",\"shortName\":\"ä¾B\",\"region\":\"æ·±å³\",\"address\":\"æ·±å³å¸åå±±åºç¤ºä¾è¡2å·\",\"establishedDate\":\"2016-09-01T00:00:00.000Z\",\"registeredCapital\":\"300ä¸\",\"creditCode\":\"91320000MA2EXAMPLE\",\"email\":\"supplier2@example.com\",\"supplementaryFields\":[]},{\"id\":\"supplier3\",\"name\":\"ä¾åºå C\",\"shortName\":\"ä¾C\",\"region\":\"åäº¬\",\"address\":\"åäº¬å¸æé³åºç¤ºä¾è¡3å·\",\"establishedDate\":\"2019-03-01T00:00:00.000Z\",\"registeredCapital\":\"200ä¸\",\"creditCode\":\"91330000MA3EXAMPLE\"...[truncated]",
+        "endpoint":  "/api/suppliers",
+        "status":  200
+    },
+    {
+        "bodySummary":  "{\"userId\":\"anonymous\",\"balance\":0}",
+        "endpoint":  "/api/points-balance",
+        "status":  200
+    },
+    {
+        "bodySummary":  "[]",
+        "endpoint":  "/api/points/transactions",
+        "status":  200
+    }
+]

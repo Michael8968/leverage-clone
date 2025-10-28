@@ -9,7 +9,7 @@
     "genkit:watch": "genkit start -- tsx --watch --env-file=.env src/ai/dev.ts",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+  "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "simulate-db": "node setup-local.js simulate-db",
     "test-local": "node setup-local.js test-local",

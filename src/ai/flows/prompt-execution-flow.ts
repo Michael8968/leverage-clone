@@ -4,7 +4,6 @@ import { z } from 'zod';
 import type { PointsTransaction } from '@/lib/types';
 import { getPointsStore } from '@/lib/datastore';
 // 使用 JS 版本以确保在 Node 运行测试时无类型依赖
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const { getOpenAIForHunyuan } = require('@/utils/openai-hunyuan');
 
 // 有效且精简的执行函数（修复损坏的文件内容）

@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Bot, Loader2, Send, Sparkles, Settings, Trash2 } from 'lucide-react';
 import { doc, onSnapshot, updateDoc, arrayUnion, setDoc, getDoc } from '@/lib/cloudbase-compat';
+import { snapshotExists } from '@/lib/snapshot-utils';
 import type { Demand, User, ChatMessage } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -60,7 +61,7 @@ export function ChatDialog({ open, onOpenChange, demand, currentUser }: {
 
   const chatDocRef = doc('chats', demand.id);
     const unsubscribe = onSnapshot(chatDocRef, (doc: any) => {
-      if (doc && doc.exists && doc.exists()) {
+      if (doc && snapshotExists(doc)) {
         const data = doc.data() as ChatDocument;
         const formattedMessages = (data.messages || []).map((m: any) => ({
           ...m,
@@ -75,10 +76,10 @@ export function ChatDialog({ open, onOpenChange, demand, currentUser }: {
 
     const fetchDesignerStatus = async () => {
         if(demand.creatorId) {
-            const designerDoc = await getDoc(doc('users', demand.creatorId) as any);
-            if (designerDoc.exists()) {
-                setIsAiAssistantEnabledForDesigner(!!designerDoc.data().aiAssistantEnabled);
-            }
+      const designerDoc = await getDoc(doc('users', demand.creatorId) as any);
+      if (snapshotExists(designerDoc)) {
+        setIsAiAssistantEnabledForDesigner(!!designerDoc.data().aiAssistantEnabled);
+      }
         }
     };
     fetchDesignerStatus();

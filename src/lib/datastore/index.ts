@@ -13,13 +13,11 @@ export function getPointsStore(): PointsStore {
   try {
     if (kind === 'tcb') {
       // Lazy import to avoid bundling
-      // eslint-disable-next-line no-eval
       const req: NodeRequire = eval('require');
       const mod = req('./tcb-points');
       return mod.createTcbPointsStore();
     }
     if (kind === 'firebase-admin') {
-      // eslint-disable-next-line no-eval
       const req: NodeRequire = eval('require');
       const mod = req('./firebase-points');
       return mod.createFirebasePointsStore();

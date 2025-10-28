@@ -2,10 +2,10 @@
 'use server';
 
 import { z } from 'zod';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const { getOpenAIForHunyuan } = require('@/utils/openai-hunyuan');
 import { doc, getDoc, collection, query, where, getDocs, writeBatch, serverTimestamp, runTransaction, increment } from '@/lib/cloudbase-compat';
 import type { Demand, ProductService, Supplier, User } from '@/lib/types';
+import { snapshotExists, snapshotData } from '@/lib/snapshot-utils';
 
 
 // ... (existing recommendCreatives flow)
@@ -104,12 +104,12 @@ export async function createPrivateDemand({ requesterId, creatorId, preferredAge
 
   const demandId = await runTransaction(async (transaction: any) => {
             const creatorSnap = await transaction.get(creatorRef);
-            if (!creatorSnap.exists()) throw new Error("目标设计师不存在。");
-            const creator = creatorSnap.data() as User;
+            if (!snapshotExists(creatorSnap)) throw new Error("目标设计师不存在。");
+            const creator = snapshotData<User>(creatorSnap) as User;
 
             const requesterSnap = await transaction.get(requesterRef);
-            if (!requesterSnap.exists()) throw new Error("请求用户不存在。");
-            const requester = requesterSnap.data() as User;
+            if (!snapshotExists(requesterSnap)) throw new Error("请求用户不存在。");
+            const requester = snapshotData<User>(requesterSnap) as User;
             
             let connectToHuman = false;
             let initialMessageText = '';

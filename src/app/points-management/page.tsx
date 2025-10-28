@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuthStore, type Role } from '@/store/auth';
 import { Coins, Frown, Loader2, Save, PlusCircle, Edit, Trash2, Search, Calendar as CalendarIcon, Mail, FileText, Settings, Gift, RotateCcw, AlertTriangle, Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState, useEffect, useCallback, useTransition } from 'react';
+import { useState, useEffect, useCallback, useTransition, useMemo } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { PointsConfig, PricingRule, PointsTransaction, User, BillingStatement, TokenConversionConfig, RoleGiftsConfig } from '@/lib/types';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -844,13 +844,11 @@ function PricingRuleDialog({
 }) {
     const { toast } = useToast();
     
-    const [rule, setRule] = useState<PricingRule>(() => adaptRuleToSchema(initialRule || {}));
-    
-    useEffect(() => {
-        if(open) {
-            setRule(adaptRuleToSchema(initialRule || {}));
-        }
-    }, [initialRule, open]);
+    // 直接使用 key 策略重置组件,避免在 effect 中同步 setState
+    const initialRuleData = useMemo(() => adaptRuleToSchema(initialRule || {}), [initialRule]);
+    // 当 open 变化或 initialRule 变化时,通过 key 强制组件重新挂载
+    const resetKey = useMemo(() => `${open}-${JSON.stringify(initialRule)}`, [open, initialRule]);
+    const [rule, setRule] = useState<PricingRule>(initialRuleData);
 
     const handleSave = () => {
         if (!rule.name) {
@@ -904,7 +902,7 @@ function PricingRuleDialog({
 
     return (
         <AlertDialog open={open} onOpenChange={onOpenChange}>
-            <AlertDialogContent className="sm:max-w-2xl">
+            <AlertDialogContent key={resetKey} className="sm:max-w-2xl">
                 <AlertDialogHeader>
                     <AlertDialogTitle>{isEditing ? '编辑定价规则' : `为“${actionKey}”新增定价规则`}</AlertDialogTitle>
                     <AlertDialogDescription>

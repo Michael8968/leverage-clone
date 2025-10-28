@@ -151,10 +151,11 @@ function BookingDialog({
             try {
                 const availRef = doc('availabilities', designer.uid) as any;
                 const availSnap = await getDoc(availRef);
-                if (availSnap.exists()) {
-                    const data = availSnap.data() as Availability;
+                const { snapshotExists, snapshotData } = await import('@/lib/snapshot-utils');
+                if (snapshotExists(availSnap)) {
+                    const data = snapshotData(availSnap) as Availability;
                     // Filter for future slots only
-                    const futureSlots = (data.slots || []).filter((slot: any) => {
+                    const futureSlots = (data?.slots || []).filter((slot: any) => {
                         const date = typeof slot?.toDate === 'function' ? slot.toDate() : (slot instanceof Date ? slot : new Date(slot))
                         return date > new Date()
                     });

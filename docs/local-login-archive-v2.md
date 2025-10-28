@@ -143,4 +143,55 @@ http://127.0.0.1:3000/set-token.html?token=<PASTE_TOKEN>&redirect=/dashboard
 完成验证：
 - 我已把这份归档写入 `docs/local-login-archive-v2.md`（见仓库）。
 
+---
+
+## 快速使用平台管理员账号本地登录（一步到位）
+
+如果你想立即在本地页面以「平台管理员」身份进行功能测试，下面有三种推荐方法：手动登录、在终端获取 token 并注入，或使用书签脚本一键登录。
+
+1) 浏览器手动登录（最简单，推荐）
+- 启动 dev server：
+
+```powershell
+npm run dev
+```
+
+- 打开登录页：
+
+```
+http://127.0.0.1:3000/login
+```
+
+- 使用 `data/generated-test-accounts.json` 中任一 admin 账号登录（例如：`admin.e2e.*@example.com` / `Passw0rd!1`）。
+
+2) 终端获取 token 并注入浏览器 localStorage（适合脚本化或在无法访问表单时）
+
+- 在 PowerShell 中执行（将 email/password 替换为你要使用的 admin 凭据）：
+
+```powershell
+$body = @{ email = 'admin.e2e.1761636135728.0@example.com'; password = 'Passw0rd!1' } | ConvertTo-Json
+$r = Invoke-RestMethod -Uri 'http://127.0.0.1:3000/api/auth/login' -Method Post -Body $body -ContentType 'application/json' -TimeoutSec 10
+$r.token  # 打印 token，复制到下一步
+```
+
+- 在浏览器 DevTools 的 Console 中运行（将 <PASTE_TOKEN> 替换为上一步复制的 token）：
+
+```javascript
+localStorage.setItem('auth_token','<PASTE_TOKEN>');
+location.href = '/dashboard';
+```
+
+3) 书签脚本（bookmarklet）：一键登录并跳转到 Dashboard（只在本地开发环境使用）
+
+- 在浏览器书签中创建一个新书签，把下面一整行作为 URL（注意替换 email/password）：
+
+```text
+javascript:(async()=>{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'admin.e2e.1761636135728.0@example.com',password:'Passw0rd!1'})});const j=await r.json();if(!j.token){alert('login failed');console.log(j);return;}localStorage.setItem('auth_token',j.token);location.href='/dashboard';})();
+```
+
+使用方法：在登录页或任意页面点击该书签，书签会请求 `/api/auth/login` 获取 token，写入 `localStorage.auth_token` 并跳转到 `/dashboard`。
+
+安全提示：以上方法仅限本地开发环境使用。不要在共享计算机或生产环境中保存或传播明文凭据或 token。
+
+
 如果你希望我把本次会话中的某些命令或日志片段加入文档（例如 dev server 的确切启动行、PID），告诉我想要包含的内容，我会把它追加进去。

@@ -40,68 +40,44 @@ console.log('   ✓ getSupportedProviders 函数已导入\n');
 
 // 测试 3: 获取支持的提供商
 console.log('✅ 测试 3: 支持的 3D 服务提供商');
-const providers = getSupportedProviders();
-console.log(`   找到 ${providers.length} 个已注册的提供商:`);
-providers.forEach((provider, index) => {
-    console.log(`   ${index + 1}. ${provider}`);
-});
-console.log();
 
-// 测试 4: 函数签名验证
-console.log('✅ 测试 4: 函数签名验证');
-console.log('   generate3DModelUniversal 参数:');
-console.log('     - prompt: string (必需)');
-console.log('     - providerId?: string (可选)');
-console.log('     - userApiKey?: string (可选)');
-console.log();
+(async () => {
+    const providers = await getSupportedProviders();
+    console.log(`   找到 ${providers.length} 个已注册的提供商:`);
+    providers.forEach((provider: string, index: number) => {
+        console.log(`   ${index + 1}. ${provider}`);
+    });
+    console.log();
 
-console.log('   get3DModelTaskStatus 参数:');
-console.log('     - taskId: string (必需)');
-console.log('     - providerId: string (必需)');
-console.log('     - userApiKey?: string (可选)');
-console.log();
+    // 测试 4: 函数签名验证
+    console.log('✅ 测试 4: 函数签名验证');
+    console.log('   generate3DModelUniversal 参数:');
+    console.log('     - prompt: string (必需)');
+    console.log('     - providerId?: string (可选)');
+    console.log('     - userApiKey?: string (可选)');
+    console.log();
 
-// 测试 5: 模拟配置检查
-console.log('✅ 测试 5: 配置示例');
-console.log('   管理员应在 admin-dashboard 中配置如下服务:');
-console.log();
-console.log('   示例 1 - Tripo3D:');
-console.log('   {');
-console.log('     provider: "Tripo3D",');
-console.log('     modelName: "default",');
-console.log('     category: "3D模型",');
-console.log('     apiKey: "your-tripo3d-key",');
-console.log('     baseUrl: "https://api.tripo3d.ai/v2/openapi",');
-console.log('     priority: 90,');
-console.log('     status: "活跃"');
-console.log('   }');
-console.log();
-console.log('   示例 2 - Meshy:');
-console.log('   {');
-console.log('     provider: "Meshy",');
-console.log('     modelName: "text-to-3d-preview",');
-console.log('     category: "3D模型",');
-console.log('     apiKey: "your-meshy-key",');
-console.log('     baseUrl: "https://api.meshy.ai/v2",');
-console.log('     priority: 80,');
-console.log('     status: "活跃"');
-console.log('   }');
-console.log();
+    console.log('   get3DModelTaskStatus 参数:');
+    console.log('     - taskId: string (必需)');
+    console.log('     - providerId: string (必需)');
+    console.log('     - userApiKey?: string (可选)');
+    console.log();
 
-// 测试总结
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log('📊 测试总结');
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log('✅ 所有静态检查通过');
-console.log('✅ 类型定义正确');
-console.log('✅ 模块导入成功');
-console.log('✅ 适配器注册表正常');
-console.log();
-console.log('📝 下一步操作:');
-console.log('1. 启动开发服务器: npm run dev');
-console.log('2. 以 admin 角色登录管理面板');
-console.log('3. 在 LLM 连接管理中添加 3D 服务配置');
-console.log('4. 以 creator 角色登录创作工作台');
-console.log('5. 在 "AI 创作" Tab 中测试服务选择和生成功能');
-console.log();
-console.log('✨ 单元测试完成！');
+    // 后续输出和总结
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📊 测试总结');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('✅ 所有静态检查通过');
+    console.log('✅ 类型定义正确');
+    console.log('✅ 模块导入成功');
+    console.log('✅ 适配器注册表正常');
+    console.log();
+    console.log('📝 下一步操作:');
+    console.log('1. 启动开发服务器: npm run dev');
+    console.log('2. 以 admin 角色登录管理面板');
+    console.log('3. 在 LLM 连接管理中添加 3D 服务配置');
+    console.log('4. 以 creator 角色登录创作工作台');
+    console.log('5. 在 "AI 创作" Tab 中测试服务选择和生成功能');
+    console.log();
+    console.log('✨ 单元测试完成！');
+})();

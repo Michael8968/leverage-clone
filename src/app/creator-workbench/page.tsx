@@ -999,9 +999,11 @@ function ScheduleAndAssistantTab() {
             // Fetch available slots
             const availRef = doc('availabilities', user.uid);
             const availSnap = await getDoc(availRef as any);
-            if (availSnap.exists()) {
-                const data = availSnap.data() as Availability;
-                setAvailableSlots(data.slots || []);
+            // 使用统一的 snapshotExists 以兼容 cloudbase-compat 与 Firebase
+            const { snapshotExists, snapshotData } = await import('@/lib/snapshot-utils');
+            if (snapshotExists(availSnap)) {
+                const data = snapshotData(availSnap) as Availability;
+                setAvailableSlots(data?.slots || []);
             }
             setIsSlotsLoading(false);
 
@@ -1190,17 +1192,24 @@ function ScheduleAndAssistantTab() {
                                             </div>
                                         </div>
                                         <div className="space-y-2 max-h-48 overflow-y-auto">
-                                            {isSlotsLoading ? <Skeleton className="h-10 w-full" /> : 
-                                             availableSlots.sort((a: any, b: any) => { try { return (a as any).toMillis() - (b as any).toMillis(); } catch { return 0; } }).map((slot: any) => {
-                                                const slotDate = (slot as any)?.toDate ? (slot as any).toDate() : new Date(slot as any);
-                                                const key = (slot as any)?.toMillis ? (slot as any).toMillis() : slotDate.getTime();
-                                                return (
-                                                <div key={key} className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
-                                                     <span className="text-sm">{format(slotDate, 'M月d日 HH:mm')}</span>
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDeleteSlot(slot)}><Trash2 className="w-4 h-4 text-destructive"/></Button>
-                                                </div>
-                                                );
-                                            })}
+                                            {isSlotsLoading ? (
+                                                <Skeleton className="h-10 w-full" />
+                                            ) : availableSlots.length === 0 ? (
+                                                <div className="text-center text-sm text-muted-foreground">您还没有设置可预约时段。点击“添加新时段”开始设置。</div>
+                                            ) : (
+                                                availableSlots
+                                                    .sort((a: any, b: any) => { try { return (a as any).toMillis() - (b as any).toMillis(); } catch { return 0; } })
+                                                    .map((slot: any) => {
+                                                        const slotDate = (slot as any)?.toDate ? (slot as any).toDate() : new Date(slot as any);
+                                                        const key = (slot as any)?.toMillis ? (slot as any).toMillis() : slotDate.getTime();
+                                                        return (
+                                                            <div key={key} className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
+                                                                <span className="text-sm">{format(slotDate, 'M月d日 HH:mm')}</span>
+                                                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDeleteSlot(slot)}><Trash2 className="w-4 h-4 text-destructive"/></Button>
+                                                            </div>
+                                                        );
+                                                    })
+                                            )}
                                         </div>
                                     </CardContent>
                                 )}

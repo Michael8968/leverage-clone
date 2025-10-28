@@ -44,6 +44,7 @@ export async function batchUpdateUsers({ userIds, updates, currentUserId }: Batc
                 dataToUpdate.rating = updates.starLevel;
             }
             if (updates.disabled !== undefined) {
+                // 允许管理员删除(禁用)其他管理员账号以释放名额
                 dataToUpdate.status = updates.disabled ? 'suspended' : 'active';
             }
 
@@ -252,11 +253,12 @@ export async function approveGrantRequest({ batchId, approverId }: ApproveGrantR
         let alreadyApprovedByThisUser = false;
 
         // 1. Fetch approval configuration first, outside the transaction
-    const approvalConfigRef = doc('configs', 'points_approval_config');
-        const approvalConfigSnap = await getDoc(approvalConfigRef);
-        const approvalConfig = approvalConfigSnap.exists() 
-            ? approvalConfigSnap.data() as PointsApprovalConfig 
-            : { approverUids: [] };
+        const approvalConfigRef = doc('configs', 'points_approval_config');
+            const approvalConfigSnap = await getDoc(approvalConfigRef);
+            const { snapshotExists, snapshotData } = await import('@/lib/snapshot-utils');
+            const approvalConfig = snapshotExists(approvalConfigSnap)
+                ? snapshotData(approvalConfigSnap) as PointsApprovalConfig
+                : { approverUids: [] };
         
         // 2. Validate if the approver is authorized
         if (approvalConfig.approverUids.length > 0 && !approvalConfig.approverUids.includes(approverId)) {

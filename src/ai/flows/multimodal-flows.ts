@@ -4,6 +4,7 @@
 import { z } from 'zod';
 import { generateWithOpenAI } from '@/ai/hunyuan-client'; // Fallback to OpenAI for vision tasks
 import { doc, setDoc, getDoc, serverTimestamp, updateDoc } from '@/lib/cloudbase-compat';
+import { snapshotExists, snapshotData } from '@/lib/snapshot-utils';
 import { getTcbStorageAdmin } from '@/lib/tcb-admin';
 import type { MediaAsset } from '@/lib/types';
 
@@ -75,10 +76,10 @@ export async function analyzeMediaAsset({ mediaAssetId, prompt }: AnalyzeMediaAs
     const mediaAssetRef = doc('media_assets', mediaAssetId);
         await updateDoc(mediaAssetRef, { status: 'processing' });
         
-        const mediaAssetSnap = await getDoc(mediaAssetRef);
-        if (!mediaAssetSnap.exists()) throw new Error("Media asset not found.");
-        
-        const asset = mediaAssetSnap.data() as MediaAsset;
+    const mediaAssetSnap = await getDoc(mediaAssetRef);
+    if (!snapshotExists(mediaAssetSnap)) throw new Error("媒体资源未找到。");
+
+    const asset = snapshotData(mediaAssetSnap) as MediaAsset;
         const bucket = getTcbStorageAdmin().bucket();
         // 构造 TCB/COS 访问 URL：优先使用环境变量配置的公开域名
         const publicBase = process.env.NEXT_PUBLIC_TCB_PUBLIC_BASE || process.env.NEXT_PUBLIC_ASSETS_BASE;

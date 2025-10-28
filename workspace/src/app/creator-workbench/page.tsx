@@ -435,7 +435,13 @@ function BuiltInGenerator({ onSubmissionSuccess }: BuiltInGeneratorProps) {
 // Tripo3D Generator Tab
 // =================================================================
 function Tripo3DGenerator({ onSubmissionSuccess }: BuiltInGeneratorProps) {
-  const [personalApiKey, setPersonalApiKey] = useState('');
+  // 使用 lazy initialization 避免在 effect 中同步 setState
+  const [personalApiKey, setPersonalApiKey] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('tripo3d_api_key') || '';
+    }
+    return '';
+  });
   const [globalApiKey, setGlobalApiKey] = useState('');
   const [prompt, setPrompt] = useState('');
   const [taskId, setTaskId] = useState<string | null>(null);
@@ -444,9 +450,7 @@ function Tripo3DGenerator({ onSubmissionSuccess }: BuiltInGeneratorProps) {
   const { toast } = useToast();
 
   useEffect(() => {
-    const storedKey = localStorage.getItem('tripo3d_api_key');
-    if (storedKey) setPersonalApiKey(storedKey);
-
+    // 从数据库获取全局 API Key (这是订阅外部系统的合理用法)
     const fetchGlobalKey = async () => {
       try {
   const q = query(collection('llm_connections'), where('provider', '==', 'Tripo3D'), where('status', '==', '活跃'));
@@ -462,7 +466,7 @@ function Tripo3DGenerator({ onSubmissionSuccess }: BuiltInGeneratorProps) {
       }
     };
     fetchGlobalKey();
-  }, []);
+  }, []); // 仅在组件挂载时执行一次
 
   const handleApiKeyChange = (key: string) => {
     setPersonalApiKey(key);
