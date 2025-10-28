@@ -6,8 +6,20 @@ let _app: TcbApp | null = null;
 let _db: TcbDb | null = null;
 
 function requireTCB() {
-  const req: NodeRequire = eval('require');
-  return req('@cloudbase/node-sdk');
+  try {
+    const req: NodeRequire = eval('require');
+    return req('@cloudbase/node-sdk');
+  } catch (err: any) {
+    // Provide a clearer runtime message so deployers know to install the package
+    const msg = "Cannot find module '@cloudbase/node-sdk'.\n" +
+      "This project marks '@cloudbase/node-sdk' as external during build (see next.config.js),\n" +
+      "so the module must be present in the production node_modules at runtime.\n" +
+      "Fix by installing it on the target (e.g. `npm install --production @cloudbase/node-sdk`)\n" +
+      "or include it in your deployment artifact. Original error: " + (err && err.message ? err.message : String(err));
+    const e = new Error(msg);
+    (e as any).original = err;
+    throw e;
+  }
 }
 
 export function getTcbApp(): TcbApp {
