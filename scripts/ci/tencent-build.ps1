@@ -27,6 +27,12 @@ if (Test-Path '.next/standalone') {
 }
 
 if (Test-Path 'public') { robocopy public $deployDir /e | Out-Null }
+if (Test-Path 'public') {
+  # Copy into .deploy/public to match Linux build helper behavior (keep public directory as a folder)
+  $publicDest = Join-Path $deployDir 'public'
+  New-Item -ItemType Directory -Path $publicDest | Out-Null
+  robocopy public $publicDest /e | Out-Null
+}
 Copy-Item -Force package.json -Destination (Join-Path $deployDir 'package.json')
 
 Write-Host "4) Install production deps into .deploy"

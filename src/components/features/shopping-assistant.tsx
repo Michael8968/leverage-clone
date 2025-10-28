@@ -57,9 +57,10 @@ type FormValues = z.infer<typeof formSchema>;
 // New component for the dynamic video background
 function DynamicVideoBackground() {
   const { theme } = useTheme();
-  
-  // 使用 useMemo 计算视频源,避免在 effect 中同步 setState
-  const videoSrc = useMemo(() => {
+    const [canPlay, setCanPlay] = useState<boolean>(false);
+
+    // 使用 useMemo 计算视频源,避免在 effect 中同步 setState
+    const videoSrc = useMemo(() => {
     switch (theme) {
       case 'light':
         return '/videos/light-bg.mp4';
@@ -75,20 +76,63 @@ function DynamicVideoBackground() {
           return '/videos/light-bg.mp4';
         }
     }
-  }, [theme]);
+    }, [theme]);
 
-  return (
-    <video
-      key={videoSrc} // Use key to force re-render when src changes
-      className="absolute top-0 left-0 w-full h-full object-cover -z-10"
-      autoPlay
-      loop
-      muted
-      playsInline
-    >
-      <source src={videoSrc} type="video/mp4" />
-    </video>
-  );
+    // Probe whether the video can be loaded/playback to avoid showing broken media in production
+    useEffect(() => {
+        setCanPlay(false);
+        if (typeof window === 'undefined') return;
+        let mounted = true;
+        try {
+            const v = document.createElement('video');
+            v.preload = 'metadata';
+            v.muted = true;
+            v.playsInline = true;
+            v.src = videoSrc;
+            const onLoaded = () => {
+                if (!mounted) return;
+                setCanPlay(true);
+                cleanup();
+            };
+            const onError = () => {
+                if (!mounted) return;
+                setCanPlay(false);
+                cleanup();
+            };
+            function cleanup() {
+                v.removeEventListener('loadeddata', onLoaded);
+                v.removeEventListener('error', onError);
+            }
+            v.addEventListener('loadeddata', onLoaded);
+            v.addEventListener('error', onError);
+            // kick off load
+            // some environments won't actually download until appended, but this works in most browsers
+            v.load();
+            return () => { mounted = false; cleanup(); };
+        } catch (e) {
+            setCanPlay(false);
+        }
+    }, [videoSrc]);
+
+    // If video is available, render it; otherwise render a themed gradient fallback
+    if (canPlay) {
+        return (
+            <video
+                key={videoSrc} // Use key to force re-render when src changes
+                className="absolute top-0 left-0 w-full h-full object-cover -z-10"
+                autoPlay
+                loop
+                muted
+                playsInline
+            >
+                <source src={videoSrc} type="video/mp4" />
+            </video>
+        );
+    }
+
+    // Fallback gradient background when video cannot be loaded
+    const fallbackClass = theme === 'dark' ? 'bg-gradient-to-b from-[#0f1724] via-[#10243a] to-[#17324a]' : theme === 'gradient' ? 'bg-gradient-to-br from-indigo-600 via-sky-500 to-emerald-400' : 'bg-gradient-to-b from-white to-slate-100';
+    return <div className={`absolute inset-0 -z-10 ${fallbackClass}`} />;
 }
 
 

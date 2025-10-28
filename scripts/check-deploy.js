@@ -18,6 +18,12 @@ const checks = [
   { key: 'node', ok: exists(path.join(root, 'node')) || exists(path.join(root, 'node.exe')) },
   { key: '@cloudbase/node-sdk', ok: exists(path.join(root, 'node_modules', '@cloudbase', 'node-sdk')) },
   { key: 'next-standalone', ok: exists(path.join(root, 'server.js')) || exists(path.join(root, '.next')) },
+  { key: 'public/videos', ok: (
+      // Accept either .deploy/public/videos/* or .deploy/videos/* depending on how files were copied
+      (exists(path.join(root, 'public', 'videos', 'light-bg.mp4')) && exists(path.join(root, 'public', 'videos', 'dark-bg.mp4')) && (exists(path.join(root, 'public', 'videos', 'gradient-bg.mp4')) || exists(path.join(root, 'public', 'videos', 'gradient-bg1.mp4'))))
+      ||
+      (exists(path.join(root, 'videos', 'light-bg.mp4')) && exists(path.join(root, 'videos', 'dark-bg.mp4')) && (exists(path.join(root, 'videos', 'gradient-bg.mp4')) || exists(path.join(root, 'videos', 'gradient-bg1.mp4'))))
+    ) },
 ];
 
 let allOk = true;
@@ -28,6 +34,7 @@ for (const c of checks) {
 
 if (!allOk) {
   console.error('\nOne or more required items are missing from the deploy artifact.');
+  console.error('If `public/videos` is missing, ensure your deploy process copies the `public` directory (or use the provided scripts/ci/tencent-build.sh to prepare a .deploy containing public/).');
   process.exit(2);
 }
 
