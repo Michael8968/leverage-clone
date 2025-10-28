@@ -6,7 +6,6 @@ let _app: TcbApp | null = null;
 let _db: TcbDb | null = null;
 
 function requireTCB() {
-  // eslint-disable-next-line no-eval
   const req: NodeRequire = eval('require');
   return req('@cloudbase/node-sdk');
 }

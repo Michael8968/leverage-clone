@@ -421,8 +421,9 @@ export default function IntelligentRoutingModulePage() {
         try {
             const strategyRef = doc('intelligent_routing_strategy', 'main_strategy');
             const docSnap = await getDoc(strategyRef);
-            if (docSnap.exists()) {
-                const data = docSnap.data() as IntelligentRoutingStrategy;
+            const { snapshotExists, snapshotData } = await import('@/lib/snapshot-utils');
+            if (snapshotExists(docSnap)) {
+                const data = snapshotData(docSnap) as IntelligentRoutingStrategy;
                 setStrategy(data);
                 setStrategyText(data.strategyText);
                 setFactors(data.factors || []);
@@ -575,7 +576,11 @@ export default function IntelligentRoutingModulePage() {
                                         <CardTitle className="font-headline text-left">高级路由策略</CardTitle>
                                         <CardDescription className="text-left pt-1">创建带有生效条件的优先策略。系统将按优先级从高到低检查，并执行第一个满足条件的策略。</CardDescription>
                                     </div>
-                                    <Button onClick={(e) => { e.stopPropagation(); setCurrentRule(null); setIsRuleModalOpen(true); }}><PlusCircle className="mr-2 h-4 w-4" />新增策略</Button>
+                                    <Button asChild>
+                                        <div onClick={(e) => { e.stopPropagation(); setCurrentRule(null); setIsRuleModalOpen(true); }}>
+                                            <PlusCircle className="mr-2 h-4 w-4" />新增策略
+                                        </div>
+                                    </Button>
                                 </CardHeader>
                             </AccordionTrigger>
                             <AccordionContent>

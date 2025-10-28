@@ -17,6 +17,7 @@ import { Logo } from '@/components/logo';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthStore } from '@/store/auth';
+import { useEffect } from 'react';
 
 // Firebase 客户端已移除，使用自研 JWT 登录
 import type { User } from '@/lib/types';
@@ -139,6 +140,8 @@ function LoginContent() {
               立即注册
             </Link>
           </div>
+          {/* 开发环境快速登录入口（仅在本地开发可见） */}
+          <DevQuickLogin />
         </CardContent>
       </Card>
   )
@@ -189,6 +192,77 @@ export default function LoginPage() {
         <Suspense fallback={<LoginFormSkeleton />}>
             <LoginContent />
         </Suspense>
+      </div>
+    </div>
+  );
+}
+
+// 开发专用：快速登录按钮，便于本地测试（仅在 development 环境或 localhost 可见）
+function DevQuickLogin() {
+  const [accounts, setAccounts] = useState<Record<string, any[]>>({});
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (!isLocal && process.env.NODE_ENV !== 'development') return;
+
+    (async () => {
+      try {
+        const res = await fetch('/api/dev/test-accounts');
+        if (!res.ok) return;
+        const json = await res.json();
+        setAccounts(json.credentials || {});
+      } catch (e) {
+        // ignore
+      }
+    })();
+  }, []);
+
+  const handleQuickLogin = async (role: string) => {
+    const list = accounts[role];
+    if (!list || list.length === 0) {
+      toast({ title: '未找到测试账号', description: `没有可用的 ${role} 测试账号。`, variant: 'destructive' });
+      return;
+    }
+    const acc = list[0];
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: acc.email, password: acc.password }) });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || '登录失败');
+      const { token, user } = json;
+      localStorage.setItem('auth_token', token);
+      // update global user store
+      (useAuthStore.getState().setUser as any)(user, user.role);
+      toast({ title: '快速登录成功', description: `已以 ${role} 身份登录` });
+      // redirect
+      const redirectPath = getRedirectPath(user.role);
+      router.push(redirectPath);
+    } catch (e: any) {
+      toast({ title: '快速登录失败', description: e?.message || String(e), variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 只在本地或开发环境展示（生产环境强制禁用）
+  if (typeof window === 'undefined') return null;
+  const isDev = process.env.NODE_ENV === 'development';
+  const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const canShow = isDev || isLocalHost;
+  if (!canShow) return null;
+
+  return (
+    <div className="mt-4 border-t pt-4 text-sm">
+      <p className="text-muted-foreground mb-2">开发调试: 快速登录测试账号</p>
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={() => handleQuickLogin('admin')} disabled={loading}>Admin</Button>
+        <Button variant="outline" size="sm" onClick={() => handleQuickLogin('creator')} disabled={loading}>Creator</Button>
+        <Button variant="outline" size="sm" onClick={() => handleQuickLogin('supplier')} disabled={loading}>Supplier</Button>
+        <Button variant="outline" size="sm" onClick={() => handleQuickLogin('user')} disabled={loading}>User</Button>
       </div>
     </div>
   );

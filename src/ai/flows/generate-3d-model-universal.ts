@@ -298,6 +298,7 @@ export async function get3DModelTaskStatus(
 // 导出支持的提供商列表
 // =================================================================
 
-export function getSupportedProviders(): string[] {
+export async function getSupportedProviders(): Promise<string[]> {
+  // 保持为 async，符合 Next.js Server Actions 的要求
   return Object.keys(ADAPTERS);
 }

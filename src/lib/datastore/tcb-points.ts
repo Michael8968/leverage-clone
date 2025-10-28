@@ -5,7 +5,6 @@ import type { PointsStore } from './types';
 
 function getTCB() {
   // Lazy require to avoid build-time resolution
-  // eslint-disable-next-line no-eval
   const req: NodeRequire = eval('require');
   return req('@cloudbase/node-sdk');
 }

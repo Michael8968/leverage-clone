@@ -335,6 +335,8 @@ const Lightbox = ({ image, onClose }: { image: ProductImage; onClose: () => void
     const imgRef = useRef<HTMLImageElement | HTMLVideoElement>(null);
     const isDragging = useRef(false);
     const lastMousePosition = useRef({ x: 0, y: 0 });
+    // 使用 state 而非 ref.current 用于渲染时的光标判断
+    const [cursorStyle, setCursorStyle] = useState<'grab' | 'grabbing'>('grab');
 
     const handleWheel = (e: React.WheelEvent) => {
         e.preventDefault();
@@ -344,11 +346,13 @@ const Lightbox = ({ image, onClose }: { image: ProductImage; onClose: () => void
 
     const handleMouseDown = (e: React.MouseEvent) => {
         isDragging.current = true;
+        setCursorStyle('grabbing');
         lastMousePosition.current = { x: e.clientX, y: e.clientY };
     };
     
     const handleMouseUp = () => {
         isDragging.current = false;
+        setCursorStyle('grab');
     };
 
     const handleMouseMove = (e: React.MouseEvent) => {
@@ -370,7 +374,7 @@ const Lightbox = ({ image, onClose }: { image: ProductImage; onClose: () => void
                 onMouseUp={handleMouseUp}
                 onMouseMove={handleMouseMove}
                 onMouseLeave={handleMouseUp}
-                style={{ cursor: isDragging.current ? 'grabbing' : 'grab' }}
+                style={{ cursor: cursorStyle }}
             >
                 <div className="w-full h-full overflow-hidden flex items-center justify-center">
                     {isVideo ? (

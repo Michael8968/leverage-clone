@@ -6,7 +6,6 @@
  */
 
 import { z } from 'zod';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const { getOpenAIForHunyuan } = require('@/utils/openai-hunyuan');
 import type { User, IntelligentRoutingStrategy } from '@/lib/types';
 import { format } from 'date-fns';

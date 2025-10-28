@@ -28,7 +28,7 @@ const formSchema = z.object({
   name: z.string().min(2, { message: "姓名必须至少包含2个字符。" }),
   email: z.string().email({ message: "请输入有效的电子邮件地址。" }),
   password: z.string().min(6, { message: "密码必须至少包含6个字符。" }),
-  role: z.enum(["user", "creator", "supplier"], { required_error: "请选择一个角色。" }),
+  role: z.enum(["user", "creator", "supplier", "admin"], { required_error: "请选择一个角色。" }),
   gender: z.enum(["male", "female", "other"], { required_error: "请选择您的性别。" }),
   acceptedTerms: z.boolean().default(false).refine(val => val === true, {
     message: '您必须同意用户服务协议和隐私政策才能继续。'
@@ -163,6 +163,7 @@ export default function RegisterPage() {
                             <SelectItem value="user">用户</SelectItem>
                             <SelectItem value="creator">创意者</SelectItem>
                             <SelectItem value="supplier">供应商</SelectItem>
+                            <SelectItem value="admin">平台管理员</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />

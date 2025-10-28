@@ -80,6 +80,12 @@ const nextConfig = {
       },
       {
         protocol: 'https',
+        hostname: 'example.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
         hostname: 'i.pravatar.cc',
         port: '',
         pathname: '/**',

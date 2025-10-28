@@ -12,6 +12,7 @@ import { Building, FileCog, Frown, Loader2, CalendarIcon, Package } from 'lucide
 import { DataProcessor } from '@/components/features/data-processor';
 import { useAuthStore } from '@/store/auth';
 import { doc, getDoc, setDoc, Timestamp } from '@/lib/cloudbase-compat';
+import { snapshotExists, snapshotData } from '@/lib/snapshot-utils';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -72,9 +73,9 @@ function CompanyInfoForm() {
       try {
         const supplierDocRef = doc('suppliers', user.uid) as any;
         const docSnap = await getDoc(supplierDocRef as any);
-        const hasData = !!(docSnap && (docSnap.data || (typeof docSnap.exists === 'function' ? docSnap.exists() : docSnap.exists)));
+        const hasData = !!(docSnap && (docSnap.data || snapshotExists(docSnap)));
         if (hasData) {
-          const supplierData = (typeof docSnap.data === 'function' ? docSnap.data() : docSnap) as any as Supplier;
+          const supplierData = snapshotData(docSnap) as any as Supplier;
 
           const sanitizedData: { [key: string]: any } = {};
           for (const key in supplierData) {

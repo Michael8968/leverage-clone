@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { collection, query, where, getDocs, orderBy, limit, doc, updateDoc, addDoc, serverTimestamp, getDoc, Timestamp, writeBatch } from '@/lib/cloudbase-compat';
 import type { LlmConnection, Prompt } from '@/lib/types';
 // 使用 OpenAI 兼容的混元适配
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const { getOpenAIForHunyuan } = require('@/utils/openai-hunyuan');
 
 

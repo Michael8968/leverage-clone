@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState, useRef, useEffect, useTransition } from 'react';
+import { useState, useRef, useEffect, useTransition, useMemo } from 'react';
 import { useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -57,28 +57,23 @@ type FormValues = z.infer<typeof formSchema>;
 // New component for the dynamic video background
 function DynamicVideoBackground() {
   const { theme } = useTheme();
-  const [videoSrc, setVideoSrc] = useState('/videos/dark-bg.mp4');
-
-  useEffect(() => {
-    // We need to check if the component is mounted to avoid SSR issues with theme
+  
+  // 使用 useMemo 计算视频源,避免在 effect 中同步 setState
+  const videoSrc = useMemo(() => {
     switch (theme) {
       case 'light':
-        setVideoSrc('/videos/light-bg.mp4');
-        break;
+        return '/videos/light-bg.mp4';
       case 'dark':
-        setVideoSrc('/videos/dark-bg.mp4');
-        break;
+        return '/videos/dark-bg.mp4';
       case 'gradient':
-        setVideoSrc('/videos/gradient-bg.mp4');
-        break;
+        return '/videos/gradient-bg.mp4';
       default:
         // Fallback for system theme or initial load
         if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          setVideoSrc('/videos/dark-bg.mp4');
+          return '/videos/dark-bg.mp4';
         } else {
-          setVideoSrc('/videos/light-bg.mp4');
+          return '/videos/light-bg.mp4';
         }
-        break;
     }
   }, [theme]);
 
