@@ -1,8 +1,23 @@
-# **项目发布与部署指南 (Firebase Studio)**
+# ⚠️ **已弃用 - Firebase 部署指南**
 
-**版本**: 1.1
-**日期**: 2025年9月30日
-**目的**: 本文档为基于 Next.js、Firebase 和 Genkit 的全栈 AI 应用，提供一个通过 Firebase Studio 进行发布和部署的详细技术参考。
+> **📌 状态**: 本文档已过时  
+> **迁移日期**: 2025年10月  
+> **新部署方式**: 请参阅以下文档：
+> - **快速部署**: [`TCB_QUICK_DEPLOY_GUIDE.md`](../TCB_QUICK_DEPLOY_GUIDE.md)
+> - **完整方案**: [`TCB_DEPLOYMENT_SOLUTION.md`](../TCB_DEPLOYMENT_SOLUTION.md)
+> - **检查清单**: [`TCB_DEPLOYMENT_CHECKLIST.md`](../TCB_DEPLOYMENT_CHECKLIST.md)
+> 
+> **保留原因**: 供历史参考，了解原 Firebase 架构
+
+---
+
+# **项目发布与部署指南 (Firebase Studio) - 已弃用**
+
+**版本**: 1.1 (已过时)  
+**日期**: 2025年9月30日  
+**目的**: ~~本文档为基于 Next.js、Firebase 和 Genkit 的全栈 AI 应用，提供一个通过 Firebase Studio 进行发布和部署的详细技术参考。~~
+
+**⚠️ 注意**: 项目已迁移至腾讯云 CloudBase (TCB)，本文档内容不再适用于当前架构。
 
 ---
 

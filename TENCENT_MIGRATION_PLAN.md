@@ -1,6 +1,20 @@
 # 腾讯云全面迁移方案（从 Firebase/Firestore/云函数）
 
+> **📌 迁移状态**: ✅ **已完成** (2025年10月28日)  
+> **本文档用途**: 迁移计划历史记录，供参考  
+> **最终架构**: 纯 TCB (Tencent CloudBase)，无 Firebase 依赖  
+> **相关文档**: 
+> - 迁移验证报告: [`VERIFICATION_REPORT.md`](./VERIFICATION_REPORT.md)
+> - 后端迁移笔记: [`BACKEND_MIGRATION_NOTES.md`](./BACKEND_MIGRATION_NOTES.md)
+> - TCB 部署指南: [`TCB_QUICK_DEPLOY_GUIDE.md`](./TCB_QUICK_DEPLOY_GUIDE.md)
+
+---
+
 本方案目标：将现有功能从 Firebase 生态（Auth、Firestore、Storage、Functions 等）平滑迁移至腾讯云（CloudBase/SCF/COS/数据库 等），在最小改动前提下保持功能一致，逐步替换底层服务。
+
+**✅ 迁移已完成，以下为原计划内容（供历史参考）**
+
+---
 
 ## 总体路线
 

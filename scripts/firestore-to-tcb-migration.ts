@@ -1,9 +1,17 @@
 #!/usr/bin/env node
 
 /**
+ * ⚠️ DEPRECATED - 迁移已完成 (2025年10月)
+ * 
  * Firestore to Tencent CloudBase (TCB) Data Migration Tool
  * 
- * Usage:
+ * 本脚本用于 Firebase → TCB 的历史迁移。迁移已于 2025年10月完成。
+ * 此文件保留仅供：
+ *   - 参考历史迁移过程
+ *   - 紧急数据回滚（需要 FIREBASE_SERVICE_ACCOUNT_KEY）
+ *   - 新环境的数据同步（需重新配置）
+ * 
+ * 原用法:
  *   # Export Firestore data to JSON
  *   npx ts-node scripts/firestore-to-tcb-migration.ts --action export --output data-export.json
  *   
