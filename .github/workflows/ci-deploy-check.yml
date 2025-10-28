@@ -36,22 +36,17 @@ jobs:
             echo "Dockerfile OK: node_modules will be included in runtime image.";
           fi
 
-      - name: Create .deploy artifact for check (if standalone exists)
+      - name: Prepare .deploy and create ZIP
         run: |
-          mkdir -p .deploy || true
-          # If next produced standalone output, copy minimal runtime files to .deploy for check
-          if [ -d .next/standalone ]; then
-            rsync -a .next/standalone/ .deploy/ || true
-          fi
-          cp -f package.json .deploy/package.json || true
+          chmod +x ./scripts/ci/deploy-prepare.sh || true
+          ./scripts/ci/deploy-prepare.sh
 
-      - name: Install production deps into .deploy (safety)
-        run: |
-          npm --prefix .deploy ci --production || true
-
-      - name: Run deploy checks
-        run: |
-          node scripts/check-deploy.js .deploy || (echo "Deploy check failed" && exit 2)
+      - name: Upload .deploy.zip artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-zip
+          path: .deploy.zip
 
       - name: Upload artifact (optional)
         if: always()
