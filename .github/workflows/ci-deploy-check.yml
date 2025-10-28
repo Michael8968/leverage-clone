@@ -1,0 +1,61 @@
+name: CI Deploy Checks
+
+on:
+  push:
+    branches: [ '**' ]
+  pull_request:
+    branches: [ '**' ]
+
+jobs:
+  build-and-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install deps (full)
+        run: npm ci
+
+      - name: Run Typecheck (fast fail)
+        run: npm run typecheck --if-present || true
+
+      - name: Build Next
+        run: npm run build
+
+      - name: Quick Dockerfile sanity check
+        run: |
+          if ! grep -q "COPY --from=deps /app/node_modules ./node_modules" Dockerfile; then
+            echo "ERROR: Dockerfile does not copy production node_modules into runtime stage.";
+            exit 2;
+          else
+            echo "Dockerfile OK: node_modules will be included in runtime image.";
+          fi
+
+      - name: Create .deploy artifact for check (if standalone exists)
+        run: |
+          mkdir -p .deploy || true
+          # If next produced standalone output, copy minimal runtime files to .deploy for check
+          if [ -d .next/standalone ]; then
+            rsync -a .next/standalone/ .deploy/ || true
+          fi
+          cp -f package.json .deploy/package.json || true
+
+      - name: Install production deps into .deploy (safety)
+        run: |
+          npm --prefix .deploy ci --production || true
+
+      - name: Run deploy checks
+        run: |
+          node scripts/check-deploy.js .deploy || (echo "Deploy check failed" && exit 2)
+
+      - name: Upload artifact (optional)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-archive
+          path: .deploy

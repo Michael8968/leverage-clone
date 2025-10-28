@@ -5,8 +5,18 @@ import type { PointsStore } from './types';
 
 function getTCB() {
   // Lazy require to avoid build-time resolution
-  const req: NodeRequire = eval('require');
-  return req('@cloudbase/node-sdk');
+  try {
+    const req: NodeRequire = eval('require');
+    return req('@cloudbase/node-sdk');
+  } catch (err: any) {
+    const msg = "Cannot find module '@cloudbase/node-sdk'.\n" +
+      "This module must be installed in production (it's externalized during build).\n" +
+      "Install it in your deployment target, e.g.: `npm install --production @cloudbase/node-sdk`.\n" +
+      (err && err.message ? '\nOriginal error: ' + err.message : '');
+    const e = new Error(msg);
+    (e as any).original = err;
+    throw e;
+  }
 }
 
 function initTCB() {
