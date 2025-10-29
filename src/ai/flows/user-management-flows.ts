@@ -8,6 +8,8 @@ import { collection, doc, writeBatch, getDocs, query, where, updateDoc, incremen
 import { db } from '@/lib/firebase';
 import { getAdminAuth } from '@/lib/firebase-admin';
 import type { User, AssistantRule, PointsTransaction, PointsApprovalConfig } from '@/lib/types';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 
 // =================================================================
@@ -60,7 +62,25 @@ export const batchUpdateUsers = ai.defineFlow(
             }
         });
 
-        await batch.commit();
+        try {
+            await batch.commit();
+        } catch (serverError: any) {
+            // This is the new error handling part
+            if (serverError.code === 'permission-denied') {
+                const permissionError = new FirestorePermissionError({
+                    path: `users (batch update)`, // Batch updates affect multiple paths
+                    operation: 'update',
+                    requestResourceData: {
+                        userIds,
+                        updates,
+                    },
+                });
+                errorEmitter.emit('permission-error', permissionError);
+            }
+            // Re-throw original error to notify client of failure, but without crashing.
+            // The rich error is now visible in the dev overlay.
+            throw new Error(`批量更新失败: ${serverError.message}`);
+        }
     }
 );
 
@@ -68,6 +88,16 @@ export const batchUpdateUsers = ai.defineFlow(
 // =================================================================
 // Flow to get all public designer profiles
 // =================================================================
+export const getUsersForAdmin = ai.defineFlow(
+    { name: 'getUsersForAdmin', inputSchema: z.null().optional(), outputSchema: z.any() },
+    async () => {
+        const usersCollection = collection(db, 'users');
+        const usersSnapshot = await getDocs(usersCollection);
+        const users = usersSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
+        return { users };
+    }
+);
+
 
 const DesignerProfileSchema = z.object({
     uid: z.string(),
