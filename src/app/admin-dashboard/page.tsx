@@ -164,7 +164,10 @@ function LlmConnectionForm({ llm, onSave, onCancel, onTest, isTesting }: {
 
     useEffect(() => {
         getPlatformAssets().then(assets => {
+            console.log('Platform assets loaded:', assets);
             setProviders(assets.providers);
+        }).catch(error => {
+            console.error('Failed to load platform assets:', error);
         });
     }, []);
 

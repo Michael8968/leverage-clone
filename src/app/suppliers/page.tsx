@@ -89,7 +89,23 @@ function CompanyInfoForm() {
           setSupplementaryFields(supplierData.supplementaryFields || []);
         }
       } catch (error) {
-        toast({ title: "加载失败", description: "无法加载您的公司信息。", variant: "destructive" });
+        console.error('供应商信息加载错误:', error);
+        const errorMessage = error instanceof Error ? error.message : '未知错误';
+        let friendlyMessage = '无法加载您的公司信息。';
+
+        if (errorMessage.includes('permission-denied') || errorMessage.includes('权限')) {
+          friendlyMessage = '权限不足：请确认您已登录供应商账号，或联系管理员获取相应权限。';
+        } else if (errorMessage.includes('network') || errorMessage.includes('网络')) {
+          friendlyMessage = '网络连接问题：请检查网络连接后重试。';
+        } else if (errorMessage.includes('not-found') || errorMessage.includes('未找到')) {
+          friendlyMessage = '数据未找到：您可能还没有完善公司信息，请先填写基本信息。';
+        }
+
+        toast({
+          title: "加载供应商信息失败",
+          description: friendlyMessage,
+          variant: "destructive"
+        });
       } finally {
         setIsLoading(false);
       }
@@ -126,7 +142,25 @@ function CompanyInfoForm() {
   await setDoc(supplierDocRef as any, dataToSave, { merge: true } as any);
       toast({ title: "保存成功", description: "您的公司信息已更新。" });
     } catch (error) {
-      toast({ title: "保存失败", description: `更新公司信息时出错: ${(error as Error).message}`, variant: "destructive" });
+      console.error('供应商信息保存错误:', error);
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      let friendlyMessage = '更新公司信息时出错，请稍后重试。';
+
+      if (errorMessage.includes('permission-denied') || errorMessage.includes('权限')) {
+        friendlyMessage = '权限不足：无法保存信息，请确认您的账号权限。';
+      } else if (errorMessage.includes('network') || errorMessage.includes('网络')) {
+        friendlyMessage = '网络连接问题：请检查网络连接后重试。';
+      } else if (errorMessage.includes('validation') || errorMessage.includes('验证')) {
+        friendlyMessage = '数据验证失败：请检查输入信息的格式是否正确。';
+      } else if (errorMessage.includes('quota') || errorMessage.includes('配额')) {
+        friendlyMessage = '存储配额不足：请联系管理员或清理不需要的数据。';
+      }
+
+      toast({
+        title: "保存失败",
+        description: friendlyMessage,
+        variant: "destructive"
+      });
     } finally {
       setIsSubmitting(false);
     }

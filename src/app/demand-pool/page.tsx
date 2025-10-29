@@ -128,7 +128,20 @@ function CreateDemandDialog({ open, onOpenChange, onDemandCreated }: {
             form.reset();
         } catch (error) {
             console.error("Error creating demand:", error);
-            toast({ title: "发布失败", description: "创建需求时发生错误，请重试。", variant: "destructive" });
+            const errorMessage = error instanceof Error ? error.message : '未知错误';
+            let friendlyMessage = '发布需求失败，请重试。';
+
+            if (errorMessage.includes('permission-denied') || errorMessage.includes('权限')) {
+              friendlyMessage = '权限不足：只有用户和管理员可以发布需求。';
+            } else if (errorMessage.includes('validation') || errorMessage.includes('验证')) {
+              friendlyMessage = '数据验证失败：请检查输入信息的格式和完整性。';
+            } else if (errorMessage.includes('network') || errorMessage.includes('网络')) {
+              friendlyMessage = '网络连接问题：请检查网络连接后重试。';
+            } else if (errorMessage.includes('quota') || errorMessage.includes('配额')) {
+              friendlyMessage = '发布配额不足：请稍后重试或联系技术支持。';
+            }
+
+            toast({ title: "发布失败", description: friendlyMessage, variant: "destructive" });
         } finally {
             setIsSubmitting(false);
         }
@@ -195,9 +208,22 @@ export default function DemandPoolPage() {
       setDemands(demandsList);
     } catch (error) {
       console.error("Error fetching demands:", error);
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      let friendlyMessage = '无法加载需求列表，请稍后重试。';
+
+      if (errorMessage.includes('permission-denied') || errorMessage.includes('权限')) {
+        friendlyMessage = '权限不足：无法访问需求数据，请联系管理员。';
+      } else if (errorMessage.includes('network') || errorMessage.includes('网络')) {
+        friendlyMessage = '网络连接问题：无法连接到服务器，请检查网络连接。';
+      } else if (errorMessage.includes('not-found') || errorMessage.includes('未找到')) {
+        friendlyMessage = '数据服务暂时不可用：需求池功能暂时无法使用。';
+      } else if (errorMessage.includes('quota') || errorMessage.includes('配额')) {
+        friendlyMessage = '服务配额不足：请稍后重试或联系技术支持。';
+      }
+
       toast({
-        title: '加载失败',
-        description: '无法加载需求列表。',
+        title: '需求加载失败',
+        description: friendlyMessage,
         variant: 'destructive',
       });
     } finally {
@@ -211,7 +237,16 @@ export default function DemandPoolPage() {
         setAvailablePrompts(promptsData.prompts);
     } catch(error) {
         console.error("Error fetching dialog data:", error);
-        toast({ title: '加载提示词失败', variant: 'destructive'});
+        const errorMessage = error instanceof Error ? error.message : '未知错误';
+        let friendlyMessage = '无法加载AI提示词配置，将使用默认匹配逻辑。';
+
+        if (errorMessage.includes('permission-denied') || errorMessage.includes('权限')) {
+          friendlyMessage = '权限不足：AI提示词功能需要管理员权限。';
+        } else if (errorMessage.includes('network') || errorMessage.includes('网络')) {
+          friendlyMessage = '网络连接问题：AI提示词加载失败，使用默认逻辑。';
+        }
+
+        toast({ title: '提示词加载失败', description: friendlyMessage, variant: 'destructive'});
     }
   }, [toast]);
 
@@ -258,7 +293,20 @@ export default function DemandPoolPage() {
 
     } catch (error) {
       console.error("AI recommendation failed:", error);
-      toast({ title: 'AI匹配失败', description: '执行AI匹配时发生错误。', variant: 'destructive' });
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      let friendlyMessage = 'AI匹配功能暂时不可用，请稍后重试。';
+
+      if (errorMessage.includes('permission-denied') || errorMessage.includes('权限')) {
+        friendlyMessage = '权限不足：AI匹配功能需要管理员权限。';
+      } else if (errorMessage.includes('network') || errorMessage.includes('网络')) {
+        friendlyMessage = '网络连接问题：无法连接到AI服务，请检查网络连接。';
+      } else if (errorMessage.includes('quota') || errorMessage.includes('配额')) {
+        friendlyMessage = 'AI服务配额不足：请稍后重试或联系技术支持。';
+      } else if (errorMessage.includes('timeout') || errorMessage.includes('超时')) {
+        friendlyMessage = 'AI匹配超时：请简化需求描述后重试。';
+      }
+
+      toast({ title: 'AI匹配失败', description: friendlyMessage, variant: 'destructive' });
     } finally {
       setIsAiMatching(false);
     }
@@ -284,7 +332,19 @@ export default function DemandPoolPage() {
         toast({ title: '抢单成功！', description: '您已成功接受该需求，可以开始沟通了。' });
         fetchAllData();
     } catch(error) {
-        toast({ title: '操作失败', variant: 'destructive' });
+        console.error("Error accepting demand:", error);
+        const errorMessage = error instanceof Error ? error.message : '未知错误';
+        let friendlyMessage = '抢单操作失败，请重试。';
+
+        if (errorMessage.includes('permission-denied') || errorMessage.includes('权限')) {
+          friendlyMessage = '权限不足：只有供应商和创意者可以抢单。';
+        } else if (errorMessage.includes('already-exists') || errorMessage.includes('已存在')) {
+          friendlyMessage = '该需求已被其他供应商接受，请选择其他需求。';
+        } else if (errorMessage.includes('network') || errorMessage.includes('网络')) {
+          friendlyMessage = '网络连接问题：请检查网络连接后重试。';
+        }
+
+        toast({ title: '抢单失败', description: friendlyMessage, variant: 'destructive' });
     }
   };
 

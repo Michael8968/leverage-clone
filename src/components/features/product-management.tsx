@@ -40,7 +40,25 @@ export function ProductManagement({ userType }: { userType: 'supplier' | 'creato
             const rows = (snapshot.data || []).filter((d: any) => d && d[fieldToQuery] === user.uid).map((d: any) => ({ ...(d || {}), id: d._id || d.id } as ProductService));
             setProducts(rows);
         } catch (error) {
-            toast({ title: "错误", description: "无法加载您的产品数据。", variant: "destructive" });
+            console.error('产品数据加载错误:', error);
+            const errorMessage = error instanceof Error ? error.message : '未知错误';
+            let friendlyMessage = '无法加载您的产品数据。';
+
+            if (errorMessage.includes('permission-denied') || errorMessage.includes('权限')) {
+              friendlyMessage = '权限不足：请确认您已登录正确的账号，或联系管理员获取相应权限。';
+            } else if (errorMessage.includes('network') || errorMessage.includes('网络')) {
+              friendlyMessage = '网络连接问题：请检查网络连接后重试。';
+            } else if (errorMessage.includes('not-found') || errorMessage.includes('未找到')) {
+              friendlyMessage = '暂无产品数据：您还没有添加任何产品，请点击"添加新产品"开始。';
+            } else if (errorMessage.includes('timeout') || errorMessage.includes('超时')) {
+              friendlyMessage = '加载超时：数据量较大，请稍后重试或联系技术支持。';
+            }
+
+            toast({
+              title: "产品数据加载失败",
+              description: friendlyMessage,
+              variant: "destructive"
+            });
         } finally {
             setIsLoading(false);
         }
@@ -68,7 +86,23 @@ export function ProductManagement({ userType }: { userType: 'supplier' | 'creato
             setProducts(prev => [{ ...newProductData, id: newId, createdAt: new Date() } as ProductService, ...prev]);
             toast({ title: "成功", description: "新产品已添加，请继续编辑。" });
         } catch (error) {
-            toast({ title: "错误", description: "添加新产品失败。", variant: "destructive" });
+            console.error('添加产品错误:', error);
+            const errorMessage = error instanceof Error ? error.message : '未知错误';
+            let friendlyMessage = '添加新产品失败，请稍后重试。';
+
+            if (errorMessage.includes('permission-denied') || errorMessage.includes('权限')) {
+              friendlyMessage = '权限不足：无法创建新产品，请确认您的账号权限。';
+            } else if (errorMessage.includes('network') || errorMessage.includes('网络')) {
+              friendlyMessage = '网络连接问题：请检查网络连接后重试。';
+            } else if (errorMessage.includes('quota') || errorMessage.includes('配额')) {
+              friendlyMessage = '存储配额不足：请联系管理员或删除不需要的产品。';
+            }
+
+            toast({
+              title: "添加产品失败",
+              description: friendlyMessage,
+              variant: "destructive"
+            });
         }
     };
 
@@ -78,7 +112,25 @@ export function ProductManagement({ userType }: { userType: 'supplier' | 'creato
                 await updateDoc(productRef as any, data);
             setProducts(prev => prev.map((p: ProductService) => (p.id === id ? { ...p, ...data } : p)));
         } catch (error) {
-            toast({ title: "错误", description: "更新产品失败。", variant: "destructive" });
+            console.error('更新产品错误:', error);
+            const errorMessage = error instanceof Error ? error.message : '未知错误';
+            let friendlyMessage = '更新产品失败，请稍后重试。';
+
+            if (errorMessage.includes('permission-denied') || errorMessage.includes('权限')) {
+              friendlyMessage = '权限不足：无法修改产品信息，请确认您的账号权限。';
+            } else if (errorMessage.includes('network') || errorMessage.includes('网络')) {
+              friendlyMessage = '网络连接问题：请检查网络连接后重试。';
+            } else if (errorMessage.includes('validation') || errorMessage.includes('验证')) {
+              friendlyMessage = '数据验证失败：请检查输入信息的格式是否正确。';
+            } else if (errorMessage.includes('not-found') || errorMessage.includes('未找到')) {
+              friendlyMessage = '产品不存在：该产品可能已被删除，请刷新页面。';
+            }
+
+            toast({
+              title: "更新产品失败",
+              description: friendlyMessage,
+              variant: "destructive"
+            });
         }
     }, [toast]);
 
@@ -89,7 +141,25 @@ export function ProductManagement({ userType }: { userType: 'supplier' | 'creato
             setProducts(prev => prev.filter(p => p.id !== id));
             toast({ title: "成功", description: "产品已删除。" });
         } catch (error) {
-            toast({ title: "错误", description: "删除产品失败。", variant: "destructive" });
+            console.error('删除产品错误:', error);
+            const errorMessage = error instanceof Error ? error.message : '未知错误';
+            let friendlyMessage = '删除产品失败，请稍后重试。';
+
+            if (errorMessage.includes('permission-denied') || errorMessage.includes('权限')) {
+              friendlyMessage = '权限不足：无法删除产品，请确认您的账号权限。';
+            } else if (errorMessage.includes('network') || errorMessage.includes('网络')) {
+              friendlyMessage = '网络连接问题：请检查网络连接后重试。';
+            } else if (errorMessage.includes('not-found') || errorMessage.includes('未找到')) {
+              friendlyMessage = '产品不存在：该产品可能已被删除，请刷新页面。';
+            } else if (errorMessage.includes('referenced') || errorMessage.includes('引用')) {
+              friendlyMessage = '无法删除：该产品正在被其他记录引用，请先解除引用关系。';
+            }
+
+            toast({
+              title: "删除产品失败",
+              description: friendlyMessage,
+              variant: "destructive"
+            });
         }
     };
 

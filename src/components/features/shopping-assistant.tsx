@@ -207,10 +207,21 @@ export function ShoppingAssistant() {
 
 
             } catch (error) {
-                console.error("Failed to fetch initial data:", error);
+                console.error("AI场景数据加载失败:", error);
+                const errorMessage = error instanceof Error ? error.message : '未知错误';
+                let friendlyMessage = '无法加载AI场景数据，部分功能可能受限。';
+
+                if (errorMessage.includes('permission-denied') || errorMessage.includes('权限')) {
+                  friendlyMessage = '权限不足：无法加载AI场景配置，请联系管理员。';
+                } else if (errorMessage.includes('network') || errorMessage.includes('网络')) {
+                  friendlyMessage = '网络连接问题：AI场景功能暂时不可用，请稍后重试。';
+                } else if (errorMessage.includes('not-found') || errorMessage.includes('未找到')) {
+                  friendlyMessage = 'AI场景配置缺失：系统暂无智能场景配置，将使用默认推荐模式。';
+                }
+
                 toast({
-                    title: '数据加载失败',
-                    description: '无法加载核心数据，部分功能可能受限。',
+                    title: 'AI场景加载失败',
+                    description: friendlyMessage,
                     variant: 'destructive',
                 });
             }
