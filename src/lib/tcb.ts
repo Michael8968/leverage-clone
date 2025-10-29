@@ -80,6 +80,15 @@ export function getTcbApp(): TcbApp {
               }
             })
           }),
+          get: async () => {
+            // Direct get() method to retrieve all records
+            let all: any[] = [];
+            for (const f of readFileForQuery) {
+              const d = readJson(f);
+              if (Array.isArray(d)) all = all.concat(d);
+            }
+            return { data: all };
+          },
           add: async (doc: any) => {
             // always append new users to local-seeded-users.json to avoid overwriting example users.json
             const target = name === 'users' ? 'local-seeded-users.json' : file;

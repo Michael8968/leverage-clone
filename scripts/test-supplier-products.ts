@@ -359,10 +359,10 @@ async function testSupplierModule() {
   console.log('─────────────────────────────────────────────────────────────────\n');
 
   // 打印结果
-  printResults(results);
+  printResultsForSupplier(results);
 }
 
-function printResults(results: any[]) {
+function printResultsForSupplier(results: any[]) {
   console.log('╔═══════════════════════════════════════════════════════════════╗');
   console.log('║                        测试摘要                               ║');
   console.log('╚═══════════════════════════════════════════════════════════════╝\n');

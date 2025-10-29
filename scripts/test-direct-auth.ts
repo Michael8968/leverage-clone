@@ -180,10 +180,10 @@ async function testDirectAuth() {
     results.push({ name: '重复邮箱验证', passed: false, message: error.message });
   }
 
-  printResults(results);
+  printResultsForDirectAuth(results);
 }
 
-function printResults(results: any[]) {
+function printResultsForDirectAuth(results: any[]) {
   console.log('╔════════════════════════════════════════════════════════════╗');
   console.log('║   测试摘要                                                 ║');
   console.log('╚════════════════════════════════════════════════════════════╝\n');

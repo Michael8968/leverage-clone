@@ -187,10 +187,10 @@ async function testHttpApis() {
   console.log('─────────────────────────────────────────────────────────────────\n');
 
   // 打印结果
-  printResults(results);
+  printResultsForHttpApis(results);
 }
 
-function printResults(results: any[]) {
+function printResultsForHttpApis(results: any[]) {
   console.log('╔═══════════════════════════════════════════════════════════════╗');
   console.log('║                        测试摘要                               ║');
   console.log('╚═══════════════════════════════════════════════════════════════╝\n');

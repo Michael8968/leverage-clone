@@ -5,32 +5,43 @@ import { collection, query, where, getDocs, orderBy, limit, doc, updateDoc, addD
 import type { LlmConnection, Prompt } from '@/lib/types';
 // 使用 OpenAI 兼容的混元适配
 const { getOpenAIForHunyuan } = require('@/utils/openai-hunyuan');
+import OpenAI from 'openai';
+import { getTcbDb } from '@/lib/tcb';
 
 
 // Hardcoded platform assets. In a real-world scenario, this might come from a configuration file or a database.
 const PLATFORM_ASSETS = {
     providers: [
-        { providerName: "Google", models: ["gemini-1.5-pro-latest", "gemini-1.5-flash-latest", "gemini-pro", "gemini-pro-vision"], apiBaseUrl: "https://generativelanguage.googleapis.com/v1beta/models" },
-        { providerName: "OpenAI", models: ["gpt-4o", "gpt-4-turbo", "gpt-4", "gpt-4-turbo-preview", "gpt-3.5-turbo", "gpt-3.5-turbo-instruct"], apiBaseUrl: "https://api.openai.com/v1" },
-        { providerName: "DeepSeek", models: ["deepseek-chat", "deepseek-coder"], apiBaseUrl: "https://api.deepseek.com/v1" },
-        { providerName: "Tencent", models: ["hunyuan-standard", "hunyuan-pro"], apiBaseUrl: "https://hunyuan.tencentcloudapi.com" },
-        { 
-            providerName: "LiteLLM", 
-            models: [
-                "groq/llama3-70b-8192", 
-                "groq/llama3-8b-8192",
-                "groq/gemma-7b-it",
-                "ollama/llama3", 
-                "anthropic/claude-3-opus-20240229",
-                "anthropic/claude-3-sonnet-20240229",
-                "anthropic/claude-3-haiku-20240307"
-            ], 
-            apiBaseUrl: process.env.LITELLM_PROXY_URL || "http://localhost:4000/v1" 
-        },
-        { providerName: "Moonshot", models: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"], apiBaseUrl: "https://api.moonshot.cn/v1" },
-        { providerName: "Baichuan", models: ["Baichuan2-Turbo", "Baichuan2-Turbo-192k", "Baichuan-Text-Embedding"], apiBaseUrl: "https://api.baichuan-ai.com/v1" },
-        { providerName: "Zhipu", models: ["glm-4", "glm-3-turbo"], apiBaseUrl: "https://open.bigmodel.cn/api/paas/v4" },
-        { providerName: "Alibaba", models: ["qwen-turbo", "qwen-plus", "qwen-max", "qwen-max-longcontext"], apiBaseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+  { providerName: "Tencent", models: ["hunyuan-standard", "hunyuan-pro", "hunyuan-lite", "hunyuan-turbo"], apiBaseUrl: "https://api.hunyuan.cloud.tencent.com/v1" },
+  { providerName: "OpenAI", models: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo", "gpt-3.5-turbo-16k"], apiBaseUrl: "https://api.openai.com/v1" },
+  { providerName: "Anthropic", models: ["claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307", "claude-3-5-sonnet-20240620"], apiBaseUrl: "https://api.anthropic.com/v1" },
+  { providerName: "Google", models: ["gemini-1.5-pro-latest", "gemini-1.5-flash-latest", "gemini-1.5-pro", "gemini-1.5-flash", "gemini-pro", "gemini-pro-vision"], apiBaseUrl: "https://generativelanguage.googleapis.com/v1beta/models" },
+  { providerName: "DeepSeek", models: ["deepseek-chat", "deepseek-coder"], apiBaseUrl: "https://api.deepseek.com/v1" },
+  { providerName: "Baichuan", models: ["Baichuan2-Turbo", "Baichuan2-Turbo-192k", "Baichuan-Text-Embedding"], apiBaseUrl: "https://api.baichuan-ai.com/v1" },
+  { providerName: "Moonshot", models: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"], apiBaseUrl: "https://api.moonshot.cn/v1" },
+  { providerName: "Alibaba", models: ["qwen-turbo", "qwen-plus", "qwen-max", "qwen-max-longcontext"], apiBaseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+  { providerName: "Zhipu", models: ["glm-4", "glm-3-turbo", "glm-4v", "zhipu-xl"], apiBaseUrl: "https://open.bigmodel.cn/api/paas/v4" },
+  { providerName: "智谱GLM", models: ["glm-4-plus", "glm-4-air", "glm-4-airx", "glm-4-flash"], apiBaseUrl: "https://open.bigmodel.cn/api/paas/v4" },
+  { providerName: "MiniMax", models: ["abab6.5-chat", "abab6.5s-chat", "abab5.5-chat"], apiBaseUrl: "https://api.minimax.chat/v1" },
+  { providerName: "阶跃星辰", models: ["step-1-8k", "step-1-32k", "step-1-128k"], apiBaseUrl: "https://api.stepfun.com/v1" },
+  { providerName: "字节跳动", models: ["Doubao-lite-4k", "Doubao-lite-32k", "Doubao-pro-4k", "Doubao-pro-32k"], apiBaseUrl: "https://ark.cn-beijing.volces.com/api/v3" },
+  { providerName: "讯飞星火", models: ["general", "generalv2", "generalv3", "pro-128k"], apiBaseUrl: "https://spark-api.xf-yun.com/v1" },
+  { providerName: "百度文心一言", models: ["ernie-4.0", "ernie-3.5-8k", "ernie-lite-8k", "ernie-tiny-8k"], apiBaseUrl: "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat" },
+  { providerName: "华为云", models: ["mindstudio-v1.0", "mindstudio-v2.0"], apiBaseUrl: "https://inference-modelarts.cn-north-4.myhuaweicloud.com/v1" },
+        {
+          providerName: "LiteLLM",
+          models: [
+            "groq/llama3-70b-8192",
+            "groq/llama3-8b-8192",
+            "groq/gemma-7b-it",
+            "ollama/llama3",
+            "ollama/llama3-8b",
+            "anthropic/claude-3-opus-20240229",
+            "anthropic/claude-3-sonnet-20240229",
+            "anthropic/claude-3-haiku-20240307"
+          ],
+          apiBaseUrl: process.env.LITELLM_PROXY_URL || "http://localhost:4000/v1"
+        }
     ]
 };
 
@@ -39,19 +50,76 @@ export async function getPlatformAssets(): Promise<typeof PLATFORM_ASSETS> {
 }
 
 // 简单的连接测试：使用混元 SDK 调用一个问候消息
-export async function testLlmConnection(_input: { modelId?: string }): Promise<{ success: boolean; message: string }> {
+export async function testLlmConnection(input: { modelId?: string }): Promise<{ success: boolean; message: string }> {
   try {
-    const openai = getOpenAIForHunyuan();
-    const chat = await openai.chat.completions.create({
-      model: 'hunyuan-turbos-latest',
-      messages: [
-        { role: 'user', content: 'Hello, test connection' },
-      ],
-      temperature: 0.1,
-      max_tokens: 16,
-    });
-    const message = chat.choices?.[0]?.message?.content || 'Success';
-    return { success: true, message };
+    // 如果传入 modelId，则优先使用数据库中对应连接的 apiKey 和 provider
+    if (input?.modelId) {
+      try {
+        const db = getTcbDb();
+        const res = await db.collection('llm_connections').doc(input.modelId).get();
+        const conn = res.data || res.data?.[0] || null;
+        if (!conn) {
+          return { success: false, message: '未能在数据库中找到指定的 LLM 连接记录' };
+        }
+
+        const provider = (conn.provider || '').toLowerCase();
+        const modelName = conn.modelName || conn.model || 'unknown-model';
+        const apiKey = conn.apiKey;
+
+        if (!apiKey) {
+          return { success: false, message: '未配置 API Key，请在管理面板中填写该连接的 apiKey 字段' };
+        }
+
+        // Tencent / Hunyuan 使用 OpenAI compatible 客户端，但需要使用记录中的 apiKey 与可选 base URL
+        if (provider.includes('tencent') || modelName.toLowerCase().includes('hunyuan')) {
+          const baseURL = conn.apiBaseUrl || process.env.HUNYUAN_BASE_URL || 'https://api.hunyuan.cloud.tencent.com/v1';
+          const client = new OpenAI({ apiKey, baseURL });
+          const chat = await client.chat.completions.create({
+            model: modelName || 'hunyuan-turbos-latest',
+            messages: [{ role: 'user', content: 'Hello, test connection' }],
+            temperature: 0.1,
+            max_tokens: 16,
+          });
+          const message = chat.choices?.[0]?.message?.content || 'Success';
+          return { success: true, message };
+        }
+
+        // OpenAI
+        if (provider.includes('openai') || provider.includes('open') ) {
+          const client = new OpenAI({ apiKey });
+          const chat = await client.chat.completions.create({
+            model: modelName || 'gpt-4o',
+            messages: [{ role: 'user', content: 'Hello, test connection' }],
+            temperature: 0.1,
+            max_tokens: 16,
+          });
+          const message = chat.choices?.[0]?.message?.content || 'Success';
+          return { success: true, message };
+        }
+
+        // 其他厂商：尝试返回记录基本信息（不能保证真实可用性检测）
+        return { success: true, message: `找到连接 (${conn.provider} / ${modelName})，但未实现该厂商的在线测试。` };
+      } catch (err: any) {
+        return { success: false, message: err?.message || '查询或测试时发生错误' };
+      }
+    }
+
+    // 未传入 modelId 的回退逻辑：使用默认 Hunyuan 配置进行简单测试
+    try {
+      const openai = getOpenAIForHunyuan();
+      const chat = await openai.chat.completions.create({
+        model: 'hunyuan-turbos-latest',
+        messages: [
+          { role: 'user', content: 'Hello, test connection' },
+        ],
+        temperature: 0.1,
+        max_tokens: 16,
+      });
+      const message = chat.choices?.[0]?.message?.content || 'Success';
+      return { success: true, message };
+    } catch (e: any) {
+      return { success: false, message: e?.message || 'Unknown error' };
+    }
   } catch (e: any) {
     return { success: false, message: e?.message || 'Unknown error' };
   }

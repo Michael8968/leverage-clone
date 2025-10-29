@@ -332,10 +332,10 @@ async function testFullStack() {
   console.log('─────────────────────────────────────────────────────────────────\n');
 
   // 打印最终结果
-  printResults(results);
+  printResultsForFullStack(results);
 }
 
-function printResults(results: any[]) {
+function printResultsForFullStack(results: any[]) {
   console.log('╔═══════════════════════════════════════════════════════════════╗');
   console.log('║                        测试摘要                               ║');
   console.log('╚═══════════════════════════════════════════════════════════════╝\n');

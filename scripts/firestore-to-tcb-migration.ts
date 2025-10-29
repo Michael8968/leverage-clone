@@ -152,11 +152,11 @@ async function exportFirestoreData(config: MigrationConfig): Promise<ExportedDat
 
     const db = admin.firestore();
     const collectionsSnapshot = await db.listCollections();
-    const collections = collectionsSnapshot.map(col => col.id);
+    const collections = collectionsSnapshot.map((col: any) => col.id);
     
     // Filter collections if specified
     const collectionList = config.collections?.length 
-      ? collections.filter(c => config.collections!.includes(c))
+      ? collections.filter((c: string) => config.collections!.includes(c))
       : collections;
 
     log(`📦 Found ${collections.length} collections, migrating ${collectionList.length}...`, config.verbose);
@@ -167,7 +167,7 @@ async function exportFirestoreData(config: MigrationConfig): Promise<ExportedDat
       const docs = await db.collection(collectionName).get();
       output.collections[collectionName] = [];
       
-      docs.forEach((doc) => {
+      docs.forEach((doc: any) => {
         const data = doc.data();
         // Convert Firestore Timestamps to ISO strings
         const processedData = processFirestoreData(data);

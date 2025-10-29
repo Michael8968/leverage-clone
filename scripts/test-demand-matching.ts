@@ -193,8 +193,8 @@ async function testDemandMatching() {
       
       console.log('✓ 提示词执行成功');
       console.log(`  输入提示: ${testPrompt}`);
-      console.log(`  AI响应: ${result.output.substring(0, 150)}...`);
-      console.log(`  消耗积分: ${result.cost}`);
+      console.log(`  AI响应: ${result.output ? result.output.substring(0, 150) : 'No output'}...`);
+      console.log(`  消耗积分: ${result.cost || 0}`);
       console.log();
       
       results.push({

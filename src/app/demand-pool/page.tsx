@@ -245,7 +245,7 @@ export default function DemandPoolPage() {
             scenario: selectedPromptKey,
             userId: user?.uid || 'anonymous',
         });
-        setRecommendations([{ creativeId: "AI分析结果", reason: result.output, matchScore: 0 }]);
+        setRecommendations([{ creativeId: "AI分析结果", reason: result.output || 'No output', matchScore: 0 }]);
       } else {
         const result = await recommendCreatives({
             demand: selectedDemand,
