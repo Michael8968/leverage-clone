@@ -45,7 +45,7 @@ function ProductCard({ product, isAiRecommended, recommendationProfile }: { prod
                                 <BrainCircuit className="w-4 h-4 text-primary"/>
                                 <p className="text-xs font-bold text-primary">推荐理由:</p>
                              </div>
-                            <p className='text-xs text-muted-foreground italic'>"{recommendationProfile.summary}"</p>
+                            <p className='text-xs text-muted-foreground italic'>「{recommendationProfile.summary}」</p>
                         </div>
                     )}
                     <div className="flex justify-between items-center mt-4">

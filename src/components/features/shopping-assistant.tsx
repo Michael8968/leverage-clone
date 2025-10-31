@@ -80,7 +80,6 @@ function DynamicVideoBackground() {
 
     // Probe whether the video can be loaded/playback to avoid showing broken media in production
     useEffect(() => {
-        setCanPlay(false);
         if (typeof window === 'undefined') return;
         let mounted = true;
         try {
@@ -110,7 +109,7 @@ function DynamicVideoBackground() {
             v.load();
             return () => { mounted = false; cleanup(); };
         } catch (e) {
-            setCanPlay(false);
+            if (mounted) setTimeout(() => setCanPlay(false), 0);
         }
     }, [videoSrc]);
 

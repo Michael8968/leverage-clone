@@ -1,5 +1,6 @@
 // firebase-storage-fetch
-'use client';
+"use client";
+/* eslint-disable react/no-unescaped-entities */
 
 import { AppLayout } from '@/components/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -1597,7 +1598,7 @@ function CreationsTab({ onSubmissionSuccess }: { onSubmissionSuccess: () => void
             <CardHeader>
                 <CardTitle className="font-headline">AI 3D 模型创作</CardTitle>
                 <CardDescription>
-                    支持多个 3D 模型生成服务（Tripo3D、Meshy 等）。通过"管理面板"配置服务后，即可在此选择使用。输入创意描述，AI 将为您生成预览图，完成后可直接提交入库审核。
+                    支持多个 3D 模型生成服务（Tripo3D、Meshy 等）。通过「管理面板」配置服务后，即可在此选择使用。输入创意描述，AI 将为您生成预览图，完成后可直接提交入库审核。
                 </CardDescription>
             </CardHeader>
             <CardContent>

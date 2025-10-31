@@ -55,7 +55,7 @@ export default function DatabaseTestPage() {
                         <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
                         <h3 className="text-xl font-bold text-green-700">连接成功！</h3>
                         <p className="mt-2 text-gray-600">
-                            已成功连接到 Firestore 数据库，并在 'users' 集合中找到了 <span className="font-bold text-lg">{userCount}</span> 条用户数据。
+                            已成功连接到 Firestore 数据库，并在 「users」 集合中找到了 <span className="font-bold text-lg">{userCount}</span> 条用户数据。
                         </p>
                     </div>
                 )}
