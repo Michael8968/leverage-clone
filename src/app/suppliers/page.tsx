@@ -8,7 +8,8 @@ import type { SupplementaryField, Supplier } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Building, FileCog, Frown, Loader2, CalendarIcon, Package, Image, Upload, Eye, Award, Camera } from 'lucide-react';
+import { Building, FileCog, Frown, Loader2, CalendarIcon, Package, Image as ImageIcon, Upload, Eye, Award, Camera } from 'lucide-react';
+import Image from 'next/image';
 import { DataProcessor } from '@/components/features/data-processor';
 import { useAuthStore } from '@/store/auth';
 import { doc, getDoc, setDoc, Timestamp } from '@/lib/cloudbase-compat';
@@ -294,7 +295,7 @@ function MediaAssetsTab() {
         <CardContent>
           <div className="text-center py-8 text-muted-foreground">
             <div className="w-12 h-12 mx-auto mb-4 opacity-50 bg-muted rounded-full flex items-center justify-center">
-              <Image className="w-6 h-6" />
+              <ImageIcon className="w-6 h-6" />
             </div>
             <p>暂无媒体资产数据</p>
             <p className="text-sm mt-2">请先完善基本信息</p>
@@ -327,7 +328,7 @@ function MediaAssetsTab() {
                   <Image
                     src={supplierData.logoUrl}
                     alt="公司Logo"
-                    fill={true}
+                    fill
                     className="object-contain"
                   />
                 </div>
@@ -363,7 +364,7 @@ function MediaAssetsTab() {
                   <Image
                     src={supplierData.businessLicenseUrl}
                     alt="营业执照"
-                    fill={true}
+                    fill
                     className="object-contain"
                   />
                 </div>
@@ -401,7 +402,7 @@ function MediaAssetsTab() {
                     <Image
                       src={certUrl}
                       alt={`证书 ${index + 1}`}
-                      fill={true}
+                      fill
                       className="object-contain"
                     />
                     <div className="absolute top-2 right-2">
@@ -437,7 +438,7 @@ function MediaAssetsTab() {
                     <Image
                       src={photoUrl}
                       alt={`公司照片 ${index + 1}`}
-                      fill={true}
+                      fill
                       className="object-cover"
                     />
                     <div className="absolute top-2 right-2">
@@ -482,7 +483,7 @@ function MediaAssetsTab() {
                         <Image
                           src={product.url}
                           alt={`产品展示 ${index + 1}`}
-                          fill={true}
+                          fill
                           className="object-cover"
                         />
                       )}
@@ -575,7 +576,7 @@ export default function SuppliersPage() {
             <TabsList className="grid w-full grid-cols-4 max-w-lg">
                 <TabsTrigger value="info"><Building className="mr-2"/> 基本信息</TabsTrigger>
                 <TabsTrigger value="products"><Package className="mr-2"/> 商品/服务</TabsTrigger>
-                <TabsTrigger value="media"><Image className="mr-2"/> 媒体资产</TabsTrigger>
+                <TabsTrigger value="media"><ImageIcon className="mr-2"/> 媒体资产</TabsTrigger>
                 <TabsTrigger value="batch"><FileCog className="mr-2"/> 批量处理</TabsTrigger>
             </TabsList>
             <TabsContent value="info" className="mt-6"><CompanyInfoForm /></TabsContent>

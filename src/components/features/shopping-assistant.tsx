@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState, useRef, useEffect, useTransition, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useTransition, useMemo } from 'react';
 import { useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -29,7 +29,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { differenceInHours, format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
-import { useTheme } from 'next-themes';
+import { useTheme } from '@/hooks/useTheme';
 
 // Type definitions for chat messages
 type Message = {
@@ -58,27 +58,45 @@ type FormValues = z.infer<typeof formSchema>;
 function DynamicVideoBackground() {
   const { theme } = useTheme();
     const [canPlay, setCanPlay] = useState<boolean>(false);
+    const [videoError, setVideoError] = useState<string | null>(null);
+    const videoRef = useRef<HTMLVideoElement>(null);
 
     // 使用 useMemo 计算视频源,避免在 effect 中同步 setState
         const videoSrc = useMemo(() => {
+        // TCB COS URL重写逻辑
+        const constructCosUrl = (theme: string): string => {
+          const videoPath = `videos/${theme}-bg.mp4`;
+          const cosUrl = `https://d565-static-leverage-test-abc123-9bn41a84185-1382937545.cos.ap-shanghai.myqcloud.com/${videoPath}`;
+          console.log('TCB COS URL constructed:', { theme, videoPath, cosUrl });
+          return cosUrl;
+        };
+
         // If NEXT_PUBLIC_ASSETS_BASE is configured (public object storage / CDN), prefer that
         const publicBase = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_ASSETS_BASE || process.env.NEXT_PUBLIC_TCB_PUBLIC_BASE) : undefined;
         const base = publicBase ? publicBase.replace(/\/$/, '') : '';
+
+        let src: string;
         switch (theme) {
             case 'light':
-                return base ? `${base}/videos/light-bg.mp4` : '/videos/light-bg.mp4';
+                src = base ? `${base}/videos/light-bg.mp4` : constructCosUrl('light');
+                break;
             case 'dark':
-                return base ? `${base}/videos/dark-bg.mp4` : '/videos/dark-bg.mp4';
+                src = base ? `${base}/videos/dark-bg.mp4` : constructCosUrl('dark');
+                break;
             case 'gradient':
-                return base ? `${base}/videos/gradient-bg.mp4` : '/videos/gradient-bg.mp4';
+                src = base ? `${base}/videos/gradient-bg.mp4` : constructCosUrl('gradient');
+                break;
             default:
                 // Fallback for system theme or initial load
                 if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                    return base ? `${base}/videos/dark-bg.mp4` : '/videos/dark-bg.mp4';
+                    src = base ? `${base}/videos/dark-bg.mp4` : constructCosUrl('dark');
                 } else {
-                    return base ? `${base}/videos/light-bg.mp4` : '/videos/light-bg.mp4';
+                    src = base ? `${base}/videos/light-bg.mp4` : constructCosUrl('light');
                 }
         }
+
+        console.log('Theme switched to', theme, 'video src:', src);
+        return src;
         }, [theme]);
 
     // Probe whether the video can be loaded/playback to avoid showing broken media in production
@@ -93,12 +111,24 @@ function DynamicVideoBackground() {
             v.src = videoSrc;
             const onLoaded = () => {
                 if (!mounted) return;
+                console.log('Video probe successful:', { src: videoSrc, duration: v.duration });
                 setCanPlay(true);
+                setVideoError(null);
                 cleanup();
             };
-            const onError = () => {
+            const onError = (e: Event) => {
                 if (!mounted) return;
+                const error = (e.target as HTMLVideoElement).error;
+                const errorDetails = {
+                  code: error?.code,
+                  message: error?.message,
+                  src: videoSrc,
+                  networkState: (e.target as HTMLVideoElement).networkState,
+                  readyState: (e.target as HTMLVideoElement).readyState
+                };
+                console.error('Video probe failed:', errorDetails);
                 setCanPlay(false);
+                setVideoError(`Video load failed: ${error?.message || 'Unknown error'}`);
                 cleanup();
             };
             function cleanup() {
@@ -112,20 +142,47 @@ function DynamicVideoBackground() {
             v.load();
             return () => { mounted = false; cleanup(); };
         } catch (e) {
-            if (mounted) setTimeout(() => setCanPlay(false), 0);
+            console.error('Video probe setup failed:', e);
+            if (mounted) setTimeout(() => {
+              setCanPlay(false);
+              setVideoError('Video probe setup failed');
+            }, 0);
         }
     }, [videoSrc]);
+
+    // Handle theme changes and reload video
+    useEffect(() => {
+      if (videoRef.current && canPlay) {
+        console.log('Reloading video for theme change:', { theme, src: videoSrc });
+        videoRef.current.src = videoSrc;
+        videoRef.current.load();
+      }
+    }, [theme, videoSrc, canPlay]);
 
     // If video is available, render it; otherwise render a themed gradient fallback
     if (canPlay) {
         return (
             <video
+                ref={videoRef}
                 key={videoSrc} // Use key to force re-render when src changes
                 className="absolute top-0 left-0 w-full h-full object-cover -z-10"
                 autoPlay
                 loop
                 muted
                 playsInline
+                onCanPlayThrough={() => console.log('Video can play through:', videoSrc)}
+                onError={(e) => {
+                  const error = e.currentTarget.error;
+                  console.error('Dashboard video error:', {
+                    code: error?.code,
+                    message: error?.message,
+                    src: videoSrc,
+                    networkState: e.currentTarget.networkState,
+                    readyState: e.currentTarget.readyState
+                  });
+                  setCanPlay(false);
+                  setVideoError(`Video playback failed: ${error?.message || 'Unknown error'}`);
+                }}
                 data-video-src={videoSrc}
             >
                 <source src={videoSrc} type="video/mp4" />
@@ -135,7 +192,15 @@ function DynamicVideoBackground() {
 
     // Fallback gradient background when video cannot be loaded
     const fallbackClass = theme === 'dark' ? 'bg-gradient-to-b from-[#0f1724] via-[#10243a] to-[#17324a]' : theme === 'gradient' ? 'bg-gradient-to-br from-indigo-600 via-sky-500 to-emerald-400' : 'bg-gradient-to-b from-white to-slate-100';
-    return <div className={`absolute inset-0 -z-10 ${fallbackClass}`} data-video-src={videoSrc} />;
+    return (
+      <div className={`absolute inset-0 -z-10 ${fallbackClass}`} data-video-src={videoSrc}>
+        {videoError && process.env.NODE_ENV === 'development' && (
+          <div className="absolute top-4 right-4 bg-red-500 text-white text-xs p-2 rounded max-w-xs">
+            Video Error: {videoError}
+          </div>
+        )}
+      </div>
+    );
 }
 
 
@@ -473,3 +538,6 @@ const RecommendationsDisplay = ({ recommendations }: { recommendations: ProductS
         </TooltipProvider>
     </CardFooter>
 </Card>))}</div></div> );
+
+// Export the DynamicVideoBackground component for testing
+export { DynamicVideoBackground };

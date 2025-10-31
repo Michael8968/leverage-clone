@@ -5,84 +5,53 @@
 
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import { getFriendlyErrorMessage, detectErrorType, getErrorRecoveryConfig } from './errorConfig.js';
+import { getFriendlyErrorMessage, detectErrorType, getErrorRecoveryConfig } from '../config/errorConfig.js';
 
 /**
  * 处理API响应错误
  * @param {Object} error - axios错误对象
+ * @param {Object} options - 处理选项
  * @returns {Promise} 拒绝的Promise，包含友好错误信息
  */
-const handleResponseError = (error) => {
-  let friendlyMessage = '出现技术问题，请联系开发人员。';
-  let action = { type: 'retry' };
+const handleResponseError = (error, options = {}) => {
+  const { showErrorToast = true, toastConfig = {} } = options;
 
-  if (error.response) {
-    // 服务器返回了错误状态码
-    const { status, data } = error.response;
+  // 使用统一错误配置获取友好消息
+  const friendlyMessage = getFriendlyErrorMessage(error);
+  const errorType = detectErrorType(error.message || error.response?.data?.message || '');
+  const recoveryConfig = getErrorRecoveryConfig(errorType);
 
-    // 处理4xx/5xx错误
-    if (status >= 400 && status < 600) {
-      // 如果后端已经返回了友好的错误信息，直接使用
-      if (data && data.message && data.action) {
-        friendlyMessage = data.message;
-        action = data.action;
-      } else {
-        // 根据HTTP状态码映射
-        switch (status) {
-          case 401:
-            friendlyMessage = '权限验证中，请重新登录。';
-            action = { type: 'redirect', to: '/login' };
-            break;
-          case 403:
-            friendlyMessage = '权限不足，无法访问此功能。';
-            action = { type: 'redirect', to: '/login' };
-            break;
-          case 404:
-            friendlyMessage = '数据加载中，请稍后重试~';
-            action = { type: 'redirect', to: '/demand-pool' };
-            break;
-          case 429:
-            friendlyMessage = '请求过于频繁，请稍后再试。';
-            action = { type: 'retry', delay: 5000 };
-            break;
-          case 500:
-          case 502:
-          case 503:
-          case 504:
-            friendlyMessage = '服务暂时不可用，请稍后重试。';
-            action = { type: 'retry', delay: 3000 };
-            break;
-          default:
-            friendlyMessage = '出现技术问题，请联系开发人员。';
-            action = { type: 'retry' };
-        }
-      }
-    }
-  } else if (error.request) {
-    // 网络错误
-    friendlyMessage = '网络连接不太稳定，请稍后重试。';
-    action = { type: 'retry' };
-  } else {
-    // 其他错误
-    friendlyMessage = '出现技术问题，请联系开发人员。';
-    action = { type: 'retry' };
+  let action = { type: 'contact_support' };
+
+  // 根据错误类型设置action
+  if (recoveryConfig.retryable) {
+    action = { type: 'retry', delay: recoveryConfig.retryDelay || 2000 };
+  } else if (recoveryConfig.redirectTo) {
+    action = { type: 'redirect', to: recoveryConfig.redirectTo };
+  }
+
+  // 特殊处理：数据库不存在时重定向到demand-pool
+  if (error.response?.data?.error === 'DATABASE_COLLECTION_NOT_EXIST') {
+    action = { type: 'redirect', to: '/demand-pool' };
   }
 
   // 显示错误提示
-  toast.error(friendlyMessage, {
-    position: "top-right",
-    autoClose: 5000,
-    hideProgressBar: false,
-    closeOnClick: true,
-    pauseOnHover: true,
-    draggable: true,
-    progress: undefined,
-  });
+  if (showErrorToast) {
+    toast.error(friendlyMessage, {
+      position: "top-right",
+      autoClose: 5000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+      draggable: true,
+      progress: undefined,
+      ...toastConfig
+    });
+  }
 
   // 执行错误操作
   executeErrorAction(action);
 
-  // 返回标准化的错误对象
   const friendlyError = {
     success: false,
     message: friendlyMessage,
@@ -198,4 +167,4 @@ const createApiClient = (baseURL = '/api', options = {}) => {
 const apiClient = createApiClient();
 
 export default apiClient;
-export { createApiClient, handleResponseError, ERROR_MAPPINGS };
+export { createApiClient, handleResponseError };

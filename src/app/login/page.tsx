@@ -170,6 +170,8 @@ function LoginFormSkeleton() {
 }
 
 export default function LoginPage() {
+  const [videoFallback, setVideoFallback] = useState(false);
+
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center p-4">
        <video
@@ -179,9 +181,34 @@ export default function LoginPage() {
         loop
         muted
         playsInline
+        onError={(e) => {
+          console.error('Login video error:', e.nativeEvent);
+          console.error('Video error details:', {
+            code: e.currentTarget.error?.code,
+            message: e.currentTarget.error?.message,
+            src: e.currentTarget.src,
+            networkState: e.currentTarget.networkState,
+            readyState: e.currentTarget.readyState
+          });
+          setVideoFallback(true);
+        }}
+        onLoadedData={(e) => {
+          console.log('Login video loaded successfully:', {
+            src: e.currentTarget.src,
+            duration: e.currentTarget.duration,
+            videoWidth: e.currentTarget.videoWidth,
+            videoHeight: e.currentTarget.videoHeight
+          });
+        }}
       >
         <source src="/videos/light-bg.mp4" type="video/mp4" />
       </video>
+
+      {/* Fallback gradient background when video fails */}
+      {videoFallback && (
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-purple-600 -z-10" />
+      )}
+
       <div className="w-full max-w-sm relative z-10">
         <div className="mb-8 flex flex-col items-center gap-2 text-2xl font-headline font-semibold whitespace-nowrap">
             <div className="p-3 rounded-full bg-background/50 backdrop-blur-sm">

@@ -1,5 +1,21 @@
 {
   "envId": "leverage-test-abc123-9bn41a84185",
+  "hosting": {
+    "publicPath": "./out",
+    "cloudPath": "/",
+    "ignore": [
+      ".git",
+      ".github",
+      "node_modules",
+      ".next",
+      "functions"
+    ]
+  },
+  "static": {
+    "src": "public/videos",
+    "target": "videos/",
+    "ignore": []
+  },
   "functionRoot": "./functions",
   "functions": [
     {

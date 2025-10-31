@@ -124,8 +124,11 @@ export const ERROR_TYPE_PATTERNS = [
       /database.*operation/i,
       /query.*failed/i,
       /data.*error/i,
+      /collection.*not.*exist/i,
+      /collection.*does.*not.*exist/i,
       /数据库/i,
-      /查询/i
+      /查询/i,
+      /集合/i
     ]
   },
   {
