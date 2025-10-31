@@ -30,8 +30,31 @@ import { cn } from '@/lib/utils';
 
 
 // =================================================================
-// TYPE DEFINITIONS
+// HELPER FUNCTIONS
 // =================================================================
+
+function getApiBaseUrl(provider: string): string {
+    const providerMap: { [key: string]: string } = {
+        'Tencent': 'https://api.hunyuan.cloud.tencent.com/v1',
+        'OpenAI': 'https://api.openai.com/v1',
+        'Anthropic': 'https://api.anthropic.com/v1',
+        'Google': 'https://generativelanguage.googleapis.com/v1beta/models',
+        'DeepSeek': 'https://api.deepseek.com/v1',
+        'Baichuan': 'https://api.baichuan-ai.com/v1',
+        'Moonshot': 'https://api.moonshot.cn/v1',
+        'Alibaba': 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        'Zhipu': 'https://open.bigmodel.cn/api/paas/v4',
+        '智谱GLM': 'https://open.bigmodel.cn/api/paas/v4',
+        'MiniMax': 'https://api.minimax.chat/v1',
+        '阶跃星辰': 'https://api.stepfun.com/v1',
+        '字节跳动': 'https://ark.cn-beijing.volces.com/api/v3',
+        '讯飞星火': 'https://spark-api.xf-yun.com/v1',
+        '百度文心一言': 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat',
+        '华为云': 'https://inference-modelarts.cn-north-4.myhuaweicloud.com/v1',
+        'LiteLLM': process.env.LITELLM_PROXY_URL || 'http://localhost:4000/v1'
+    };
+    return providerMap[provider] || '';
+}
 type DisplayTestResultStatus = 'untested' | 'success' | 'failed' | 'testing';
 type LlmProvider = {
     providerName: string;
@@ -154,7 +177,7 @@ function LlmConnectionForm({ llm, onSave, onCancel, onTest, isTesting }: {
     llm: Partial<LlmConnection> | null;
     onSave: () => void;
     onCancel: () => void;
-    onTest: (modelId: string) => void;
+    onTest: (modelId: string, formData?: any) => void;
     isTesting: boolean;
 }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -305,7 +328,7 @@ function LlmConnectionForm({ llm, onSave, onCancel, onTest, isTesting }: {
                              )}/>
                         </div>
                         <div className="flex justify-between items-center pt-4">
-                            <Button type="button" variant="outline" onClick={() => onTest(llm!.id!)} disabled={isTesting || !isEditing}>
+                            <Button type="button" variant="outline" onClick={() => onTest(llm?.id || 'new', form.getValues())} disabled={isTesting}>
                                 {isTesting ? <Loader2 className="animate-spin mr-2"/> : <TestTube2 className="mr-2"/>}
                                 可用性测试
                             </Button>
@@ -380,25 +403,55 @@ export default function AdminDashboardPage() {
         setItemToDelete(llm);
     };
 
-    const handleTestAvailability = async (modelId: string) => {
+    const handleTestAvailability = async (modelId: string, formData?: any) => {
         setTestingId(modelId);
         startTransition(async () => {
             try {
-                // Assuming testLlmConnection is adapted to be a server action or an API route
-                // For this example, we'll simulate an async call
-                // In a real app, this would be: const result = await testLlmConnection({ modelId });
-                const { testLlmConnection } = await import('@/ai/flows/admin-management-flows');
-                const result = await testLlmConnection({ modelId });
+                if (modelId === 'new') {
+                    // Test new connection using form data
+                    if (!formData?.apiKey || !formData?.provider || !formData?.modelName) {
+                        toast({
+                            title: "测试失败",
+                            description: "请先填写厂商、模型名称和API Key",
+                            variant: "destructive",
+                        });
+                        setTestingId(null);
+                        return;
+                    }
 
-                toast({
-                    title: result.success ? "测试成功" : "测试失败",
-                    description: result.message,
-                    variant: result.success ? "default" : "destructive",
-                });
-                await fetchLlms(); // Refetch to get the persisted test status
+                    // Create a temporary connection object for testing
+                    const tempConnection = {
+                        provider: formData.provider,
+                        modelName: formData.modelName,
+                        apiKey: formData.apiKey,
+                        apiBaseUrl: getApiBaseUrl(formData.provider)
+                    };
+
+                    const { testLlmConnection } = await import('@/ai/flows/admin-management-flows');
+                    const result = await testLlmConnection({ tempConnection });
+
+                    toast({
+                        title: result.success ? "测试成功" : "测试失败",
+                        description: result.message,
+                        variant: result.success ? "default" : "destructive",
+                    });
+                } else {
+                    // Test existing connection
+                    const { testLlmConnection } = await import('@/ai/flows/admin-management-flows');
+                    const result = await testLlmConnection({ modelId });
+
+                    toast({
+                        title: result.success ? "测试成功" : "测试失败",
+                        description: result.message,
+                        variant: result.success ? "default" : "destructive",
+                    });
+                    await fetchLlms(); // Refetch to get the persisted test status
+                }
             } catch (error: any) {
                 toast({ title: "测试出错", description: error.message || "执行测试时发生未知错误。", variant: "destructive" });
-                await fetchLlms(); // Refetch even on error
+                if (modelId !== 'new') {
+                    await fetchLlms(); // Refetch even on error for existing connections
+                }
             } finally {
                 setTestingId(null);
             }

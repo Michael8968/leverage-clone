@@ -60,23 +60,26 @@ function DynamicVideoBackground() {
     const [canPlay, setCanPlay] = useState<boolean>(false);
 
     // 使用 useMemo 计算视频源,避免在 effect 中同步 setState
-    const videoSrc = useMemo(() => {
-    switch (theme) {
-      case 'light':
-        return '/videos/light-bg.mp4';
-      case 'dark':
-        return '/videos/dark-bg.mp4';
-      case 'gradient':
-        return '/videos/gradient-bg.mp4';
-      default:
-        // Fallback for system theme or initial load
-        if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          return '/videos/dark-bg.mp4';
-        } else {
-          return '/videos/light-bg.mp4';
+        const videoSrc = useMemo(() => {
+        // If NEXT_PUBLIC_ASSETS_BASE is configured (public object storage / CDN), prefer that
+        const publicBase = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_ASSETS_BASE || process.env.NEXT_PUBLIC_TCB_PUBLIC_BASE) : undefined;
+        const base = publicBase ? publicBase.replace(/\/$/, '') : '';
+        switch (theme) {
+            case 'light':
+                return base ? `${base}/videos/light-bg.mp4` : '/videos/light-bg.mp4';
+            case 'dark':
+                return base ? `${base}/videos/dark-bg.mp4` : '/videos/dark-bg.mp4';
+            case 'gradient':
+                return base ? `${base}/videos/gradient-bg.mp4` : '/videos/gradient-bg.mp4';
+            default:
+                // Fallback for system theme or initial load
+                if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    return base ? `${base}/videos/dark-bg.mp4` : '/videos/dark-bg.mp4';
+                } else {
+                    return base ? `${base}/videos/light-bg.mp4` : '/videos/light-bg.mp4';
+                }
         }
-    }
-    }, [theme]);
+        }, [theme]);
 
     // Probe whether the video can be loaded/playback to avoid showing broken media in production
     useEffect(() => {
@@ -123,6 +126,7 @@ function DynamicVideoBackground() {
                 loop
                 muted
                 playsInline
+                data-video-src={videoSrc}
             >
                 <source src={videoSrc} type="video/mp4" />
             </video>
@@ -131,7 +135,7 @@ function DynamicVideoBackground() {
 
     // Fallback gradient background when video cannot be loaded
     const fallbackClass = theme === 'dark' ? 'bg-gradient-to-b from-[#0f1724] via-[#10243a] to-[#17324a]' : theme === 'gradient' ? 'bg-gradient-to-br from-indigo-600 via-sky-500 to-emerald-400' : 'bg-gradient-to-b from-white to-slate-100';
-    return <div className={`absolute inset-0 -z-10 ${fallbackClass}`} />;
+    return <div className={`absolute inset-0 -z-10 ${fallbackClass}`} data-video-src={videoSrc} />;
 }
 
 

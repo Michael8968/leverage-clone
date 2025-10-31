@@ -46,12 +46,90 @@ const PLATFORM_ASSETS = {
 };
 
 export async function getPlatformAssets(): Promise<typeof PLATFORM_ASSETS> {
-    return PLATFORM_ASSETS;
+    try {
+        // Try to get additional models from database
+        const db = getTcbDb();
+        const connectionsSnapshot = await db.collection('llm_connections').get();
+        const existingConnections = connectionsSnapshot.data || [];
+
+        // Create enhanced providers with existing models
+        const enhancedProviders = { ...PLATFORM_ASSETS };
+
+        // Add any custom providers/models that exist in database but not in hardcoded list
+        existingConnections.forEach((conn: any) => {
+            const providerName = conn.provider;
+            const modelName = conn.modelName;
+
+            if (providerName && modelName) {
+                const existingProvider = enhancedProviders.providers.find(p =>
+                    p.providerName.toLowerCase() === providerName.toLowerCase()
+                );
+
+                if (existingProvider) {
+                    // Add model if it doesn't exist
+                    if (!existingProvider.models.includes(modelName)) {
+                        existingProvider.models.push(modelName);
+                    }
+                } else {
+                    // Add new provider
+                    enhancedProviders.providers.push({
+                        providerName,
+                        models: [modelName],
+                        apiBaseUrl: conn.apiBaseUrl || ''
+                    });
+                }
+            }
+        });
+
+        return enhancedProviders;
+    } catch (error) {
+        console.warn('Failed to enhance platform assets from database:', error);
+        // Fall back to hardcoded assets
+        return PLATFORM_ASSETS;
+    }
 }
 
 // 简单的连接测试：使用混元 SDK 调用一个问候消息
-export async function testLlmConnection(input: { modelId?: string }): Promise<{ success: boolean; message: string }> {
+export async function testLlmConnection(input: { modelId?: string; tempConnection?: any }): Promise<{ success: boolean; message: string }> {
   try {
+    // 如果传入 tempConnection，则直接使用临时连接数据进行测试
+    if (input?.tempConnection) {
+      const { provider, modelName, apiKey, apiBaseUrl } = input.tempConnection;
+
+      const providerLower = (provider || '').toLowerCase();
+      const modelLower = (modelName || '').toLowerCase();
+
+      // Tencent / Hunyuan 使用 OpenAI compatible 客户端
+      if (providerLower.includes('tencent') || modelLower.includes('hunyuan')) {
+        const baseURL = apiBaseUrl || 'https://api.hunyuan.cloud.tencent.com/v1';
+        const client = new OpenAI({ apiKey, baseURL });
+        const chat = await client.chat.completions.create({
+          model: modelName || 'hunyuan-turbos-latest',
+          messages: [{ role: 'user', content: 'Hello, test connection' }],
+          temperature: 0.1,
+          max_tokens: 16,
+        });
+        const message = chat.choices?.[0]?.message?.content || 'Success';
+        return { success: true, message };
+      }
+
+      // OpenAI
+      if (providerLower.includes('openai') || providerLower.includes('open')) {
+        const client = new OpenAI({ apiKey });
+        const chat = await client.chat.completions.create({
+          model: modelName || 'gpt-4o',
+          messages: [{ role: 'user', content: 'Hello, test connection' }],
+          temperature: 0.1,
+          max_tokens: 16,
+        });
+        const message = chat.choices?.[0]?.message?.content || 'Success';
+        return { success: true, message };
+      }
+
+      // 其他厂商：返回基本信息
+      return { success: true, message: `连接配置 (${provider} / ${modelName}) 已验证，但未实现该厂商的在线测试。` };
+    }
+
     // 如果传入 modelId，则优先使用数据库中对应连接的 apiKey 和 provider
     if (input?.modelId) {
       try {

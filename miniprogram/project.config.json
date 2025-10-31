@@ -1,8 +1,0 @@
-{
-  "appid": "wx-test-appid-replace",
-  "projectname": "LeverageAI-Mini",
-  "setting": {
-    "urlCheck": false
-  },
-  "compileType": "miniprogram"
-}

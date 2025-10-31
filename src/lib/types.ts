@@ -68,7 +68,13 @@ export type Supplier = {
   supplementaryFields?: SupplementaryField[];
   category?: string; // Added to satisfy schema, populated from name.
   matchScore?: number;
-}
+  // Media assets
+  logoUrl?: string; // Company logo
+  businessLicenseUrl?: string; // Business license image
+  certificates?: string[]; // Certificate images
+  companyPhotos?: string[]; // Company photos
+  productShowcase?: ProductImage[]; // Product showcase images/videos
+};
 
 export type UserProfile = {
   summary: string;

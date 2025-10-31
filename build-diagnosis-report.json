@@ -1,8 +1,0 @@
-{
-  "timestamp": "2025-10-21T07:26:07.985Z",
-  "issues": [],
-  "recommendations": [
-    "清理构建缓存: npm run diagnose"
-  ],
-  "fixed": []
-}

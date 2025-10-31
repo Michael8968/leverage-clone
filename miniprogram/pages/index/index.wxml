@@ -1,6 +1,0 @@
-<view class="container">
-  <view class="title">AI 助手</view>
-  <input class="input" placeholder="输入你的问题" bindinput="onPromptInput" />
-  <button class="btn" bindtap="sendPrompt">发送</button>
-  <view class="output">{{output}}</view>
-</view>

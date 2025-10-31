@@ -8,7 +8,7 @@ import type { SupplementaryField, Supplier } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Building, FileCog, Frown, Loader2, CalendarIcon, Package } from 'lucide-react';
+import { Building, FileCog, Frown, Loader2, CalendarIcon, Package, Image, Upload, Eye, Award, Camera } from 'lucide-react';
 import { DataProcessor } from '@/components/features/data-processor';
 import { useAuthStore } from '@/store/auth';
 import { doc, getDoc, setDoc, Timestamp } from '@/lib/cloudbase-compat';
@@ -27,6 +27,9 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { SupplementaryFieldsManager } from '@/components/features/supplementary-fields-manager';
 import { ProductManagement } from '@/components/features/product-management';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 
 
 // =================================================================
@@ -230,8 +233,311 @@ function CompanyInfoForm() {
 
 
 // =================================================================
-// PAGE ENTRYPOINT
+// MEDIA ASSETS TAB
 // =================================================================
+function MediaAssetsTab() {
+  const { user } = useAuthStore();
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(true);
+  const [supplierData, setSupplierData] = useState<Supplier | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchSupplierData = async () => {
+      if (!user) return;
+      setIsLoading(true);
+      try {
+        const supplierDocRef = doc('suppliers', user.uid);
+        const docSnap = await getDoc(supplierDocRef);
+        if (snapshotExists(docSnap)) {
+          const data = snapshotData(docSnap) as Supplier;
+          setSupplierData(data);
+        }
+      } catch (error) {
+        console.error('获取供应商媒体数据错误:', error);
+        toast({
+          title: "加载失败",
+          description: "无法加载媒体资产数据。",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchSupplierData();
+  }, [user, toast]);
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-headline">媒体资产</CardTitle>
+          <CardDescription>公司logo、证书、照片等媒体文件</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Skeleton className="h-64 w-full" />
+            <Skeleton className="h-64 w-full" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!supplierData) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-headline">媒体资产</CardTitle>
+          <CardDescription>公司logo、证书、照片等媒体文件</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8 text-muted-foreground">
+            <div className="w-12 h-12 mx-auto mb-4 opacity-50 bg-muted rounded-full flex items-center justify-center">
+              <Image className="w-6 h-6" />
+            </div>
+            <p>暂无媒体资产数据</p>
+            <p className="text-sm mt-2">请先完善基本信息</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-headline">媒体资产</CardTitle>
+          <CardDescription>公司logo、证书、照片等媒体文件</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-8">
+          {/* Company Logo */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Building className="w-5 h-5" />
+              <h3 className="text-lg font-semibold">公司Logo</h3>
+            </div>
+            {supplierData.logoUrl ? (
+              <div className="flex items-center gap-4">
+                <div
+                  className="relative w-32 h-32 border rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+                  onClick={() => setLightboxImage(supplierData.logoUrl!)}
+                >
+                  <Image
+                    src={supplierData.logoUrl}
+                    alt="公司Logo"
+                    fill={true}
+                    className="object-contain"
+                  />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground mb-2">点击图片查看大图</p>
+                  <Badge variant="secondary">已上传</Badge>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center w-32 h-32 border-2 border-dashed border-muted-foreground/50 rounded-lg">
+                <div className="text-center text-muted-foreground">
+                  <Building className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-xs">暂无Logo</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Business License */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Award className="w-5 h-5" />
+              <h3 className="text-lg font-semibold">营业执照</h3>
+            </div>
+            {supplierData.businessLicenseUrl ? (
+              <div className="flex items-center gap-4">
+                <div
+                  className="relative w-48 h-32 border rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+                  onClick={() => setLightboxImage(supplierData.businessLicenseUrl!)}
+                >
+                  <Image
+                    src={supplierData.businessLicenseUrl}
+                    alt="营业执照"
+                    fill={true}
+                    className="object-contain"
+                  />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground mb-2">点击图片查看大图</p>
+                  <Badge variant="secondary">已上传</Badge>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center w-48 h-32 border-2 border-dashed border-muted-foreground/50 rounded-lg">
+                <div className="text-center text-muted-foreground">
+                  <Award className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-xs">暂无执照</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Certificates */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Award className="w-5 h-5" />
+              <h3 className="text-lg font-semibold">资质证书</h3>
+            </div>
+            {supplierData.certificates && supplierData.certificates.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {supplierData.certificates.map((certUrl, index) => (
+                  <div
+                    key={index}
+                    className="relative aspect-[4/3] border rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+                    onClick={() => setLightboxImage(certUrl)}
+                  >
+                    <Image
+                      src={certUrl}
+                      alt={`证书 ${index + 1}`}
+                      fill={true}
+                      className="object-contain"
+                    />
+                    <div className="absolute top-2 right-2">
+                      <Badge variant="secondary" className="text-xs">证书 {index + 1}</Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Award className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>暂无资质证书</p>
+              </div>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Company Photos */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Camera className="w-5 h-5" />
+              <h3 className="text-lg font-semibold">公司照片</h3>
+            </div>
+            {supplierData.companyPhotos && supplierData.companyPhotos.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {supplierData.companyPhotos.map((photoUrl, index) => (
+                  <div
+                    key={index}
+                    className="relative aspect-video border rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+                    onClick={() => setLightboxImage(photoUrl)}
+                  >
+                    <Image
+                      src={photoUrl}
+                      alt={`公司照片 ${index + 1}`}
+                      fill={true}
+                      className="object-cover"
+                    />
+                    <div className="absolute top-2 right-2">
+                      <Badge variant="secondary" className="text-xs">照片 {index + 1}</Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Camera className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>暂无公司照片</p>
+              </div>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Product Showcase */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Package className="w-5 h-5" />
+              <h3 className="text-lg font-semibold">产品展示</h3>
+            </div>
+            {supplierData.productShowcase && supplierData.productShowcase.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {supplierData.productShowcase.map((product, index) => (
+                  <div key={index} className="border rounded-lg overflow-hidden">
+                    <div
+                      className="relative aspect-video cursor-pointer hover:shadow-lg transition-shadow"
+                      onClick={() => setLightboxImage(product.url)}
+                    >
+                      {product.url.includes('.mp4') || product.url.includes('.webm') ? (
+                        <video
+                          src={product.url}
+                          className="w-full h-full object-cover"
+                          muted
+                          loop
+                          playsInline
+                        />
+                      ) : (
+                        <Image
+                          src={product.url}
+                          alt={`产品展示 ${index + 1}`}
+                          fill={true}
+                          className="object-cover"
+                        />
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <div className="flex items-center justify-between">
+                        <Badge variant="outline">{product.view}</Badge>
+                        {product.url.includes('.mp4') || product.url.includes('.webm') ? (
+                          <Badge variant="secondary">视频</Badge>
+                        ) : (
+                          <Badge variant="secondary">图片</Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>暂无产品展示</p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Lightbox Dialog */}
+      <Dialog open={!!lightboxImage} onOpenChange={() => setLightboxImage(null)}>
+        <DialogContent className="max-w-4xl w-full h-[80vh] p-0">
+          <div className="w-full h-full flex items-center justify-center bg-black">
+            {lightboxImage && (
+              lightboxImage.includes('.mp4') || lightboxImage.includes('.webm') ? (
+                <video
+                  src={lightboxImage}
+                  controls
+                  className="max-w-full max-h-full"
+                  autoPlay
+                />
+              ) : (
+                <Image
+                  src={lightboxImage}
+                  alt="媒体预览"
+                  width={800}
+                  height={600}
+                  className="max-w-full max-h-full object-contain"
+                />
+              )
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
 export default function SuppliersPage() {
   const { role, isLoading } = useAuthStore();
   const router = useRouter();
@@ -266,13 +572,15 @@ export default function SuppliersPage() {
           <p className="text-muted-foreground">在此管理您的公司基本信息以及提供的商品与服务。</p>
         </header>
         <Tabs defaultValue="info">
-            <TabsList className="grid w-full grid-cols-3 max-w-lg">
+            <TabsList className="grid w-full grid-cols-4 max-w-lg">
                 <TabsTrigger value="info"><Building className="mr-2"/> 基本信息</TabsTrigger>
                 <TabsTrigger value="products"><Package className="mr-2"/> 商品/服务</TabsTrigger>
+                <TabsTrigger value="media"><Image className="mr-2"/> 媒体资产</TabsTrigger>
                 <TabsTrigger value="batch"><FileCog className="mr-2"/> 批量处理</TabsTrigger>
             </TabsList>
             <TabsContent value="info" className="mt-6"><CompanyInfoForm /></TabsContent>
             <TabsContent value="products" className="mt-6"><ProductManagement userType="supplier" /></TabsContent>
+            <TabsContent value="media" className="mt-6"><MediaAssetsTab /></TabsContent>
             <TabsContent value="batch" className="mt-6">
                 <DataProcessor destination="suppliers" />
             </TabsContent>

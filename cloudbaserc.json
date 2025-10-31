@@ -1,0 +1,158 @@
+{
+  "envId": "leverage-test-abc123-9bn41a84185",
+  "functionRoot": "./functions",
+  "functions": [
+    {
+      "name": "recommendProducts",
+      "timeout": 30,
+      "memorySize": 256,
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "description": "AI导购产品推荐API - 基于用户偏好生成个性化产品推荐"
+    },
+    {
+      "name": "getPlatformAssets",
+      "timeout": 10,
+      "memorySize": 128,
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "description": "获取LLM平台资产列表 - 返回硬编码的厂商和模型列表"
+    },
+    {
+      "name": "testLlmConnection",
+      "timeout": 30,
+      "memorySize": 256,
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "description": "测试LLM连接 - 验证API密钥和连接可用性"
+    },
+    {
+      "name": "getPrompts",
+      "timeout": 10,
+      "memorySize": 128,
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "description": "获取提示模板列表 - 查询活跃的AI场景提示模板"
+    },
+    {
+      "name": "updateModelsFromLiteLLM",
+      "timeout": 30,
+      "memorySize": 256,
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "description": "从LiteLLM更新模型列表 - 同步最新的AI模型信息"
+    },
+    {
+      "name": "executePrompt",
+      "timeout": 60,
+      "memorySize": 512,
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "description": "执行AI提示 - 统一的AI调用入口，包含积分扣除和响应生成"
+    },
+    {
+      "name": "batchUpdateUsers",
+      "timeout": 30,
+      "memorySize": 256,
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "description": "批量更新用户 - 管理员批量管理用户角色/状态/星标等信息"
+    },
+    {
+      "name": "getProductRecommendations",
+      "timeout": 30,
+      "memorySize": 256,
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "description": "获取产品推荐 - 基于用户档案的AI产品推荐系统"
+    },
+    {
+      "name": "recommendCreatives",
+      "timeout": 30,
+      "memorySize": 256,
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "description": "推荐创意者 - AI分析需求匹配最适合的创意人才"
+    },
+    {
+      "name": "createPrivateDemand",
+      "timeout": 30,
+      "memorySize": 256,
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "description": "创建私有需求 - 智能分诊系统，创建需求和聊天记录"
+    },
+    {
+      "name": "clarifyDemandDetails",
+      "timeout": 30,
+      "memorySize": 256,
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "description": "需求澄清 - 基于聊天上下文生成澄清问题，检测升级关键词触发路由"
+    },
+    {
+      "name": "intelligentRoutingFlow",
+      "timeout": 30,
+      "memorySize": 256,
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "description": "智能路由 - 基于设计师状态和路由策略进行AI决策分配"
+    },
+    {
+      "name": "evaluateSellerData",
+      "timeout": 60,
+      "memorySize": 256,
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "description": "供应商数据评估 - 解析CSV数据并进行AI评估，保存到供应商数据库"
+    },
+    {
+      "name": "generate3dModel",
+      "timeout": 60,
+      "memorySize": 512,
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "description": "3D模型图像生成 - 调用Gemini Imagen 4.0根据提示词生成图像"
+    },
+    {
+      "name": "generateTripo3dModel",
+      "timeout": 30,
+      "memorySize": 256,
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "description": "Tripo3D模型生成 - 代理Tripo3D API创建3D模型生成任务"
+    },
+    {
+      "name": "getTripo3dModelStatus",
+      "timeout": 10,
+      "memorySize": 128,
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "description": "Tripo3D状态查询 - 查询Tripo3D 3D模型生成任务的处理状态"
+    },
+    {
+      "name": "generateNanoBananaImage",
+      "timeout": 60,
+      "memorySize": 512,
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "description": "Nano Banana图像生成 - 调用Gemini 2.5 Flash Image生成创意图像"
+    },
+    {
+      "name": "getUploadUrlForMediaAsset",
+      "timeout": 10,
+      "memorySize": 128,
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "description": "媒体资源上传URL生成 - 生成COS签名URL并预创建媒体资源记录"
+    },
+    {
+      "name": "analyzeMediaAsset",
+      "timeout": 60,
+      "memorySize": 512,
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "description": "媒体资源分析 - 调用Gemini pro-vision分析上传的媒体内容"
+    }
+  ]
+}
