@@ -1,4 +1,5 @@
-const { getTcbDb } = require('@/lib/tcb');
+const path = require('path');
+const { getTcbDb } = require(path.join(__dirname, '../src/lib/tcb.ts'));
 
 // 验证数据库连接和数据完整性
 async function validateDatabaseIntegrity() {

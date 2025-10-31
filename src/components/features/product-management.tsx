@@ -79,6 +79,9 @@ export function ProductManagement({ userType }: { userType: 'supplier' | 'creato
             details: [],
         };
         try {
+      // Basic validation before creating
+      if (!newProductData.name || String(newProductData.name).trim().length < 2) throw new Error('产品名称至少需要2个字符');
+      if (typeof newProductData.price !== 'number' || newProductData.price <= 0) throw new Error('价格必须为大于0的数字');
             const res = await addDoc(collection('products'), {
                 createdAt: serverTimestamp()
             });
@@ -108,6 +111,9 @@ export function ProductManagement({ userType }: { userType: 'supplier' | 'creato
 
     const updateProduct = useCallback(async (id: string, data: Partial<ProductService>) => {
         try {
+      // Basic validation for updates
+      if (data.name && String(data.name).trim().length < 2) throw new Error('产品名称至少需要2个字符');
+      if (data.price !== undefined && (typeof data.price !== 'number' || data.price <= 0)) throw new Error('价格必须为大于0的数字');
                 const productRef = doc('products', id) as any;
                 await updateDoc(productRef as any, data);
             setProducts(prev => prev.map((p: ProductService) => (p.id === id ? { ...p, ...data } : p)));

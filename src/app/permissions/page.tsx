@@ -77,7 +77,21 @@ function ApprovalConfigManager({ allAdmins, initialConfig }: { allAdmins: User[]
             toast({ title: '成功', description: '赋分审批人已更新。' });
             router.refresh();
         } catch (error) {
-            toast({ title: '保存失败', description: '更新配置时发生错误。', variant: 'destructive' });
+            console.error("Error saving approval config:", error);
+            const errorMessage = error instanceof Error ? error.message : '未知错误';
+            let friendlyMessage = '更新审批配置失败，请重试。';
+
+            if (errorMessage.includes('permission-denied') || errorMessage.includes('权限')) {
+              friendlyMessage = '权限不足：只有管理员可以修改审批配置。';
+            } else if (errorMessage.includes('validation') || errorMessage.includes('验证')) {
+              friendlyMessage = '数据验证失败：请检查审批人配置是否正确。';
+            } else if (errorMessage.includes('network') || errorMessage.includes('网络')) {
+              friendlyMessage = '网络连接问题：请检查网络连接后重试。';
+            } else if (errorMessage.includes('already-exists') || errorMessage.includes('已存在')) {
+              friendlyMessage = '配置冲突：该审批配置可能已被其他管理员修改。';
+            }
+
+            toast({ title: '保存失败', description: friendlyMessage, variant: 'destructive' });
         } finally {
             setIsSaving(false);
         }
@@ -195,7 +209,21 @@ export default function PermissionsPage() {
                     setApprovalConfig(cfgJson.data as PointsApprovalConfig);
                 }
             } catch (error) {
-                toast({ title: '加载失败', description: '无法获取用户和配置数据。', variant: 'destructive' });
+                console.error("Error fetching permissions data:", error);
+                const errorMessage = error instanceof Error ? error.message : '未知错误';
+                let friendlyMessage = '无法获取用户和配置数据，请稍后重试。';
+
+                if (errorMessage.includes('permission-denied') || errorMessage.includes('权限')) {
+                  friendlyMessage = '权限不足：无法访问用户管理数据，请联系超级管理员。';
+                } else if (errorMessage.includes('network') || errorMessage.includes('网络')) {
+                  friendlyMessage = '网络连接问题：无法连接到服务器，请检查网络连接。';
+                } else if (errorMessage.includes('not-found') || errorMessage.includes('未找到')) {
+                  friendlyMessage = '数据服务暂时不可用：用户管理功能暂时无法使用。';
+                } else if (errorMessage.includes('quota') || errorMessage.includes('配额')) {
+                  friendlyMessage = '服务配额不足：请稍后重试或联系技术支持。';
+                }
+
+                toast({ title: '用户数据加载失败', description: friendlyMessage, variant: 'destructive' });
             } finally {
                 setIsLoadingData(false);
             }
@@ -283,7 +311,23 @@ export default function PermissionsPage() {
             setIsActionModalOpen(false);
             
         } catch (error: any) {
-            toast({ title: '更新失败', description: error.message, variant: 'destructive' });
+            console.error("Error batch updating users:", error);
+            const errorMessage = error instanceof Error ? error.message : '未知错误';
+            let friendlyMessage = '批量更新用户权限失败，请重试。';
+
+            if (errorMessage.includes('permission-denied') || errorMessage.includes('权限')) {
+              friendlyMessage = '权限不足：只有管理员可以批量修改用户权限。';
+            } else if (errorMessage.includes('validation') || errorMessage.includes('验证')) {
+              friendlyMessage = '数据验证失败：请检查输入的用户权限数据是否正确。';
+            } else if (errorMessage.includes('network') || errorMessage.includes('网络')) {
+              friendlyMessage = '网络连接问题：请检查网络连接后重试。';
+            } else if (errorMessage.includes('quota') || errorMessage.includes('配额')) {
+              friendlyMessage = '操作配额不足：请减少批量操作的数量后重试。';
+            } else if (errorMessage.includes('not-found') || errorMessage.includes('未找到')) {
+              friendlyMessage = '用户不存在：某些用户可能已被删除，请刷新页面重试。';
+            }
+
+            toast({ title: '批量更新失败', description: friendlyMessage, variant: 'destructive' });
         }
     };
 

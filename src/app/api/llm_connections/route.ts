@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import * as z from 'zod';
 
-const dataFile = path.join(process.cwd(), 'data', 'ai_scenarios.json');
+const dataFile = path.join(process.cwd(), 'data', 'llm_connections.json');
 
 function readData() {
   try {
@@ -25,7 +25,7 @@ export async function GET(req: Request) {
     const id = parts.length >= 3 ? parts[2] : null;
     const list = readData();
     if (id) {
-      const item = list.find((s: any) => s.id === id || s._id === id);
+      const item = list.find((p: any) => p.id === id || p._id === id);
       if (!item) return NextResponse.json({ message: 'not found' }, { status: 404 });
       return NextResponse.json(item);
     }
@@ -39,16 +39,21 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const schema = z.object({
-      name: z.string().min(1),
-      description: z.string().optional(),
-      configuredPromptKey: z.string().min(1),
-      tags: z.array(z.string()).optional(),
+      provider: z.string().min(1),
+      modelName: z.string().min(1),
+      apiKey: z.string().min(1),
+      priority: z.number().int().min(1).max(100).optional(),
+      status: z.enum(['活跃', '已禁用']).optional(),
+      scope: z.string().optional(),
+      category: z.string().optional(),
+      baseUrl: z.string().url().optional(),
+      config: z.record(z.any()).optional(),
     });
     const parsed = schema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ error: 'validation', issues: parsed.error.format() }, { status: 400 });
     const list = readData();
     const id = (Date.now() + Math.floor(Math.random() * 1000)).toString();
-    const newItem = { ...body, id };
+    const newItem = { ...body, id, createdAt: new Date().toISOString() };
     list.unshift(newItem);
     writeData(list);
     return NextResponse.json(newItem);
@@ -64,10 +69,23 @@ export async function PUT(req: Request) {
     const id = parts.length >= 3 ? parts[2] : null;
     if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 });
     const body = await req.json();
+    const schema = z.object({
+      provider: z.string().min(1).optional(),
+      modelName: z.string().min(1).optional(),
+      apiKey: z.string().optional(),
+      priority: z.number().int().min(1).max(100).optional(),
+      status: z.enum(['活跃', '已禁用']).optional(),
+      scope: z.string().optional(),
+      category: z.string().optional(),
+      baseUrl: z.string().url().optional(),
+      config: z.record(z.any()).optional(),
+    });
+    const parsed = schema.safeParse(body);
+    if (!parsed.success) return NextResponse.json({ error: 'validation', issues: parsed.error.format() }, { status: 400 });
     const list = readData();
-    const idx = list.findIndex((s: any) => s.id === id || s._id === id);
+    const idx = list.findIndex((p: any) => p.id === id || p._id === id);
     if (idx === -1) {
-      const newItem = { ...body, id };
+      const newItem = { ...body, id, createdAt: new Date().toISOString() };
       list.unshift(newItem);
       writeData(list);
       return NextResponse.json(newItem, { status: 201 });
@@ -91,7 +109,7 @@ export async function DELETE(req: Request) {
     const id = parts.length >= 3 ? parts[2] : null;
     if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 });
     const list = readData();
-    const newList = list.filter((s: any) => (s.id || s._id) !== id);
+    const newList = list.filter((p: any) => (p.id || p._id) !== id);
     writeData(newList);
     return NextResponse.json({ success: true });
   } catch (e: any) {
