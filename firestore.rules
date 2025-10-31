@@ -1,0 +1,60 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+  
+    // Helper function to check if a user has a specific role.
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && getUserRole() == 'admin';
+    }
+
+    // Admins have full access to everything.
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    // Users collection:
+    // - Any signed-in user can read another user's profile.
+    // - Users can only create or update their own profile.
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create, update: if request.auth.uid == userId;
+    }
+    
+    // Allow any signed-in user to read public data.
+    match /products/{productId} {
+      allow read: if isSignedIn();
+    }
+    match /demands/{demandId} {
+      allow read: if isSignedIn();
+    }
+    
+    // Chat: Only participants of a private chat can read/write to it.
+    // This is a more complex rule and can be refined later.
+    match /chats/{chatId} {
+        allow read, write: if isSignedIn(); // Simplified for now
+    }
+    
+    // Configuration collections: Read-only for most users.
+    match /configs/{configId} {
+        allow read: if isSignedIn();
+    }
+    match /ai_scenarios/{scenarioId} {
+        allow read: if isSignedIn();
+    }
+    match /intelligent_routing_strategy/{strategyId} {
+        allow read: if isSignedIn();
+    }
+    match /prompts/{promptId} {
+      allow read: if isSignedIn();
+    }
+  }
+}
