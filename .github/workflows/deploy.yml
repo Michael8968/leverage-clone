@@ -1,13 +1,13 @@
-# === TCB 部署自动化工作流 ===
-# 当代码被推送到 main 分支时，此工作流将自动触发，
+# === TCB 部署自动化工作流 (v2.0 - Docker) ===
+# 当代码被推送到 Leverage-TCB 分支时，此工作流将自动触发，
 # 构建 Docker 镜像并将其部署到您的腾讯云云开发（TCB）环境中。
 
-name: Deploy to TCB
+name: Deploy to TCB via Docker
 
 on:
   push:
     branches:
-      - main
+      - Leverage-TCB
 
 jobs:
   deploy:
@@ -26,15 +26,16 @@ jobs:
           node-version: '20'
 
       # 步骤 3: 安装依赖
-      # 使用 'npm ci' 而不是 'npm install' 是CI/CD的最佳实践，
-      # 因为它会基于 package-lock.json 进行更快速、更可靠的安装。
+      # 使用 'npm ci' 是CI/CD的最佳实践，因为它会基于 package-lock.json 进行更快速、更可靠的安装。
       - name: Install dependencies
         run: npm ci
 
       # 步骤 4: 部署到腾讯云云开发（TCB）
       # 使用官方的 TCB Action，它会自动处理 Docker 认证、构建、推送和部署。
       # 请确保您已在 GitHub 仓库的 Secrets 中配置了 TCB_SECRET_ID 和 TCB_SECRET_KEY。
+      # Action 会自动读取根目录的 Dockerfile。
       - name: Deploy to TCB
+        id: deploy_step
         uses: TencentCloudBase/cloudbase-action@v1
         with:
           secretId: ${{ secrets.TCB_SECRET_ID }}
@@ -44,10 +45,25 @@ jobs:
           serviceName: app # 您的服务名称，'app' 是默认值
           servicePath: ./ # Dockerfile 所在的路径
 
-      # 步骤 5: 运行数据库迁移脚本 (部署后钩子)
+      # 步骤 5: 检查部署结果
+      # 如果上一步失败，此步骤将执行并提供调试提示。
+      - name: Check deployment status
+        if: steps.deploy_step.outcome == 'failure'
+        run: |
+          echo "❌ TCB deployment failed."
+          echo "Please check the logs above. A common error is a missing or incorrect Dockerfile in the repository root."
+          exit 1
+
+      # 步骤 6: 运行数据库迁移脚本 (部署后钩子)
       # 确保您的项目根目录下有一个 'migrate.js' 文件。
       - name: Run database migration
-        run: node migrate.js
+        if: steps.deploy_step.outcome == 'success'
+        run: |
+          echo "Running database migration script..."
+          # 使用 curl 调用一个特殊的、可能受保护的端点来触发迁移
+          # 或者直接在容器启动时运行迁移脚本。
+          # 作为后钩子，我们在这里直接执行本地脚本。
+          node migrate.js
         env:
           # 将 TCB 的环境变量传递给迁移脚本
           TCB_SECRET_ID: ${{ secrets.TCB_SECRET_ID }}
@@ -55,3 +71,7 @@ jobs:
           TCB_ENV_ID: leverage-tcb-5gvvzaincb98cd4e
           # 如果您的脚本还需要其他密钥，也应在此处配置
           # JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          
+      - name: Deployment success
+        if: steps.deploy_step.outcome == 'success'
+        run: echo "✅ Successfully deployed to TCB."

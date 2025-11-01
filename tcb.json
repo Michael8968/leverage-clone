@@ -1,14 +1,15 @@
 {
   "env": "leverage-tcb-5gvvzaincb98cd4e",
-  "functions": [],
   "region": "ap-shanghai",
+  "version": "2.0",
   "framework": {
-    "name": "express",
+    "name": "app",
     "plugins": {
-      "api": {
-        "use": "express",
+      "client": {
+        "use": "@cloudbase/framework-plugin-hosting",
         "inputs": {
-          "src": "app.js"
+          "cloudPath": "/",
+          "localPath": "out"
         }
       }
     }
@@ -16,7 +17,10 @@
   "service": {
     "name": "app",
     "path": "./",
-    "role": "TCB_QcsRole"
+    "role": "TCB_QcsRole",
+    "source": "github",
+    "branch": "Leverage-TCB",
+    "dockerfile": "Dockerfile"
   }
 }
 // 重要提示：
