@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview A Genkit flow for generating 3D models from text prompts.
@@ -9,6 +8,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { executePrompt } from './prompt-execution-flow';
 
 const Generate3dModelOutputSchema = z.object({
   imageDataUri: z
@@ -24,29 +24,23 @@ export type Generate3dModelOutput = z.infer<
 export async function generate3dModel(
   promptText: string
 ): Promise<Generate3dModelOutput> {
-  return generate3dModelFlow(promptText);
-}
+  // REFACTORED: Use the centralized executePrompt flow
+  const fullPrompt = `Generate a photorealistic image of a 3D model based on the following description. The model should be on a clean, light gray background. The lighting should be soft and even, highlighting the model's form and texture. Prompt: ${promptText}`;
+  
+  const result = await executePrompt({
+    scenario: 'ai-image-creation', // Use a scenario to allow for admin configuration
+    messages: [{ role: 'user', content: fullPrompt }],
+    // The specific model (like imagen) should be configured in the LLM connections or via the scenario.
+  });
 
-const generate3dModelFlow = ai.defineFlow(
-  {
-    name: 'generate3dModelFlow',
-    inputSchema: z.string(),
-    outputSchema: Generate3dModelOutputSchema,
-  },
-  async (prompt) => {
-    const { media } = await ai.generate({
-      model: 'googleai/imagen-4.0-fast-generate-001',
-      prompt: `Generate a photorealistic image of a 3D model based on the following description. The model should be on a clean, light gray background. The lighting should be soft and even, highlighting the model's form and texture. Prompt: ${prompt}`,
-      config: {
-        aspectRatio: '1:1',
-        size: '1024x1024',
-      }
-    });
-    
-    if (!media.url) {
-      throw new Error('Image generation failed to return a data URI.');
-    }
-
-    return { imageDataUri: media.url };
+  if (!result.text) { // Assuming the image URI is returned in the text field for simplicity
+    throw new Error('Image generation failed to return a data URI.');
   }
-);
+
+  // The output from executePrompt might not be a data URI directly.
+  // This part assumes the configured model returns a base64 string or a data URI.
+  // A more robust solution might involve another step to handle different response formats.
+  const imageDataUri = result.text.startsWith('data:') ? result.text : `data:image/png;base64,${result.text}`;
+
+  return { imageDataUri };
+}

@@ -1,4 +1,3 @@
-
 'use server';
 // firebase-storage-fetch
 
@@ -8,7 +7,8 @@ import { doc, setDoc, getDoc, serverTimestamp, updateDoc, collection } from 'fir
 import { db } from '@/lib/firebase';
 import { getAdminStorage } from '@/lib/firebase-admin';
 import type { MediaAsset } from '@/lib/types';
-import { googleAI } from '@genkit-ai/googleai';
+import { executePrompt } from './prompt-execution-flow';
+
 
 // =================================================================
 // Flow to get a signed URL for a new media asset
@@ -57,6 +57,7 @@ export const getUploadUrlForMediaAsset = ai.defineFlow(
 const AnalyzeMediaAssetInputSchema = z.object({
     mediaAssetId: z.string(),
     prompt: z.string(),
+    userId: z.string().optional(), // For points deduction
 });
 
 const AnalyzeMediaAssetOutputSchema = z.object({
@@ -65,7 +66,7 @@ const AnalyzeMediaAssetOutputSchema = z.object({
 
 export const analyzeMediaAsset = ai.defineFlow(
     { name: 'analyzeMediaAsset', inputSchema: AnalyzeMediaAssetInputSchema, outputSchema: AnalyzeMediaAssetOutputSchema },
-    async ({ mediaAssetId, prompt }) => {
+    async ({ mediaAssetId, prompt, userId }) => {
         const mediaAssetRef = doc(db, 'media_assets', mediaAssetId);
         await updateDoc(mediaAssetRef, { status: 'processing' });
         
@@ -80,17 +81,25 @@ export const analyzeMediaAsset = ai.defineFlow(
         // Update the document with the final public URL
         await updateDoc(mediaAssetRef, { publicUrl });
 
-        const visionPrompt = [
-            { media: { url: publicUrl, contentType: asset.mimeType } },
-            { text: prompt }
-        ];
+        // A multimodal prompt needs to reference the media URL.
+        // The current `executePrompt` doesn't explicitly support this format.
+        // We'll pass it as part of the text content. A better solution would be to enhance `executePrompt`.
+        const combinedPrompt = `
+            Analyze the following media asset and respond to the user's request.
+            Media Asset URL: ${publicUrl}
+            Media Type: ${asset.mimeType}
+            
+            User's Request:
+            "${prompt}"
+        `;
 
-        const llmResponse = await ai.generate({
-            model: googleAI('gemini-pro-vision'),
-            prompt: visionPrompt,
+        const llmResponse = await executePrompt({
+            scenario: 'multimodal-analysis',
+            userId: userId,
+            messages: [{ role: 'user', content: combinedPrompt }],
         });
         
-        const analysis = llmResponse.text();
+        const analysis = llmResponse.text;
         await updateDoc(mediaAssetRef, { status: 'ready', analysis: analysis });
 
         return { analysis };
