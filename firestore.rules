@@ -85,5 +85,14 @@ service cloud.firestore {
      match /llm_connections/{connectionId} {
         allow read: if isSignedIn();
     }
+    
+    match /resources/{resourceId} {
+      allow read: if isSignedIn();
+    }
+
+    match /suppliers/{supplierId} {
+        allow read: if isSignedIn();
+    }
+
   }
 }
