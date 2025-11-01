@@ -270,87 +270,77 @@ const executePromptFlow = ai.defineFlow(
         }
     }
 
-    // 3. If any manual configuration is found, use the custom fetch-based gateway
-    if (finalModelId || promptDoc) {
-        const allConnectionsSnapshot = await getDocs(query(collection(db, 'llm_connections'), where('status', '==', '活跃')));
-        const allConnections = allConnectionsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as LlmConnection));
-        const modelsToTry = await findModelsToTry(promptDoc, allConnections, finalModelId);
+    // 3. Always use the custom fetch-based gateway.
+    const allConnectionsSnapshot = await getDocs(query(collection(db, 'llm_connections'), where('status', '==', '活跃')));
+    const allConnections = allConnectionsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as LlmConnection));
+    const modelsToTry = await findModelsToTry(promptDoc, allConnections, finalModelId);
 
-        if (modelsToTry.length > 0) {
-            const assets = await getPlatformAssets(null);
-            const errors: any[] = [];
-            
-            const conversationMessages = messages.filter(m => m.role !== 'system');
-            const finalMessages = finalSystemPrompt ? [{ role: 'system', content: finalSystemPrompt }, ...conversationMessages] : conversationMessages;
+    if (modelsToTry.length > 0) {
+        const assets = await getPlatformAssets(null);
+        const errors: any[] = [];
+        
+        const conversationMessages = messages.filter(m => m.role !== 'system');
+        const finalMessages = finalSystemPrompt ? [{ role: 'system', content: finalSystemPrompt }, ...conversationMessages] : conversationMessages;
 
-            for (const connection of modelsToTry) {
-                try {
-                    const providerInfo = assets.providers.find(p => p.providerName.toLowerCase() === connection.provider.toLowerCase());
-                    if (!providerInfo) throw new Error(`Provider "${connection.provider}" is not configured in PLATFORM_ASSETS.`);
+        for (const connection of modelsToTry) {
+            try {
+                const providerInfo = assets.providers.find(p => p.providerName.toLowerCase() === connection.provider.toLowerCase());
+                if (!providerInfo) throw new Error(`Provider "${connection.provider}" is not configured in PLATFORM_ASSETS.`);
+                
+                const { provider, modelName, apiKey } = connection;
+                const { apiBaseUrl } = providerInfo;
+                
+                let requestUrl: string;
+                let requestHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+                let requestBody: any;
+
+                switch (provider.toLowerCase()) {
+                    case 'google':
+                        requestUrl = `${apiBaseUrl}/${modelName}:generateContent?key=${apiKey}`;
+                        requestBody = {
+                            contents: finalMessages.filter(m => m.role !== 'system').map(m => ({
+                                role: m.role === 'user' ? 'user' : 'model',
+                                parts: [{ text: m.content }]
+                            })),
+                            systemInstruction: finalSystemPrompt ? { parts: [{ text: finalSystemPrompt }] } : undefined,
+                            generationConfig: { temperature },
+                        };
+                        break;
                     
-                    const { provider, modelName, apiKey } = connection;
-                    const { apiBaseUrl } = providerInfo;
-                    
-                    let requestUrl: string;
-                    let requestHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-                    let requestBody: any;
-
-                    switch (provider.toLowerCase()) {
-                        case 'google':
-                            requestUrl = `${apiBaseUrl}/${modelName}:generateContent?key=${apiKey}`;
-                            requestBody = {
-                                contents: finalMessages.filter(m => m.role !== 'system').map(m => ({
-                                    role: m.role === 'user' ? 'user' : 'model',
-                                    parts: [{ text: m.content }]
-                                })),
-                                systemInstruction: finalSystemPrompt ? { parts: [{ text: finalSystemPrompt }] } : undefined,
-                                generationConfig: { temperature },
-                            };
-                            break;
-                        
-                        default: // OpenAI-compatible providers (includes DeepSeek, LiteLLM proxy, etc.)
-                            requestUrl = `${apiBaseUrl.replace(/\/$/, "")}/chat/completions`;
-                            requestHeaders['Authorization'] = `Bearer ${apiKey}`;
-                            requestBody = { model: modelName, messages: finalMessages, temperature };
-                            break;
-                    }
-
-                    const response = await fetch(requestUrl, { method: 'POST', headers: requestHeaders, body: JSON.stringify(requestBody) });
-                    if (!response.ok) throw new Error(`API returned ${response.status}: ${await response.text()}`);
-                    const responseData = await response.json();
-                    
-                    let outputText = '';
-                    switch (provider.toLowerCase()) {
-                        case 'google':
-                            outputText = responseData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                            break;
-                        default: // OpenAI-compatible response path
-                            outputText = responseData.choices?.[0]?.message?.content || '';
-                            break;
-                    }
-                    
-                    if (outputText) {
-                        return { text: outputText, updatedUser };
-                    }
-                    throw new Error('API returned a valid response, but no text content was found.');
-
-                } catch (error) {
-                    console.error(`Attempt with model ${connection.modelName} failed:`, error);
-                    errors.push(error);
+                    default: // OpenAI-compatible providers (includes DeepSeek, LiteLLM proxy, etc.)
+                        requestUrl = `${apiBaseUrl.replace(/\/$/, "")}/chat/completions`;
+                        requestHeaders['Authorization'] = `Bearer ${apiKey}`;
+                        requestBody = { model: modelName, messages: finalMessages, temperature };
+                        break;
                 }
+
+                const response = await fetch(requestUrl, { method: 'POST', headers: requestHeaders, body: JSON.stringify(requestBody) });
+                if (!response.ok) throw new Error(`API returned ${response.status}: ${await response.text()}`);
+                const responseData = await response.json();
+                
+                let outputText = '';
+                switch (provider.toLowerCase()) {
+                    case 'google':
+                        outputText = responseData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                        break;
+                    default: // OpenAI-compatible response path
+                        outputText = responseData.choices?.[0]?.message?.content || '';
+                        break;
+                }
+                
+                if (outputText) {
+                    return { text: outputText, updatedUser };
+                }
+                throw new Error('API returned a valid response, but no text content was found.');
+
+            } catch (error) {
+                console.error(`Attempt with model ${connection.modelName} failed:`, error);
+                errors.push(error);
             }
-            // If all manual attempts fail, fall through to Genkit.
-            console.warn(`All manual LLM connections failed. Errors: ${errors.map(e => e.message).join(', ')}. Falling back to Genkit.`);
         }
     }
 
-    // 4. Genkit Fallback: If no manual configuration leads to a successful call, use Genkit.
-    console.log("No valid manual configuration found or all attempts failed. Using Genkit fallback.");
-    const llmResponse = await ai.generate({
-        prompt: messages.map(m => m.content).join('\n'), // Simple concatenation for fallback
-        config: { temperature },
-    });
-    
-    return { text: llmResponse.text(), updatedUser };
+    // 4. If all attempts fail, throw a definitive error. No fallback.
+    throw new Error("未能找到可用的LLM连接来执行此请求，请在后台配置或检查您的模型连接。");
   }
 );
