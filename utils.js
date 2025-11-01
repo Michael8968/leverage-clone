@@ -1,27 +1,52 @@
 /**
- * @file 前端API请求工具函数
+ * @file 前端API请求工具函数 (V2 - 优化版)
  *
- * 此文件提供了一系列函数，用于与新的TCB HTTP API进行交互。
- * 它封装了 `fetch` API，并统一处理了认证头和错误。
+ * 此文件提供了一系列与TCB HTTP API交互的函数。
+ * - 封装了 fetch API，统一处理认证头和错误。
+ * - 实现了请求重试机制，以应对网络波动。
+ * - 为GET请求实现了基于SessionStorage的简单缓存策略。
  */
 
-// 从环境变量或配置文件中获取API的基础URL和可发布的密钥
-const API_BASE_URL = process.env.NEXT_PUBLIC_TCB_API_URL || 'https://your-deployed-url.tcloudbase.com';
-const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_TCB_PUBLISHABLE_KEY || 'your-publishable-api-key';
+// API的基础URL，从环境变量中获取
+const API_BASE_URL = 'https://leverage-tcb-5gvvzaincb98cd4e.ap-shanghai.tcb-api.tencentcloudapi.com';
+
+/**
+ * 带有重试和超时的fetch封装
+ * @param {string} url - 请求的URL
+ * @param {RequestInit} options - fetch的配置选项
+ * @param {number} retries - 重试次数
+ * @returns {Promise<Response>}
+ */
+const fetchWithRetry = async (url, options, retries = 3) => {
+  const timeout = 5000; // 5秒超时
+  for (let i = 0; i < retries; i++) {
+    try {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeout);
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(id);
+      if (!response.ok && response.status >= 500) { // 只对服务端错误进行重试
+        throw new Error(`Server error: ${response.status}`);
+      }
+      return response;
+    } catch (error) {
+      console.warn(`Attempt ${i + 1} failed: ${error.message}`);
+      if (i === retries - 1) throw error;
+      await new Promise(res => setTimeout(res, 1000 * Math.pow(2, i))); // 指数退避
+    }
+  }
+};
+
 
 /**
  * 获取认证头
- * 优先使用本地存储的JWT令牌（如果用户已登录），
- * 否则回退到使用公共可发布密钥。
  * @returns {HeadersInit} 包含认证信息的Headers对象
  */
 const getAuthHeaders = () => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('user_jwt_token') : null;
-  const apiKey = token || PUBLISHABLE_KEY;
-
+  const token = typeof window !== 'undefined' ? localStorage.getItem('jwt_token') : null;
   return {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${apiKey}`
+    ...(token && { 'Authorization': `Bearer ${token}` }),
   };
 };
 
@@ -29,7 +54,6 @@ const getAuthHeaders = () => {
  * 处理API响应的通用函数
  * @param {Response} response - fetch API的响应对象
  * @returns {Promise<any>} 解析后的JSON数据
- * @throws {Error} 如果响应状态码不是 2xx
  */
 const handleResponse = async (response) => {
   if (!response.ok) {
@@ -40,56 +64,60 @@ const handleResponse = async (response) => {
 };
 
 /**
- * 调用 /api/createUser 接口
- * @param {string} email - 用户邮箱
- * @param {string} password - 用户密码
- * @returns {Promise<any>} API的响应数据
+ * API请求的通用函数
+ * @param {'GET' | 'POST'} method - HTTP方法
+ * @param {string} endpoint - API的端点 (e.g., '/api/posts')
+ * @param {object} [body] - POST请求的请求体
+ * @param {boolean} [useCache=true] - 是否对GET请求使用缓存
+ * @returns {Promise<any>}
  */
-export const apiCreateUser = async (email, password) => {
-  const response = await fetch(`${API_BASE_URL}/api/createUser`, {
-    method: 'POST',
+const apiRequest = async (method, endpoint, body = null, useCache = true) => {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const options = {
+    method,
     headers: getAuthHeaders(),
-    body: JSON.stringify({ email, password }),
-  });
-  return handleResponse(response);
-};
+    ...(body && { body: JSON.stringify(body) }),
+  };
 
-/**
- * 调用 /api/posts 接口
- * @param {string} [userId] - (可选) 要查询的用户的ID
- * @returns {Promise<any>} API的响应数据，包含帖子列表
- */
-export const apiGetPosts = async (userId) => {
-  const url = new URL(`${API_BASE_URL}/api/posts`);
-  if (userId) {
-    url.searchParams.append('userId', userId);
+  const cacheKey = `cache_${endpoint}`;
+  if (method === 'GET' && useCache && typeof window !== 'undefined') {
+    const cachedData = sessionStorage.getItem(cacheKey);
+    if (cachedData) {
+        console.log(`[Cache] Hit for ${endpoint}`);
+        // 在后台静默更新缓存
+        fetchWithRetry(url, options).then(handleResponse).then(freshData => {
+            sessionStorage.setItem(cacheKey, JSON.stringify(freshData));
+        }).catch(() => { /* 静默失败 */ });
+        return JSON.parse(cachedData);
+    }
   }
 
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: getAuthHeaders(),
-  });
-  return handleResponse(response);
+  const response = await fetchWithRetry(url, options);
+  const data = await handleResponse(response);
+  
+  if (method === 'GET' && useCache && typeof window !== 'undefined') {
+      sessionStorage.setItem(cacheKey, JSON.stringify(data));
+      console.log(`[Cache] Stored for ${endpoint}`);
+  }
+
+  return data;
 };
 
-// --- 使用示例 ---
-/*
-async function exampleUsage() {
-  try {
-    // 创建用户
-    const newUser = await apiCreateUser('test@example.com', 'securepassword123');
-    console.log('User created:', newUser);
+// --- 封装后的API函数 ---
 
-    // 获取所有帖子
-    const allPosts = await apiGetPosts();
-    console.log('All posts:', allPosts);
+export const apiLogin = (email, password) => 
+  apiRequest('POST', '/api/auth/login', { email, password });
 
-    // 获取特定用户的帖子
-    const userPosts = await apiGetPosts('some-user-id');
-    console.log('Posts by user:', userPosts);
+export const apiRegister = (userData) =>
+  apiRequest('POST', '/api/auth/register', userData);
 
-  } catch (error) {
-    console.error('API operation failed:', error.message);
-  }
-}
-*/
+export const apiVerifyToken = () =>
+  apiRequest('GET', '/api/auth/verify', null, false); // 不缓存验证请求
+
+export const apiGetPosts = (userId) => {
+  const endpoint = userId ? `/api/posts?userId=${userId}` : '/api/posts';
+  return apiRequest('GET', endpoint);
+};
+
+export const apiCreatePost = (title, content) =>
+  apiRequest('POST', '/api/posts', { title, content });
