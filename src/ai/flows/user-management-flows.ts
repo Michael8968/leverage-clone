@@ -286,73 +286,85 @@ export const approveGrantRequest = ai.defineFlow(
         let approvedCount = 0;
         let alreadyApprovedByThisUser = false;
 
-        // 1. Fetch approval configuration first, outside the transaction
-        const approvalConfigRef = doc(db, 'configs', 'points_approval_config');
-        const approvalConfigSnap = await getDoc(approvalConfigRef);
-        const approvalConfig = approvalConfigSnap.exists() ? approvalConfigSnap.data() as PointsApprovalConfig : { approverUids: [] };
-        
-        // 2. Validate if the approver is authorized
-        if (approvalConfig.approverUids.length > 0 && !approvalConfig.approverUids.includes(approverId)) {
-            throw new Error('您没有权限批准此请求。请联系系统管理员。');
-        }
-
-        await runTransaction(db, async (transaction) => {
-            const transactionsQuery = query(
-                collection(db, 'points_transactions'),
-                where('batchId', '==', batchId),
-                where('status', '==', 'pending')
-            );
+        try {
+            // 1. Fetch approval configuration first, outside the transaction
+            const approvalConfigRef = doc(db, 'configs', 'points_approval_config');
+            const approvalConfigSnap = await getDoc(approvalConfigRef);
+            const approvalConfig = approvalConfigSnap.exists() ? approvalConfigSnap.data() as PointsApprovalConfig : { approverUids: [] };
             
-            const transactionsSnapshot = await transaction.get(transactionsQuery);
+            // 2. Validate if the approver is authorized
+            if (approvalConfig.approverUids.length > 0 && !approvalConfig.approverUids.includes(approverId)) {
+                throw new Error('您没有权限批准此请求。请联系系统管理员。');
+            }
 
-            if (transactionsSnapshot.empty) {
-                const approvedQuery = query(
+            await runTransaction(db, async (transaction) => {
+                const transactionsQuery = query(
                     collection(db, 'points_transactions'),
                     where('batchId', '==', batchId),
-                    where('status', '==', 'approved')
+                    where('status', '==', 'pending')
                 );
-                const approvedSnapshot = await transaction.get(approvedQuery);
-                if (!approvedSnapshot.empty) {
-                     throw new Error('此批次请求已被其他管理员批准。');
+                
+                const transactionsSnapshot = await transaction.get(transactionsQuery);
+
+                if (transactionsSnapshot.empty) {
+                    const approvedQuery = query(
+                        collection(db, 'points_transactions'),
+                        where('batchId', '==', batchId),
+                        where('status', '==', 'approved')
+                    );
+                    const approvedSnapshot = await transaction.get(approvedQuery);
+                    if (!approvedSnapshot.empty) {
+                         throw new Error('此批次请求已被其他管理员批准。');
+                    }
+                    throw new Error('未找到待审批的交易记录，或请求已过期。');
                 }
-                throw new Error('未找到待审批的交易记录，或请求已过期。');
-            }
-            
-            const firstDocApprovers = transactionsSnapshot.docs[0].data().approvers || [];
-            if (firstDocApprovers.includes(approverId)) {
-                alreadyApprovedByThisUser = true;
-                return;
-            }
-
-            const isFinalApproval = firstDocApprovers.length === 1;
-
-            for (const txDoc of transactionsSnapshot.docs) {
-                const txRef = txDoc.ref;
-                const txData = txDoc.data() as PointsTransaction;
-                const newApprovers = [...(txData.approvers || []), approverId];
-
-                if (isFinalApproval) {
-                    const userRef = doc(db, 'users', txData.uid);
-                    transaction.update(userRef, {
-                        points_balance: increment(txData.amount)
-                    });
-                    transaction.update(txRef, {
-                        status: 'approved',
-                        approvers: newApprovers
-                    });
-                    approvedCount++;
-                } else {
-                    transaction.update(txRef, {
-                        approvers: newApprovers
-                    });
+                
+                const firstDocApprovers = transactionsSnapshot.docs[0].data().approvers || [];
+                if (firstDocApprovers.includes(approverId)) {
+                    alreadyApprovedByThisUser = true;
+                    return;
                 }
-            }
-        });
 
-        if (alreadyApprovedByThisUser) {
-            return { approvedCount: 0, alreadyApproved: true };
+                const isFinalApproval = firstDocApprovers.length === 1;
+
+                for (const txDoc of transactionsSnapshot.docs) {
+                    const txRef = txDoc.ref;
+                    const txData = txDoc.data() as PointsTransaction;
+                    const newApprovers = [...(txData.approvers || []), approverId];
+
+                    if (isFinalApproval) {
+                        const userRef = doc(db, 'users', txData.uid);
+                        transaction.update(userRef, {
+                            points_balance: increment(txData.amount)
+                        });
+                        transaction.update(txRef, {
+                            status: 'approved',
+                            approvers: newApprovers
+                        });
+                        approvedCount++;
+                    } else {
+                        transaction.update(txRef, {
+                            approvers: newApprovers
+                        });
+                    }
+                }
+            });
+
+            if (alreadyApprovedByThisUser) {
+                return { approvedCount: 0, alreadyApproved: true };
+            }
+
+            return { approvedCount, alreadyApproved: false };
+        } catch (serverError: any) {
+            if (serverError.code === 'permission-denied') {
+                const permissionError = new FirestorePermissionError({
+                    path: `points_transactions (batchId: ${batchId})`,
+                    operation: 'update',
+                    requestResourceData: { batchId, approverId },
+                });
+                errorEmitter.emit('permission-error', permissionError);
+            }
+            throw serverError; // Re-throw original error after emitting
         }
-
-        return { approvedCount, alreadyApproved: false };
     }
 );

@@ -1,3 +1,6 @@
+// This is a simple, client-side safe event emitter.
+// It avoids using Node.js's 'events' module which would cause errors in the browser.
+
 type EventHandler = (error: Error) => void;
 
 class ErrorEmitter {
