@@ -1,0 +1,17 @@
+# Ignore node_modules, as they will be installed within the container
+node_modules
+
+# Ignore development and local environment files
+.env
+*.log
+.DS_Store
+
+# Ignore version control files
+.git
+.gitignore
+.github
+
+# Ignore any local configuration or test files that are not needed in production
+README.md
+check-repo.js
+add-docker.sh

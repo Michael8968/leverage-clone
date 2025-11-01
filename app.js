@@ -166,6 +166,11 @@ app.get('/', (req, res) => {
   res.send('TCB HTTP API Server is running.');
 });
 
+// Health check endpoint for Docker/TCB
+app.get('/health', (req, res) => {
+    res.status(200).send({ status: 'ok', timestamp: new Date() });
+});
+
 /**
  * @api {get} /api/posts 获取帖子列表
  */
