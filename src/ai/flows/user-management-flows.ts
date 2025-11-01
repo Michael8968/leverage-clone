@@ -65,10 +65,9 @@ export const batchUpdateUsers = ai.defineFlow(
         try {
             await batch.commit();
         } catch (serverError: any) {
-            // This is the new error handling part
             if (serverError.code === 'permission-denied') {
                 const permissionError = new FirestorePermissionError({
-                    path: `users (batch update)`, // Batch updates affect multiple paths
+                    path: `users (batch update)`,
                     operation: 'update',
                     requestResourceData: {
                         userIds,
@@ -77,8 +76,6 @@ export const batchUpdateUsers = ai.defineFlow(
                 });
                 errorEmitter.emit('permission-error', permissionError);
             }
-            // Re-throw original error to notify client of failure, but without crashing.
-            // The rich error is now visible in the dev overlay.
             throw new Error(`批量更新失败: ${serverError.message}`);
         }
     }
