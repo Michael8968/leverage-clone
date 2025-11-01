@@ -1,0 +1,57 @@
+# === TCB 部署自动化工作流 ===
+# 当代码被推送到 main 分支时，此工作流将自动触发，
+# 构建 Docker 镜像并将其部署到您的腾讯云云开发（TCB）环境中。
+
+name: Deploy to TCB
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 步骤 1: 检出代码
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 步骤 2: 设置 Node.js 环境
+      # 这对于运行 npm 命令和任何后续的 node 脚本是必需的。
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      # 步骤 3: 安装依赖
+      # 使用 'npm ci' 而不是 'npm install' 是CI/CD的最佳实践，
+      # 因为它会基于 package-lock.json 进行更快速、更可靠的安装。
+      - name: Install dependencies
+        run: npm ci
+
+      # 步骤 4: 部署到腾讯云云开发（TCB）
+      # 使用官方的 TCB Action，它会自动处理 Docker 认证、构建、推送和部署。
+      # 请确保您已在 GitHub 仓库的 Secrets 中配置了 TCB_SECRET_ID 和 TCB_SECRET_KEY。
+      - name: Deploy to TCB
+        uses: TencentCloudBase/cloudbase-action@v1
+        with:
+          secretId: ${{ secrets.TCB_SECRET_ID }}
+          secretKey: ${{ secrets.TCB_SECRET_KEY }}
+          envId: leverage-tcb-5gvvzaincb98cd4e
+          region: ap-shanghai
+          serviceName: app # 您的服务名称，'app' 是默认值
+          servicePath: ./ # Dockerfile 所在的路径
+
+      # 步骤 5: 运行数据库迁移脚本 (部署后钩子)
+      # 确保您的项目根目录下有一个 'migrate.js' 文件。
+      - name: Run database migration
+        run: node migrate.js
+        env:
+          # 将 TCB 的环境变量传递给迁移脚本
+          TCB_SECRET_ID: ${{ secrets.TCB_SECRET_ID }}
+          TCB_SECRET_KEY: ${{ secrets.TCB_SECRET_KEY }}
+          TCB_ENV_ID: leverage-tcb-5gvvzaincb98cd4e
+          # 如果您的脚本还需要其他密钥，也应在此处配置
+          # JWT_SECRET: ${{ secrets.JWT_SECRET }}

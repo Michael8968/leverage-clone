@@ -1,0 +1,26 @@
+{
+  "env": "leverage-tcb-5gvvzaincb98cd4e",
+  "functions": [],
+  "region": "ap-shanghai",
+  "framework": {
+    "name": "express",
+    "plugins": {
+      "api": {
+        "use": "express",
+        "inputs": {
+          "src": "app.js"
+        }
+      }
+    }
+  },
+  "service": {
+    "name": "app",
+    "path": "./",
+    "role": "TCB_QcsRole"
+  }
+}
+// 重要提示：
+// 关于 "API限国内IP" 的安全需求，请在腾讯云云开发控制台中进行配置：
+// 1. 进入您的环境 (leverage-tcb-5gvvzaincb98cd4e)。
+// 2. 找到 "安全配置" -> "IP 访问控制"。
+// 3. 在此处配置 IP 白名单或黑名单策略，以实现国内IP限制。
