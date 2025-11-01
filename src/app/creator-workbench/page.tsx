@@ -389,7 +389,7 @@ function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
                     if(data.status === 'success') {
                         setTaskId(null); // Clear task ID for next generation
                     } else {
-                        setError(data.error || '任务生成失败，请检查提示词或API Key。');
+                        setError(data.message || '任务生成失败，请检查提示词或API Key。');
                     }
                 }
             } catch (err: any) {

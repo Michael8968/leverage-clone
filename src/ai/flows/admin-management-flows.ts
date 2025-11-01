@@ -25,7 +25,7 @@ const PLATFORM_ASSETS = {
                 "anthropic/claude-3-sonnet-20240229",
                 "anthropic/claude-3-haiku-20240307"
             ], 
-            apiBaseUrl: process.env.LITELLM_PROXY_URL || "http://localhost:4000/v1" 
+            apiBaseUrl: process.env.LITELLM_PROXY_URL || "http://localhost:4000"
         },
         { providerName: "Moonshot", models: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"], apiBaseUrl: "https://api.moonshot.cn/v1" },
         { providerName: "Baichuan", models: ["Baichuan2-Turbo", "Baichuan2-Turbo-192k", "Baichuan-Text-Embedding"], apiBaseUrl: "https://api.baichuan-ai.com/v1" },
@@ -83,7 +83,8 @@ export const testLlmConnection = ai.defineFlow(
                 
                 // All other providers (including LiteLLM proxies) are assumed to be OpenAI-compatible.
                 default:
-                    requestUrl = `${providerInfo.apiBaseUrl.replace(/\/$/, "")}/chat/completions`;
+                    // Corrected for LiteLLM and other OpenAI-compatible APIs. The base URL might not end with /v1
+                    requestUrl = `${providerInfo.apiBaseUrl.replace(/\/$/, "")}/v1/chat/completions`;
                     requestHeaders['Authorization'] = `Bearer ${apiKey}`;
                     requestBody = {
                         model: modelName,
@@ -198,11 +199,11 @@ export const updateModelsFromLiteLLM = ai.defineFlow(
         throw new Error('LiteLLM provider not configured in PLATFORM_ASSETS.');
       }
       
-      const modelsUrl = `${liteLlmProvider.apiBaseUrl.replace('/v1', '')}/v1/models`;
+      const modelsUrl = `${liteLlmProvider.apiBaseUrl.replace(/\/$/, "")}/v1/models`;
       
       const response = await fetch(modelsUrl);
       if (!response.ok) {
-        throw new Error(`Failed to fetch models from LiteLLM: ${response.statusText}`);
+        throw new Error(`Failed to fetch models from LiteLLM proxy at ${modelsUrl}. Status: ${response.statusText}. Please ensure the proxy is running and accessible.`);
       }
 
       const modelsData = await response.json();
@@ -245,7 +246,9 @@ export const updateModelsFromLiteLLM = ai.defineFlow(
         }
       }
 
-      await batch.commit();
+      if (added > 0) {
+        await batch.commit();
+      }
 
       return {
         added,
