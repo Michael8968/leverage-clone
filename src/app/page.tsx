@@ -33,31 +33,19 @@ function InitialLoader() {
  */
 export default function RootPage() {
   const router = useRouter();
-  // We get the state and the actions from the store
-  const { role, isLoading, user, setUser, setIsLoading } = useAuthStore();
-  
+  const { role, isLoading, user, checkAuthState } = useAuthStore();
+
   useEffect(() => {
-    // 依赖 AuthProvider 初始化；此处不再订阅 Firebase 状态
-    if (typeof window !== 'undefined') {
-      // 若没有 token，标记为未登录
-      const token = localStorage.getItem('auth_token');
-      if (!token) {
-        setUser(null, null);
-      }
-      setIsLoading(false);
-    }
+    // On initial load, check the authentication state with TCB
+    checkAuthState();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-
   useEffect(() => {
-    // Only perform redirection after the initial authentication check is complete.
     if (!isLoading) {
-      // Add an extra check for user status
       if (user?.status === 'suspended') {
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('auth_token');
-        }
+        // If user is suspended, force logout and redirect to login
+        useAuthStore.getState().logout(); 
         router.replace('/login');
         return;
       }
@@ -66,6 +54,5 @@ export default function RootPage() {
     }
   }, [isLoading, role, user, router]);
 
-  // While the auth state is being determined, show a loader.
   return <InitialLoader />;
 }

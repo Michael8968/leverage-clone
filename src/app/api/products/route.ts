@@ -1,41 +1,37 @@
+
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
 import * as z from 'zod';
+import {
+  getProducts,
+  getProductById,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+} from '@/lib/repositories/tcb/products';
 
-const dataFile = path.join(process.cwd(), 'data', 'products.json');
-
-function readData() {
-  try {
-    if (!fs.existsSync(dataFile)) return [];
-    return JSON.parse(fs.readFileSync(dataFile, 'utf-8')) || [];
-  } catch {
-    return [];
-  }
-}
-
-function writeData(list: any[]) {
-  fs.writeFileSync(dataFile, JSON.stringify(list, null, 2), 'utf-8');
-}
-
+// GET /api/products - Fetches all products
+// GET /api/products?id={id} - Fetches a single product by ID
 export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get('id');
+
   try {
-    const url = new URL(req.url);
-    const parts = url.pathname.split('/').filter(Boolean);
-    // /api/products or /api/products/:id
-    const id = parts.length >= 3 ? parts[2] : null;
-    const list = readData();
     if (id) {
-      const item = list.find((p: any) => p.id === id || p._id === id);
-      if (!item) return NextResponse.json({ message: 'not found' }, { status: 404 });
-      return NextResponse.json(item);
+      const product = await getProductById(id);
+      if (!product) {
+        return NextResponse.json({ message: 'Product not found' }, { status: 404 });
+      }
+      return NextResponse.json(product);
+    } else {
+      const products = await getProducts();
+      return NextResponse.json(products);
     }
-    return NextResponse.json(list);
-  } catch (e: any) {
-    return NextResponse.json([], { status: 200 });
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to fetch products' }, { status: 500 });
   }
 }
 
+// POST /api/products - Creates a new product
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -49,67 +45,65 @@ export async function POST(req: Request) {
       images: z.array(z.any()).optional(),
       details: z.array(z.any()).optional(),
     });
-    const parsed = schema.safeParse(body);
-    if (!parsed.success) return NextResponse.json({ error: 'validation', issues: parsed.error.format() }, { status: 400 });
-    const list = readData();
-    const id = (Date.now() + Math.floor(Math.random() * 1000)).toString();
-    const newItem = { ...body, id, createdAt: new Date().toISOString() };
-    list.unshift(newItem);
-    writeData(list);
-    return NextResponse.json({ id, ...newItem });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'unknown' }, { status: 500 });
-  }
-}
 
-export async function PUT(req: Request) {
-  try {
-    const url = new URL(req.url);
-    const parts = url.pathname.split('/').filter(Boolean);
-    const id = parts.length >= 3 ? parts[2] : null;
-    if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 });
-    const body = await req.json();
-    const schema = z.object({
-      name: z.string().min(2).optional(),
-      description: z.string().optional(),
-      price: z.number().gt(0).optional(),
-      category: z.string().optional(),
-      supplierId: z.string().optional(),
-      creatorId: z.string().optional(),
-    });
     const parsed = schema.safeParse(body);
-    if (!parsed.success) return NextResponse.json({ error: 'validation', issues: parsed.error.format() }, { status: 400 });
-    const list = readData();
-    const idx = list.findIndex((p: any) => p.id === id || p._id === id);
-    if (idx === -1) {
-      const newItem = { ...body, id, createdAt: new Date().toISOString() };
-      list.unshift(newItem);
-      writeData(list);
-      return NextResponse.json(newItem, { status: 201 });
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Validation failed', issues: parsed.error.format() }, { status: 400 });
     }
-    list[idx] = { ...list[idx], ...body };
-    writeData(list);
-    return NextResponse.json(list[idx]);
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'unknown' }, { status: 500 });
+
+    const result = await createProduct(parsed.data);
+    return NextResponse.json({ id: result.id, ...parsed.data }, { status: 201 });
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to create product' }, { status: 500 });
   }
 }
 
-export async function PATCH(req: Request) {
-  return PUT(req);
-}
+// PUT /api/products?id={id} - Updates an existing product
+export async function PUT(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get('id');
 
-export async function DELETE(req: Request) {
+  if (!id) {
+    return NextResponse.json({ error: 'Missing product ID' }, { status: 400 });
+  }
+
   try {
-    const url = new URL(req.url);
-    const parts = url.pathname.split('/').filter(Boolean);
-    const id = parts.length >= 3 ? parts[2] : null;
-    if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 });
-    const list = readData();
-    const newList = list.filter((p: any) => (p.id || p._id) !== id);
-    writeData(newList);
-    return NextResponse.json({ success: true });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'unknown' }, { status: 500 });
+    const body = await req.json();
+    // Optional schema for updates
+    const schema = z.object({
+        name: z.string().min(2).optional(),
+        description: z.string().optional(),
+        price: z.number().gt(0).optional(),
+        category: z.string().optional(),
+        supplierId: z.string().optional(),
+        creatorId: z.string().optional(),
+      }).partial();
+
+    const parsed = schema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Validation failed', issues: parsed.error.format() }, { status: 400 });
+    }
+
+    await updateProduct(id, parsed.data);
+    return NextResponse.json({ message: 'Product updated successfully' });
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to update product' }, { status: 500 });
   }
+}
+
+// DELETE /api/products?id={id} - Deletes a product by ID
+export async function DELETE(req: Request) {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+        return NextResponse.json({ error: 'Missing product ID' }, { status: 400 });
+    }
+
+    try {
+        await deleteProduct(id);
+        return NextResponse.json({ success: true, message: 'Product deleted successfully' });
+    } catch (error) {
+        return NextResponse.json({ error: 'Failed to delete product' }, { status: 500 });
+    }
 }

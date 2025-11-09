@@ -1,21 +1,29 @@
-import { NextRequest, NextResponse } from 'next/server';
 
-// This is a proxy endpoint for non-native Genkit providers, like LiteLLM.
-// It receives a request, adds the required API key from server-side environment variables,
-// and forwards it to the actual LLM provider endpoint.
+import { NextRequest, NextResponse } from 'next/server';
+import { getLlmConnections } from '@/lib/repositories/tcb/llmConnections';
+
 export async function POST(req: NextRequest) {
     try {
-        const body = await req.json();
+        const connections = await getLlmConnections();
         
-        const { model, messages, temperature, apiKey } = body;
+        // Check if there are any active connections.
+        if (!connections || connections.length === 0) {
+            return new NextResponse(
+                JSON.stringify({ 
+                    message: '需要先配置LLM (No active LLM connection configured).',
+                    details: 'Please configure at least one LLM provider in the admin dashboard.'
+                }), 
+                { status: 503, headers: { 'Content-Type': 'application/json' } }
+            );
+        }
+
+        // For simplicity, we'll use the first available connection.
+        // A more advanced implementation would involve routing logic.
+        const activeConnection = connections[0];
+        const { model, messages, temperature } = await req.json();
 
         if (!model || !messages) {
             return new NextResponse(JSON.stringify({ message: "Missing model or messages in request body." }), { status: 400 });
-        }
-
-        // The API Key should be passed in the body from the secure server-side flow.
-        if (!apiKey) {
-            return new NextResponse(JSON.stringify({ message: "API key is missing." }), { status: 401 });
         }
 
         const proxyRequestBody = {
@@ -23,33 +31,22 @@ export async function POST(req: NextRequest) {
             messages: messages,
             temperature: temperature,
         };
-        
-        // This assumes the LITELLM_PROXY_URL points to a LiteLLM instance.
-        const proxyUrl = process.env.LITELLM_PROXY_URL;
 
-        if (!proxyUrl) {
-             return new NextResponse(
-                JSON.stringify({ 
-                    message: 'Proxy URL is not configured.', 
-                    details: 'The LITELLM_PROXY_URL environment variable is not set.'
-                }), 
-                { status: 500, headers: { 'Content-Type': 'application/json' } }
-            );
-        }
+        // The base URL for the proxy can be part of the connection details.
+        const proxyUrl = activeConnection.apiBaseUrl || 'https://api.openai.com/v1'; // Default to OpenAI if not specified
 
         const response = await fetch(`${proxyUrl}/chat/completions`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
+                'Authorization': `Bearer ${activeConnection.apiKey}`,
             },
             body: JSON.stringify(proxyRequestBody),
         });
 
         if (!response.ok) {
             const errorBody = await response.text();
-            console.error("LiteLLM Proxy Error:", errorBody);
-            // Return the actual error from the proxy
+            console.error("LLM Gateway Error:", errorBody);
             return new NextResponse(errorBody, { status: response.status });
         }
 
@@ -57,15 +54,14 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(data);
 
     } catch (error: any) {
-        console.error("Error in AI Gateway Proxy (/api/generate):", error);
-        // This will now catch the "fetch failed" error if the proxyUrl is unreachable.
+        console.error("Error in LLM Gateway (/api/generate):", error);
         const errorMessage = (error.cause as any)?.code === 'UND_ERR_CONNECT_FAILED'
-            ? 'Failed to connect to the configured proxy URL. Please ensure the proxy service is running and accessible.'
+            ? 'Failed to connect to the configured LLM provider.'
             : error.message;
 
         return new NextResponse(
             JSON.stringify({ 
-                message: 'Error processing AI request via proxy.', 
+                message: 'Error processing AI request via gateway.', 
                 details: errorMessage
             }), 
             { 

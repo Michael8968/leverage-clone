@@ -24,9 +24,20 @@ import * as z from 'zod';
 import { useAuthStore } from '@/store/auth';
 import { useRouter } from 'next/navigation';
 
-import { getPlatformAssets, updateModelsFromLiteLLM } from '@/ai/flows/admin-management-flows';
-import type { LlmConnection } from '@/lib/types';
 import { cn } from '@/lib/utils';
+
+// Local LlmConnection type
+interface LlmConnection {
+    id: string;
+    provider: string;
+    modelName: string;
+    apiKey: string;
+    priority: number;
+    status: '活跃' | '已禁用';
+    scope: string;
+    category: string;
+    lastTestStatus?: DisplayTestResultStatus;
+}
 
 
 // =================================================================
@@ -186,12 +197,13 @@ function LlmConnectionForm({ llm, onSave, onCancel, onTest, isTesting }: {
     const [providers, setProviders] = useState<LlmProvider[]>([]);
 
     useEffect(() => {
-        getPlatformAssets().then(assets => {
-            console.log('Platform assets loaded:', assets);
-            setProviders(assets.providers);
-        }).catch(error => {
-            console.error('Failed to load platform assets:', error);
-        });
+        fetch('/api/llm-platform-assets')
+            .then(res => res.json())
+            .then(assets => {
+                setProviders(assets.providers);
+            }).catch(error => {
+                console.error('Failed to load platform assets:', error);
+            });
     }, []);
 
     const form = useForm<z.infer<typeof llmConnectionSchema>>({
@@ -407,50 +419,44 @@ export default function AdminDashboardPage() {
         setTestingId(modelId);
         startTransition(async () => {
             try {
+                let connectionData;
                 if (modelId === 'new') {
-                    // Test new connection using form data
                     if (!formData?.apiKey || !formData?.provider || !formData?.modelName) {
-                        toast({
-                            title: "测试失败",
-                            description: "请先填写厂商、模型名称和API Key",
-                            variant: "destructive",
-                        });
+                        toast({ title: "测试失败", description: "请先填写厂商、模型名称和API Key", variant: "destructive" });
                         setTestingId(null);
                         return;
                     }
-
-                    // Create a temporary connection object for testing
-                    const tempConnection = {
-                        provider: formData.provider,
-                        modelName: formData.modelName,
-                        apiKey: formData.apiKey,
-                        apiBaseUrl: getApiBaseUrl(formData.provider)
-                    };
-
-                    const { testLlmConnection } = await import('@/ai/flows/admin-management-flows');
-                    const result = await testLlmConnection({ tempConnection });
-
-                    toast({
-                        title: result.success ? "测试成功" : "测试失败",
-                        description: result.message,
-                        variant: result.success ? "default" : "destructive",
-                    });
+                    connectionData = { ...formData, apiBaseUrl: getApiBaseUrl(formData.provider) };
                 } else {
-                    // Test existing connection
-                    const { testLlmConnection } = await import('@/ai/flows/admin-management-flows');
-                    const result = await testLlmConnection({ modelId });
+                    const llmToTest = llms.find(llm => llm.id === modelId);
+                    if (!llmToTest) {
+                        toast({ title: "测试失败", description: "找不到指定的模型连接", variant: "destructive" });
+                        setTestingId(null);
+                        return;
+                    }
+                    connectionData = llmToTest;
+                }
 
-                    toast({
-                        title: result.success ? "测试成功" : "测试失败",
-                        description: result.message,
-                        variant: result.success ? "default" : "destructive",
-                    });
-                    await fetchLlms(); // Refetch to get the persisted test status
+                const response = await fetch('/api/test-llm-connection', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ connection: connectionData })
+                });
+
+                const result = await response.json();
+                toast({
+                    title: result.success ? "测试成功" : "测试失败",
+                    description: result.message,
+                    variant: result.success ? "default" : "destructive",
+                });
+
+                if (modelId !== 'new') {
+                    await fetchLlms();
                 }
             } catch (error: any) {
                 toast({ title: "测试出错", description: error.message || "执行测试时发生未知错误。", variant: "destructive" });
                 if (modelId !== 'new') {
-                    await fetchLlms(); // Refetch even on error for existing connections
+                    await fetchLlms();
                 }
             } finally {
                 setTestingId(null);
@@ -486,11 +492,11 @@ export default function AdminDashboardPage() {
     const handleUpdateFromLiteLLM = async () => {
         setIsUpdatingFromLiteLLM(true);
         try {
-            const result = await updateModelsFromLiteLLM();
+            const response = await fetch('/api/update-models-from-litellm', { method: 'POST' });
+            const result = await response.json();
             toast({
-                title: result.failed > 0 ? "同步部分成功" : "同步成功",
+                title: response.ok ? "同步成功" : "同步失败",
                 description: result.message,
-                variant: result.failed > 0 ? "default" : "default",
             });
             fetchLlms();
         } catch (error: any) {
