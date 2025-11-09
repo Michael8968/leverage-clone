@@ -14,60 +14,59 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useToast } from '@/components/ui/use-toast';
 import { useAuthStore } from '@/store/auth';
 
-const loginSchema = z.object({
+const signupSchema = z.object({
   email: z.string().email({ message: '请输入有效的邮箱地址' }),
-  password: z.string().min(1, { message: '密码不能为空' }),
+  password: z.string().min(6, { message: '密码至少需要6位' }),
 });
 
-type LoginFormValues = z.infer<typeof loginSchema>;
+type SignupFormValues = z.infer<typeof signupSchema>;
 
-export default function LoginPage() {
+export default function SignupPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const loginWithEmail = useAuthStore((state) => state.loginWithEmail);
+  const signupWithEmail = useAuthStore((state) => state.signupWithEmail);
 
-  const form = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
+  const form = useForm<SignupFormValues>({
+    resolver: zodResolver(signupSchema),
     defaultValues: {
       email: '',
       password: '',
     },
   });
 
-  const onSubmit = async (data: LoginFormValues) => {
+  const onSubmit = async (data: SignupFormValues) => {
     try {
-      // This now uses the Zustand store's login method, which handles
+      // This now uses the Zustand store's signup method, which handles
       // the Firebase/TCB logic internally based on the environment.
-      await loginWithEmail(data.email, data.password);
+      await signupWithEmail(data.email, data.password);
       
       toast({
-        title: '登录成功',
-        description: '欢迎回来！正在跳转到工作台...',
+        title: '注册成功',
+        description: '已为您创建账户，正在登录并跳转...',
       });
-      
-      // Redirect to the dashboard after successful login.
-      // The auth listener in the layout will handle the user state update.
+
+      // After signup, Firebase automatically logs the user in.
+      // The auth listener in the layout will catch this and sync with the backend.
+      // We just need to redirect.
       router.push('/dashboard');
 
     } catch (error: any) {
-      console.error("Login failed:", error);
+      console.error("Signup failed:", error);
       // Handle specific Firebase errors for better UX
       let description = '发生未知错误，请稍后重试';
       if (error.code) {
         switch (error.code) {
-          case 'auth/user-not-found':
-          case 'auth/wrong-password':
-          case 'auth/invalid-credential':
-            description = '邮箱或密码不正确';
+          case 'auth/email-already-in-use':
+            description = '该邮箱地址已被注册';
             break;
-          case 'auth/too-many-requests':
-            description = '尝试次数过多，请稍后重试';
+          case 'auth/weak-password':
+            description = '密码强度不足，请使用更强的密码';
             break;
         }
       }
       toast({
         variant: 'destructive',
-        title: '登录失败',
+        title: '注册失败',
         description: description,
       });
     }
@@ -77,9 +76,9 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle className="text-2xl">登录</CardTitle>
+          <CardTitle className="text-2xl">创建账户</CardTitle>
           <CardDescription>
-            输入您的邮箱和密码以继续
+            输入您的邮箱和密码以注册新账户
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -112,14 +111,14 @@ export default function LoginPage() {
                 )}
               />
               <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? '登录中...' : '登录'}
+                {form.formState.isSubmitting ? '创建中...' : '创建账户'}
               </Button>
             </form>
           </Form>
           <div className="mt-4 text-center text-sm">
-            还没有账户？{" "}
-            <Link href="/signup" className="underline">
-              注册
+            已经有账户了？{" "}
+            <Link href="/login" className="underline">
+              登录
             </Link>
           </div>
         </CardContent>

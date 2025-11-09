@@ -83,6 +83,7 @@ const navItems: NavItem[] = [
   { href: '/dashboard', label: 'AI智能匹配', icon: Home, roles: ['user', 'admin', 'supplier', 'creator'] },
   { href: '/demand-pool', label: '需求池', icon: LayoutGrid, roles: ['admin', 'user', 'supplier', 'creator'] },
   { href: '/designers', label: '创意设计师', icon: Users, roles: ['user', 'admin', 'supplier', 'creator'] },
+  { href: '/points/recharge', label: '积分充值', icon: Coins, roles: ['user', 'admin', 'supplier', 'creator'] },
   { href: '/creator-workbench', label: '创意者工作台', icon: PenSquare, roles: ['creator'] },
   { href: '/search', label: '智能搜索', icon: Search, roles: ['user', 'admin', 'supplier', 'creator'] },
   { href: '/suppliers', label: '供应商中心', icon: Building, roles: ['admin', 'supplier'] },

@@ -1,9 +1,82 @@
 
-
 import type { SupplementaryField, Role, TimestampLike as Timestamp } from '@/lib/shared-types';
 
 // Re-export certain lightweight types for backward compatibility
 export type { SupplementaryField, Role, TimestampLike as Timestamp } from '@/lib/shared-types';
+
+// --- CORE BILLING & POINTS SYSTEM TYPES ---
+// Based on DATABASE_DESIGN.md
+
+/**
+ * Represents a user in the system, augmented with points and billing information.
+ */
+export type User = {
+  _id: string; // Primary key in TCB/MongoDB
+  uid: string; // Firebase Authentication UID
+  name: string;
+  email: string;
+  role: Role;
+  avatar: string;
+  status?: 'active' | 'inactive' | 'suspended';
+  
+  // Points & Billing Fields
+  pointsBalance: number; // Current available points
+  level: 'New' | 'Regular' | 'Pro'; // User level based on activity or payment
+  totalLLMCalls: number; // Cumulative count of LLM calls
+
+  // Timestamps
+  createdAt: Timestamp; // Document creation timestamp
+  signupDate: Timestamp; // User registration date
+  lastLevelCheckDate?: Timestamp; // Last time the user's level was evaluated
+
+  // Optional original fields from the previous structure
+  gender?: 'male' | 'female' | 'other';
+  rating?: number;
+  aiAssistantEnabled?: boolean;
+  alwaysAvailable?: boolean;
+  bio?: string;
+  skills?: string[];
+  currentQueueSize?: number;
+  maxQueueSize?: number;
+  assistantRules?: AssistantRule[];
+  defaultAssistantPromptKey?: string;
+};
+
+/**
+ * Records a single change in a user's points balance.
+ */
+export interface PointsTransaction {
+  _id: string; // Primary key
+  userId: string; // Foreign key to the User document
+  transactionType: 'gift' | 'deduct' | 'manual_grant' | 'renewal' | 'recharge'; // The cause of the transaction
+  pointsChange: number; // The amount of points added (positive) or removed (negative)
+  reason: string; // A human-readable description of the transaction
+  llmAction?: string; // Specific LLM action that triggered a deduction, e.g., 'chat_message', 'ai_match'
+  relatedOrderId?: string; // Foreign key to a PaymentOrder if the points were from a purchase
+  batchId?: string; // ID to group manual grant operations
+  status?: 'pending' | 'approved' | 'rejected' | 'revoked'; // For approval workflows
+  approvers?: string[]; // Array of admin UIDs who approved a manual grant
+  createdAt: Timestamp; // Transaction timestamp
+}
+
+/**
+ * Represents a payment order initiated by a user to purchase points.
+ */
+export interface PaymentOrder {
+  _id: string; // Primary key (can be the same as out_trade_no for payment gateway)
+  userId: string; // Foreign key to the User document
+  amountCNY: number; // The payment amount in Chinese Yuan
+  pointsGranted: number; // The number of points to be granted upon successful payment
+  status: 'pending' | 'paid' | 'failed' | 'proof_uploaded'; // The current status of the order
+  paymentMethod: 'alipay' | 'wechat' | 'bank_transfer'; // The method used for payment
+  transactionId?: string; // The transaction ID from the payment gateway (e.g., Alipay/WeChat)
+  proofUrl?: string; // URL for the uploaded bank transfer proof
+  createdAt: Timestamp; // Order creation timestamp
+  updatedAt: Timestamp; // Last update timestamp
+}
+
+
+// --- Legacy & Other Application Types ---
 
 export type Demand = {
   id: string;
@@ -104,32 +177,6 @@ export type AssistantRule = {
         promptKey: string; // The key of the prompt to use
     };
 }
-
-export type User = {
-  uid: string;
-  name: string;
-  email: string;
-  role: Role;
-  avatar: string;
-  gender?: 'male' | 'female' | 'other';
-  rating?: number;
-  status?: 'active' | 'inactive' | 'suspended';
-  aiAssistantEnabled?: boolean;
-  alwaysAvailable?: boolean;
-  bio?: string;
-  skills?: string[];
-  createdAt?: any; // Can be Date, string, or Firestore Timestamp
-  currentQueueSize?: number;
-  maxQueueSize?: number;
-  assistantRules?: AssistantRule[];
-  defaultAssistantPromptKey?: string;
-  // New fields for points system
-  level: 'New' | 'Regular' | 'Pro';
-  points_balance: number;
-  signup_date: any; // Can be Date, string, or Firestore Timestamp
-  last_level_check: any; // Can be Date, string, or Firestore Timestamp
-  total_llm_calls: number;
-};
 
 // Chat-related types
 export type ChatMessage = {
@@ -314,7 +361,8 @@ export interface IntelligentRoutingStrategy {
     updatedAt: any; // Can be Date, string, or Firestore Timestamp
 }
 
-// New types for Points and Payment System
+// Previous definitions for points system - now replaced by the ones at the top
+/*
 export interface PointsTransaction {
     id: string;
     uid: string;
@@ -338,6 +386,7 @@ export interface PaymentOrder {
     timestamp: any; // Can be Date, string, or Firestore Timestamp
     proof_url?: string; // GS path for bank transfer proof
 }
+*/
 
 export type PricingRule = {
     id: string;

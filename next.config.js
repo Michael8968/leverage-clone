@@ -1,21 +1,24 @@
 /** @type {import('next').NextConfig} */
 const path = require('path');
 
-/**
- * Next.js 配置 - 生产环境优化版本
- * 
- * 特性：
- * - Standalone 输出模式（用于 Docker 部署）
- * - 优化的构建性能
- * - 兼容 Windows 环境
- * - 模块解析 fallback（忽略已卸载的遗留依赖）
- * 
- * 注意：如果遇到构建问题，可使用 debug-next.config.js 诊断
- */
+// Determine if the environment is production, this is crucial for the migration.
+const isProd = process.env.NODE_ENV === 'production';
 
+/**
+ * Next.js 配置 - 混合模式（开发: Firebase, 生产: TCB）
+ *
+ * 特性：
+ * - 生产环境静态导出 (output: 'export') 以支持 TCB 静态托管
+ * - 通过环境变量注入区分开发/生产环境
+ * - 保留了原有的 Webpack 优化和模块别名
+ *
+ * 注意：此配置为 Firebase -> TCB 迁移的核心部分
+ */
 const nextConfig = {
-  output: 'standalone',
-  
+  // Conditionally set the output mode. 'export' is required for TCB static hosting.
+  // This replaces the previous 'standalone' setting to fit the new deployment strategy.
+  ...(isProd && { output: 'export' }),
+
   experimental: {
     // 禁用 CSS 优化（避免 Critters 卡顿）
     optimizeCss: false,
@@ -32,12 +35,11 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   
-  // Webpack 配置优化
+  // Webpack 配置优化 (preserved from original)
   webpack: (config, { isServer, dev }) => {
     // 添加模块解析 fallback（忽略已卸载的依赖）
     config.resolve.fallback = {
       ...config.resolve.fallback,
-      // 这些包已从 package.json 移除，但可能仍被旧代码引用
       '@cloudbase/node-sdk': false,
       'tencentcloud-sdk-nodejs-hunyuan': false,
     };
@@ -57,80 +59,44 @@ const nextConfig = {
     return config;
   },
   
-  // 图片配置
+  // 图片配置 (preserved from original)
   images: {
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'placehold.co',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'images.unsplash.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'picsum.photos',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'example.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'i.pravatar.cc',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'storage.googleapis.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'gw.alicdn.com',
-        port: '',
-        pathname: '/**',
-      },
+      { protocol: 'https', hostname: 'placehold.co', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'images.unsplash.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'picsum.photos', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'example.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'i.pravatar.cc', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'storage.googleapis.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'gw.alicdn.com', port: '', pathname: '/**' },
     ],
   },
   
   async rewrites() {
-    return [
-      { source: '/api/:path*', destination: '/api/:path*' }
-    ]
+    return [{ source: '/api/:path*', destination: '/api/:path*' }];
   },
   
   async headers() {
     return [
       {
         source: '/:path*',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=300, s-maxage=600',
-          },
-        ],
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=300, s-maxage=600' }],
       },
-    ]
+    ];
   },
   
+  // Merged Environment Variables
   env: {
+    // --- Variables for TCB migration ---
+    NEXT_PUBLIC_ENV: process.env.NODE_ENV,
+    NEXT_PUBLIC_TCB_ENV_ID: process.env.TCB_ENV_ID,
+    
+    // --- Existing variables ---
     NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: process.env.FIREBASE_STORAGE_BUCKET,
     FIREBASE_SERVICE_ACCOUNT_KEY: process.env.FIREBASE_SERVICE_ACCOUNT_KEY,
   },
   
-  // 减少并发以降低内存压力
+  // 减少并发以降低内存压力 (preserved from original)
   onDemandEntries: {
     maxInactiveAge: 25 * 1000,
     pagesBufferLength: 2,

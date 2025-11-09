@@ -1,7 +1,7 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { auth, db } from '@/lib/tcb';
+import { auth } from '@/lib/services/auth'; // Import the new centralized auth service
 import type { User } from '@/lib/types';
 import type { Role } from '@/lib/shared-types';
 
@@ -13,69 +13,56 @@ interface AuthState {
   isLoading: boolean;
   setUser: (user: User | null, role: Role | null) => void;
   setIsLoading: (loading: boolean) => void;
+  loginWithEmail: (email: string, pass: string) => Promise<any>;
+  signupWithEmail: (email: string, pass: string) => Promise<any>;
   logout: () => Promise<void>;
-  checkAuthState: () => Promise<void>;
+  initializeAuthListener: () => () => void;
 }
-
-type PersistedState = {
-  user: User | null;
-  role: Role | null;
-};
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       role: null,
       isLoading: true,
       
       setUser: (user, role) => set({ user, role }),
-      
       setIsLoading: (loading) => set({ isLoading: loading }),
 
-      logout: async () => {
-        if (auth) {
-          await auth.signOut();
-        }
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('auth_token'); // Clean up old token
-        }
-        set({ user: null, role: null, isLoading: false });
+      loginWithEmail: (email, password) => {
+        // Delegate directly to the auth service
+        return auth.loginWithEmail(email, password);
+      },
+
+      signupWithEmail: (email, password) => {
+        // Delegate directly to the auth service
+        return auth.signupWithEmail(email, password);
       },
       
-      checkAuthState: async () => {
+      logout: async () => {
         set({ isLoading: true });
-        if (!auth || !db) {
-          set({ user: null, role: null, isLoading: false });
-          return;
-        }
-        try {
-          const loginState = await auth.getLoginState();
-          if (loginState) {
-            // TCB user is logged in. Now, we need our app's user profile.
-            // Note: TCB auth user uid is stored in the 'users' collection's _id field.
-            const userRes = await db.collection('users').where({ _id: loginState.uid }).get();
-            if (userRes.data && userRes.data.length > 0) {
-              const appUser = userRes.data[0] as User;
-              set({ user: appUser, role: appUser.role || 'user', isLoading: false });
-            } else {
-              // Logged in to TCB, but no user profile in our DB. This can happen during signup.
-              // For now, treat as logged out. The signup flow will create the user doc.
-              set({ user: null, role: null, isLoading: false });
-            }
-          } else {
-            set({ user: null, role: null, isLoading: false });
-          }
-        } catch (e) {
-          console.error("Auth check failed:", e);
-          set({ user: null, role: null, isLoading: false });
-        }
-      }
+        await auth.logout();
+        // The onAuthStateChanged listener in our service will handle clearing the session state.
+      },
+
+      initializeAuthListener: () => {
+        console.log("Unified auth listener initializing in store...");
+        set({ isLoading: true });
+        
+        // The auth service handles the underlying complexity (Firebase or TCB)
+        const unsubscribe = auth.onAuthStateChanged((user, role) => {
+          console.log("Auth state updated in store:", { user, role });
+          set({ user, role, isLoading: false });
+        });
+
+        return unsubscribe;
+      },
     }),
     {
-      name: 'auth-storage', 
-      storage: createJSONStorage(() => sessionStorage), 
-      partialize: (state): PersistedState => ({
+      name: 'auth-storage',
+      storage: createJSONStorage(() => sessionStorage),
+      // Persist only the necessary user and role information
+      partialize: (state): any => ({
         user: state.user,
         role: state.role,
       }),
