@@ -94,6 +94,10 @@
     "recharts": "^2.15.1",
     "tailwind-merge": "^3.0.1",
     "tailwindcss-animate": "^1.0.7",
+    "typescript": "^5",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
     "zod": "^3.24.2",
     "zustand": "^4.5.4"
   },
@@ -107,10 +111,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/jest": "^30.0.0",
-    "@types/node": "^20",
     "@types/papaparse": "^5.3.14",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
     "axios": "^1.13.1",
     "cross-env": "^7.0.3",
     "cypress": "^15.5.0",
@@ -122,7 +123,6 @@
     "postcss": "^8",
     "puppeteer": "^24.27.0",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5",
     "whatwg-fetch": "^3.6.20"
   },
   "jest": {
