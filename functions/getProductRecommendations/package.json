@@ -1,0 +1,9 @@
+{
+  "name": "cloud-function",
+  "version": "1.0.0",
+  "description": "TCB Cloud Function",
+  "main": "index.js",
+  "dependencies": {
+    "@cloudbase/node-sdk": "^2.11.0"
+  }
+}

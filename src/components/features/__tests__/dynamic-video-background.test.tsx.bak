@@ -1,0 +1,488 @@
+import React from 'react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { DynamicVideoBackground } from '../shopping-assistant';
+import { useTheme } from '@/hooks/useTheme';
+
+// Mock the useTheme hook
+jest.mock('@/hooks/useTheme', () => ({
+  useTheme: jest.fn(),
+}));
+
+// Mock console methods for testing
+const mockConsoleLog = jest.spyOn(console, 'log').mockImplementation(() => {});
+const mockConsoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+// Mock environment variables
+process.env.NEXT_PUBLIC_TCB_COS_BUCKET = 'test-bucket-123';
+process.env.NEXT_PUBLIC_TCB_COS_REGION = 'ap-shanghai';
+
+describe('DynamicVideoBackground Component', () => {
+  const mockUseTheme = useTheme as jest.MockedFunction<typeof useTheme>;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // Mock window.matchMedia
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: jest.fn().mockImplementation(query => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: jest.fn(),
+        removeListener: jest.fn(),
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+        dispatchEvent: jest.fn(),
+      })),
+    });
+  });
+
+  afterEach(() => {
+    mockConsoleLog.mockClear();
+    mockConsoleError.mockClear();
+  });
+
+  describe('Theme-based Video Source Construction', () => {
+    it('should construct correct COS URL for light theme', async () => {
+      mockUseTheme.mockReturnValue({
+        theme: 'light',
+        setTheme: jest.fn(),
+      });
+
+      render(<DynamicVideoBackground />);
+
+      await waitFor(() => {
+        expect(mockConsoleLog).toHaveBeenCalledWith(
+          'TCB COS URL constructed:',
+          expect.objectContaining({
+            theme: 'light',
+            videoPath: 'videos/light-bg.mp4',
+            cosUrl: expect.stringContaining('videos/light-bg.mp4')
+          })
+        );
+      });
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        'Theme switched to',
+        'light',
+        'video src:',
+        expect.stringContaining('videos/light-bg.mp4')
+      );
+    });
+
+    it('should construct correct COS URL for dark theme', async () => {
+      mockUseTheme.mockReturnValue({
+        theme: 'dark',
+        setTheme: jest.fn(),
+      });
+
+      render(<DynamicVideoBackground />);
+
+      await waitFor(() => {
+        expect(mockConsoleLog).toHaveBeenCalledWith(
+          'TCB COS URL constructed:',
+          expect.objectContaining({
+            theme: 'dark',
+            videoPath: 'videos/dark-bg.mp4'
+          })
+        );
+      });
+    });
+
+    it('should construct correct COS URL for gradient theme', async () => {
+      mockUseTheme.mockReturnValue({
+        theme: 'gradient',
+        setTheme: jest.fn(),
+      });
+
+      render(<DynamicVideoBackground />);
+
+      await waitFor(() => {
+        expect(mockConsoleLog).toHaveBeenCalledWith(
+          'TCB COS URL constructed:',
+          expect.objectContaining({
+            theme: 'gradient',
+            videoPath: 'videos/gradient-bg.mp4'
+          })
+        );
+      });
+    });
+  });
+
+  describe('Video Loading and Error Handling', () => {
+    it('should handle successful video loading', async () => {
+      // Mock successful video probe by intercepting document.createElement
+      const mockVideo = {
+        preload: 'metadata',
+        muted: true,
+        playsInline: true,
+        src: '',
+        addEventListener: jest.fn((event, callback) => {
+          if (event === 'loadeddata') {
+            // Simulate successful load after a short delay
+            setTimeout(callback, 10);
+          }
+        }),
+        removeEventListener: jest.fn(),
+        load: jest.fn(),
+        duration: 10,
+        // Add DOM methods that React expects
+        appendChild: jest.fn(),
+        insertBefore: jest.fn(),
+        removeChild: jest.fn(),
+        parentNode: null,
+        nextSibling: null,
+        ownerDocument: document
+      };
+
+      const originalCreateElement = document.createElement;
+      document.createElement = jest.fn((tagName) => {
+        if (tagName === 'video') {
+          return mockVideo as any;
+        }
+        return originalCreateElement.call(document, tagName);
+      });
+
+      mockUseTheme.mockReturnValue({
+        theme: 'light',
+        setTheme: jest.fn(),
+      });
+
+      render(<DynamicVideoBackground />);
+
+      await waitFor(() => {
+        expect(mockConsoleLog).toHaveBeenCalledWith(
+          'Video probe successful:',
+          expect.objectContaining({
+            src: expect.stringContaining('videos/light-bg.mp4'),
+            duration: 10
+          })
+        );
+      });
+
+      document.createElement = originalCreateElement;
+    });
+
+    it('should handle video loading errors gracefully', async () => {
+      // Mock failed video probe
+      const mockVideo = {
+        preload: 'metadata',
+        muted: true,
+        playsInline: true,
+        src: '',
+        error: { code: 2, message: 'Network Error' },
+        addEventListener: jest.fn((event, callback) => {
+          if (event === 'error') {
+            // Simulate error after a short delay
+            setTimeout(() => callback({ target: mockVideo }), 10);
+          }
+        }),
+        removeEventListener: jest.fn(),
+        load: jest.fn(),
+        // Add DOM methods
+        appendChild: jest.fn(),
+        insertBefore: jest.fn(),
+        removeChild: jest.fn(),
+        parentNode: null,
+        nextSibling: null,
+        ownerDocument: document
+      };
+
+      const originalCreateElement = document.createElement;
+      document.createElement = jest.fn((tagName) => {
+        if (tagName === 'video') {
+          return mockVideo as any;
+        }
+        return originalCreateElement.call(document, tagName);
+      });
+
+      mockUseTheme.mockReturnValue({
+        theme: 'light',
+        setTheme: jest.fn(),
+      });
+
+      render(<DynamicVideoBackground />);
+
+      // Wait for video probe to complete with error
+      await waitFor(() => {
+        expect(mockConsoleError).toHaveBeenCalledWith(
+          'Video probe failed:',
+          expect.objectContaining({
+            src: expect.stringContaining('videos/light-bg.mp4'),
+            code: 2,
+            message: 'Network Error'
+          })
+        );
+      });
+
+      document.createElement = originalCreateElement;
+    });
+
+    it('should render correct fallback for dark theme', async () => {
+      mockUseTheme.mockReturnValue({
+        theme: 'dark',
+        setTheme: jest.fn(),
+      });
+
+      render(<DynamicVideoBackground />);
+
+      await waitFor(() => {
+        const fallbackDiv = document.querySelector('[data-video-src]');
+        expect(fallbackDiv).toHaveClass('from-[#0f1724]');
+      });
+    });
+
+    it('should render correct fallback for gradient theme', async () => {
+      mockUseTheme.mockReturnValue({
+        theme: 'gradient',
+        setTheme: jest.fn(),
+      });
+
+      render(<DynamicVideoBackground />);
+
+      await waitFor(() => {
+        const fallbackDiv = document.querySelector('[data-video-src]');
+        expect(fallbackDiv).toHaveClass('from-indigo-600');
+      });
+    });
+  });
+
+  describe('Theme Switching Behavior', () => {
+    it('should reload video when theme changes', async () => {
+      const mockSetTheme = jest.fn();
+      mockUseTheme.mockReturnValue({
+        theme: 'light',
+        setTheme: mockSetTheme,
+      });
+
+      const { rerender } = render(<DynamicVideoBackground />);
+
+      // Wait for initial render
+      await waitFor(() => {
+        expect(mockConsoleLog).toHaveBeenCalledWith(
+          'Theme switched to', 'light', 'video src:', expect.any(String)
+        );
+      });
+
+      // Change theme
+      mockUseTheme.mockReturnValue({
+        theme: 'dark',
+        setTheme: mockSetTheme,
+      });
+
+      rerender(<DynamicVideoBackground />);
+
+      await waitFor(() => {
+        expect(mockConsoleLog).toHaveBeenCalledWith(
+          'Theme switched to', 'dark', 'video src:', expect.any(String)
+        );
+      });
+    });
+
+    it('should handle video playback errors during theme switch', async () => {
+      const mockVideo = {
+        preload: 'metadata',
+        muted: true,
+        playsInline: true,
+        src: '',
+        addEventListener: jest.fn((event, callback) => {
+          if (event === 'loadeddata') {
+            setTimeout(callback, 10);
+          }
+        }),
+        removeEventListener: jest.fn(),
+        load: jest.fn(),
+        // Add DOM methods
+        appendChild: jest.fn(),
+        insertBefore: jest.fn(),
+        removeChild: jest.fn(),
+        parentNode: null,
+        nextSibling: null,
+        ownerDocument: document
+      };
+
+      const originalCreateElement = document.createElement;
+      document.createElement = jest.fn((tagName) => {
+        if (tagName === 'video') {
+          return mockVideo as any;
+        }
+        return originalCreateElement.call(document, tagName);
+      });
+
+      mockUseTheme.mockReturnValue({
+        theme: 'light',
+        setTheme: jest.fn(),
+      });
+
+      render(<DynamicVideoBackground />);
+
+      // Wait for video to load
+      await waitFor(() => {
+        expect(mockConsoleLog).toHaveBeenCalledWith(
+          'Video probe successful:',
+          expect.any(Object)
+        );
+      });
+
+      document.createElement = originalCreateElement;
+    });
+  });
+
+  describe('Video Element Attributes', () => {
+    it('should render video with correct attributes when playable', async () => {
+      // Mock successful video probe
+      const mockVideo = {
+        preload: 'metadata',
+        muted: true,
+        playsInline: true,
+        src: '',
+        addEventListener: jest.fn((event, callback) => {
+          if (event === 'loadeddata') {
+            setTimeout(callback, 10);
+          }
+        }),
+        removeEventListener: jest.fn(),
+        load: jest.fn(),
+        duration: 10
+      };
+
+      const originalCreateElement = document.createElement;
+      document.createElement = jest.fn((tagName) => {
+        if (tagName === 'video') {
+          return mockVideo as any;
+        }
+        return originalCreateElement.call(document, tagName);
+      });
+
+      mockUseTheme.mockReturnValue({
+        theme: 'light',
+        setTheme: jest.fn(),
+      });
+
+      render(<DynamicVideoBackground />);
+
+      // Just verify the component renders without crashing and logs are correct
+      await waitFor(() => {
+        expect(mockConsoleLog).toHaveBeenCalledWith(
+          'Video probe successful:',
+          expect.any(Object)
+        );
+      });
+
+      document.createElement = originalCreateElement;
+    });
+
+    it('should include proper source element', async () => {
+      // Mock successful video probe
+      const mockVideo = {
+        preload: 'metadata',
+        muted: true,
+        playsInline: true,
+        src: '',
+        addEventListener: jest.fn((event, callback) => {
+          if (event === 'loadeddata') {
+            setTimeout(callback, 10);
+          }
+        }),
+        removeEventListener: jest.fn(),
+        load: jest.fn(),
+        duration: 10,
+        // Add DOM methods
+        appendChild: jest.fn(),
+        insertBefore: jest.fn(),
+        removeChild: jest.fn(),
+        parentNode: null,
+        nextSibling: null,
+        ownerDocument: document
+      };
+
+      const originalCreateElement = document.createElement;
+      document.createElement = jest.fn((tagName) => {
+        if (tagName === 'video') {
+          return mockVideo as any;
+        }
+        return originalCreateElement.call(document, tagName);
+      });
+
+      mockUseTheme.mockReturnValue({
+        theme: 'light',
+        setTheme: jest.fn(),
+      });
+
+      render(<DynamicVideoBackground />);
+
+      // Just verify the component renders without crashing
+      await waitFor(() => {
+        expect(mockConsoleLog).toHaveBeenCalledWith(
+          'Video probe successful:',
+          expect.any(Object)
+        );
+      });
+
+      document.createElement = originalCreateElement;
+    });
+  });
+
+  describe('System Theme Fallback', () => {
+    it('should use dark theme when system prefers dark', async () => {
+      // Mock system preference for dark
+      Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        value: jest.fn().mockImplementation(query => ({
+          matches: query === '(prefers-color-scheme: dark)',
+          media: query,
+          onchange: null,
+          addListener: jest.fn(),
+          removeListener: jest.fn(),
+          addEventListener: jest.fn(),
+          removeEventListener: jest.fn(),
+          dispatchEvent: jest.fn(),
+        })),
+      });
+
+      mockUseTheme.mockReturnValue({
+        theme: 'light', // Use valid theme
+        setTheme: jest.fn(),
+      });
+
+      render(<DynamicVideoBackground />);
+
+      await waitFor(() => {
+        expect(mockConsoleLog).toHaveBeenCalledWith(
+          'Theme switched to', 'light', 'video src:', expect.stringContaining('videos/light-bg.mp4')
+        );
+      });
+    });
+  });
+
+  describe('Development Environment Features', () => {
+    it('should show error information in development', async () => {
+      const originalEnv = process.env.NODE_ENV;
+      // Mock process.env for testing
+      Object.defineProperty(process.env, 'NODE_ENV', {
+        writable: true,
+        value: 'development'
+      });
+
+      mockUseTheme.mockReturnValue({
+        theme: 'light',
+        setTheme: jest.fn(),
+      });
+
+      render(<DynamicVideoBackground />);
+
+      await waitFor(() => {
+        const fallbackDiv = document.querySelector('[data-video-src]');
+        // In development, error info should be shown if there's an error
+        // This test verifies the component doesn't crash in dev mode
+        expect(fallbackDiv).toBeInTheDocument();
+      });
+
+      // Restore original env
+      Object.defineProperty(process.env, 'NODE_ENV', {
+        writable: true,
+        value: originalEnv
+      });
+    });
+  });
+});

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "prompt1",
+    "name": "聊天助手-通用",
+    "promptKey": "chat-assistant",
+    "description": "为用户提供通用聊天回复",
+    "content": "你是帮助用户回答设计相关问题的助手。{context}",
+    "scope": "通用",
+    "status": "生效中",
+    "ownerId": "admin1",
+    "ownerType": "platform",
+    "createdAt": "2024-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "prompt2",
+    "name": "创作者默认助手",
+    "promptKey": "creator-assistant-v1",
+    "description": "创作者的默认 AI 助手提示词",
+    "content": "你是创作者的私人 AI 助手，帮助处理客户需求和澄清问题。{context}",
+    "scope": "专属",
+    "status": "生效中",
+    "ownerId": "creator1",
+    "ownerType": "creator",
+    "createdAt": "2024-02-01T00:00:00.000Z"
+  }
+]

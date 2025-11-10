@@ -1,0 +1,28 @@
+version: '3.9'
+services:
+  app:
+    build:
+      context: .
+      args:
+        - HUNYUAN_API_KEY=${HUNYUAN_API_KEY}
+        - CLOUDBASE_ENV_ID=${CLOUDBASE_ENV_ID}
+        - TCB_ENV_ID=${TCB_ENV_ID}
+        - CLOUDBASE_SECRET_ID=${CLOUDBASE_SECRET_ID}
+        - CLOUDBASE_SECRET_KEY=${CLOUDBASE_SECRET_KEY}
+        - TENCENTCLOUD_SECRET_ID=${TENCENTCLOUD_SECRET_ID}
+        - TENCENTCLOUD_SECRET_KEY=${TENCENTCLOUD_SECRET_KEY}
+    image: leverage-ai:latest
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - TCB_ENV_ID=${TCB_ENV_ID}
+      - CLOUDBASE_ENV_ID=${CLOUDBASE_ENV_ID}
+      - CLOUDBASE_SECRET_ID=${CLOUDBASE_SECRET_ID}
+      - CLOUDBASE_SECRET_KEY=${CLOUDBASE_SECRET_KEY}
+      - TENCENTCLOUD_SECRET_ID=${TENCENTCLOUD_SECRET_ID}
+      - TENCENTCLOUD_SECRET_KEY=${TENCENTCLOUD_SECRET_KEY}
+      - HUNYUAN_API_KEY=${HUNYUAN_API_KEY}
+    restart: unless-stopped

@@ -1,0 +1,15 @@
+
+{
+    "url": "https://api.example.com/data",
+    "method": "POST",
+    "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer YOUR_API_KEY"
+    },
+    "body": {
+        "query": "example query",
+        "parameters": {
+            "limit": 10
+        }
+    }
+}
