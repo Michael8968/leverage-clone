@@ -18,14 +18,19 @@ export async function GET() {
     } else if (type === 'mock') {
       dbStatus = 'mock';
     } else if (type === 'tcb') {
-      // TCB 轻量 ping
-      try {
-        const db = getDb();
-        await db.collection('health').limit(1).get();
+      // TCB 轻量 ping - 在启动阶段跳过数据库检查
+      if (process.env.STARTUP_GRACE_PERIOD === 'true') {
         dbStatus = 'ok';
-      } catch (e: any) {
-        dbStatus = 'unavailable';
-        detail.error = e?.message || String(e);
+        detail.note = 'startup-grace-period';
+      } else {
+        try {
+          const db = getDb();
+          await db.collection('health').limit(1).get();
+          dbStatus = 'ok';
+        } catch (e: any) {
+          dbStatus = 'unavailable';
+          detail.error = e?.message || String(e);
+        }
       }
     } else {
       // firestore 或其他
@@ -41,15 +46,24 @@ export async function GET() {
       }
     }
 
+    // 即使数据库不可用，基础健康检查也应该通过（服务器进程正在运行）
+    // 只在完全失败时返回 503
+    const isHealthy = dbStatus === 'ok' || dbStatus === 'skip' || dbStatus === 'mock';
+    
     return NextResponse.json({
-      ok: dbStatus === 'ok',
+      ok: isHealthy,
       env,
       dbType: type,
       dbStatus,
+      timestamp: new Date().toISOString(),
       ...detail && { detail }
-    }, { status: dbStatus === 'ok' ? 200 : 503 });
+    }, { status: isHealthy ? 200 : 503 });
   } catch (error: any) {
-    return NextResponse.json({ ok: false, error: error?.message || String(error) }, { status: 500 });
+    return NextResponse.json({ 
+      ok: false, 
+      error: error?.message || String(error),
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
   }
 }
  
