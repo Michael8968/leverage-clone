@@ -14,30 +14,39 @@ const getRedirectPath = (role: string | null): string => {
     if (role) { // Covers 'user', 'creator', 'supplier'
         return '/dashboard';
     }
-    // If no role, the user is not logged in
+    // Default: redirect to login/register page
     return '/login';
 };
 
 function InitialLoader() {
     return (
         <div className="flex h-screen w-full items-center justify-center bg-background">
-            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <div className="text-center">
+                <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto mb-4" />
+                <p className="text-sm text-muted-foreground">正在跳转到登录页...</p>
+            </div>
         </div>
     );
 }
 
 /**
- * RootPage's single responsibility is to act as a routing guard.
- * It waits for the AuthProvider to determine the authentication state (isLoading === false),
- * and then redirects the user to the appropriate page based on their role.
+ * RootPage - 默认重定向到登录页
+ * 
+ * 访问根路径时的行为：
+ * 1. 未登录用户 → 跳转到 /login
+ * 2. 已登录用户 → 根据角色跳转到对应页面
+ *    - admin → /demand-pool
+ *    - 其他角色 → /dashboard
+ * 3. 被禁用用户 → 强制登出并跳转到 /login
  */
 export default function RootPage() {
   const router = useRouter();
-  const { role, isLoading, user, checkAuthState } = useAuthStore();
+  const { role, isLoading, user, initializeAuthListener } = useAuthStore();
 
   useEffect(() => {
-    // On initial load, check the authentication state with TCB
-    checkAuthState();
+    // Initialize authentication listener
+    const unsubscribe = initializeAuthListener();
+    return () => unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

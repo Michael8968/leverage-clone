@@ -34,13 +34,13 @@
       "healthCheck": {
         "enabled": true,
         "type": "http",
-        "path": "/",
+        "path": "/api/health",
         "port": 3000,
         "interval": 30,
         "timeout": 10,
         "successThreshold": 1,
         "failureThreshold": 3,
-        "initialDelaySeconds": 15
+        "initialDelaySeconds": 30
       },
       "volumeMounts": [],
       "lifecycle": {
