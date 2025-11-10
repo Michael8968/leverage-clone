@@ -23,24 +23,31 @@ try {
     // =================================================================
     console.log('[DB Service] Using TCB Database.');
     
-    // Dynamically import the TCB SDK to avoid including it in the development bundle if not needed.
-    const { init } = require('@cloudbase/js-sdk');
+    // Check if we're in build time (SKIP_ENV_VALIDATION is set during Docker build)
+    if (process.env.SKIP_ENV_VALIDATION === 'true') {
+      console.log('[DB Service] Build time detected, skipping database initialization.');
+      db = null;
+      dbType = 'mock';
+    } else {
+      // Dynamically import the TCB SDK to avoid including it in the development bundle if not needed.
+      const { init } = require('@cloudbase/js-sdk');
 
-    if (!process.env.NEXT_PUBLIC_TCB_ENV_ID) {
-      throw new Error('NEXT_PUBLIC_TCB_ENV_ID is not defined for production environment.');
+      if (!process.env.NEXT_PUBLIC_TCB_ENV_ID) {
+        throw new Error('NEXT_PUBLIC_TCB_ENV_ID is not defined for production environment.');
+      }
+
+      const tcbApp = init({
+        env: process.env.NEXT_PUBLIC_TCB_ENV_ID,
+      });
+      
+      // It's a common requirement to authenticate before using other services.
+      // Assuming anonymous auth is enabled on TCB for this to work.
+      tcbApp.auth({ persistence: 'local' }).anonymousAuthProvider().signIn();
+
+      db = tcbApp.database();
+      dbType = 'tcb';
+      console.log('[DB Service] TCB Database initialized successfully.');
     }
-
-    const tcbApp = init({
-      env: process.env.NEXT_PUBLIC_TCB_ENV_ID,
-    });
-    
-    // It's a common requirement to authenticate before using other services.
-    // Assuming anonymous auth is enabled on TCB for this to work.
-    tcbApp.auth({ persistence: 'local' }).anonymousAuthProvider().signIn();
-
-    db = tcbApp.database();
-    dbType = 'tcb';
-    console.log('[DB Service] TCB Database initialized successfully.');
 
   } else {
     // =================================================================

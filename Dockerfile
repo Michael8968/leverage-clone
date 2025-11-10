@@ -1,6 +1,6 @@
-# Multi-stage Dockerfile for Next.js standalone (optimized for Windows Docker Desktop)
-# Target image size: <150MB
-# Build args: HUNYUAN_API_KEY, CLOUDBASE_ENV_ID
+# Multi-stage Dockerfile for Next.js standalone (optimized for TCB Cloud Run)
+# Target image size: ~150MB
+# Environment variables: Injected at runtime by TCB Cloud Run, not needed during build
 
 # ===== Dependencies Stage =====
 FROM node:20-alpine AS deps
@@ -17,13 +17,10 @@ RUN npm ci --omit=dev --no-audit --no-fund && \
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Build-time environment variables
-ARG HUNYUAN_API_KEY
-ARG CLOUDBASE_ENV_ID
-ARG TCB_ENV_ID
-ARG CLOUDBASE_SECRET_ID
-ARG CLOUDBASE_SECRET_KEY
-ENV NEXT_TELEMETRY_DISABLED=1
+# Build-time configuration - no secrets needed during build
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    NODE_ENV=production \
+    SKIP_ENV_VALIDATION=true
 
 # Copy production node_modules from deps stage
 COPY --from=deps /app/node_modules ./node_modules
@@ -35,34 +32,17 @@ RUN npm ci --no-audit --no-fund
 # Copy source code
 COPY . .
 
-# Build Next.js standalone bundle
+# Build Next.js standalone bundle (without requiring runtime env vars)
 RUN npm run build
 
 # ===== Runtime Stage =====
 FROM node:20-alpine AS runtime
 WORKDIR /app
 
-# Runtime environment variables
+# Runtime environment variables (will be injected by TCB Cloud Run)
 ENV NODE_ENV=production \
     PORT=3000 \
     NEXT_TELEMETRY_DISABLED=1
-
-# Runtime build args as environment variables for TCB database connection
-ARG HUNYUAN_API_KEY
-ARG CLOUDBASE_ENV_ID
-ARG TCB_ENV_ID
-ARG CLOUDBASE_SECRET_ID
-ARG CLOUDBASE_SECRET_KEY
-ARG TENCENTCLOUD_SECRET_ID
-ARG TENCENTCLOUD_SECRET_KEY
-
-ENV HUNYUAN_API_KEY=${HUNYUAN_API_KEY} \
-    CLOUDBASE_ENV_ID=${CLOUDBASE_ENV_ID} \
-    TCB_ENV_ID=${TCB_ENV_ID} \
-    CLOUDBASE_SECRET_ID=${CLOUDBASE_SECRET_ID} \
-    CLOUDBASE_SECRET_KEY=${CLOUDBASE_SECRET_KEY} \
-    TENCENTCLOUD_SECRET_ID=${TENCENTCLOUD_SECRET_ID} \
-    TENCENTCLOUD_SECRET_KEY=${TENCENTCLOUD_SECRET_KEY}
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
