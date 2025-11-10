@@ -1,109 +1,74 @@
 
+/**
+ * @file src/app/api/products/route.ts
+ * @description API endpoint for managing products (submissions).
+ */
+
 import { NextResponse } from 'next/server';
-import * as z from 'zod';
-import {
-  getProducts,
-  getProductById,
-  createProduct,
-  updateProduct,
-  deleteProduct,
-} from '@/lib/repositories/tcb/products';
+import { db, dbType } from '@/lib/services/db';
 
-// GET /api/products - Fetches all products
-// GET /api/products?id={id} - Fetches a single product by ID
+const COLLECTION_NAME = 'products';
+
+/**
+ * GET /api/products
+ * Fetches products, optionally filtering by creatorId.
+ */
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const id = searchParams.get('id');
-
-  try {
-    if (id) {
-      const product = await getProductById(id);
-      if (!product) {
-        return NextResponse.json({ message: 'Product not found' }, { status: 404 });
-      }
-      return NextResponse.json(product);
-    } else {
-      const products = await getProducts();
-      return NextResponse.json(products);
-    }
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch products' }, { status: 500 });
-  }
-}
-
-// POST /api/products - Creates a new product
-export async function POST(req: Request) {
-  try {
-    const body = await req.json();
-    const schema = z.object({
-      name: z.string().min(2),
-      description: z.string().optional(),
-      price: z.number().gt(0),
-      category: z.string().optional(),
-      supplierId: z.string().optional(),
-      creatorId: z.string().optional(),
-      images: z.array(z.any()).optional(),
-      details: z.array(z.any()).optional(),
-    });
-
-    const parsed = schema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ error: 'Validation failed', issues: parsed.error.format() }, { status: 400 });
-    }
-
-    const result = await createProduct(parsed.data);
-    return NextResponse.json({ id: result.id, ...parsed.data }, { status: 201 });
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to create product' }, { status: 500 });
-  }
-}
-
-// PUT /api/products?id={id} - Updates an existing product
-export async function PUT(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const id = searchParams.get('id');
-
-  if (!id) {
-    return NextResponse.json({ error: 'Missing product ID' }, { status: 400 });
-  }
-
-  try {
-    const body = await req.json();
-    // Optional schema for updates
-    const schema = z.object({
-        name: z.string().min(2).optional(),
-        description: z.string().optional(),
-        price: z.number().gt(0).optional(),
-        category: z.string().optional(),
-        supplierId: z.string().optional(),
-        creatorId: z.string().optional(),
-      }).partial();
-
-    const parsed = schema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ error: 'Validation failed', issues: parsed.error.format() }, { status: 400 });
-    }
-
-    await updateProduct(id, parsed.data);
-    return NextResponse.json({ message: 'Product updated successfully' });
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to update product' }, { status: 500 });
-  }
-}
-
-// DELETE /api/products?id={id} - Deletes a product by ID
-export async function DELETE(req: Request) {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-        return NextResponse.json({ error: 'Missing product ID' }, { status: 400 });
-    }
-
     try {
-        await deleteProduct(id);
-        return NextResponse.json({ success: true, message: 'Product deleted successfully' });
-    } catch (error) {
-        return NextResponse.json({ error: 'Failed to delete product' }, { status: 500 });
+        const { searchParams } = new URL(req.url);
+        const creatorId = searchParams.get('creatorId');
+
+        if (!creatorId) {
+            return NextResponse.json({ error: 'creatorId is required' }, { status: 400 });
+        }
+
+        let products: any[] = [];
+        if (dbType === 'firestore') {
+            const { collection, query, where, getDocs, orderBy, Timestamp } = await import('firebase/firestore');
+            const q = query(collection(db, COLLECTION_NAME), where('creatorId', '==', creatorId), orderBy('createdAt', 'desc'));
+            const snapshot = await getDocs(q);
+            products = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    ...data,
+                    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
+                };
+            });
+        } else if (dbType === 'tcb') {
+            const snapshot = await db.collection(COLLECTION_NAME).where({ creatorId }).orderBy('createdAt', 'desc').get();
+            products = snapshot.data.map((item: any) => ({ ...item, id: item._id }));
+        }
+        
+        return NextResponse.json(products);
+    } catch (error: any) {
+        console.error('[API /products GET] Error:', error);
+        return NextResponse.json({ error: 'Failed to fetch products', details: error.message }, { status: 500 });
+    }
+}
+
+/**
+ * POST /api/products
+ * Creates a new product.
+ */
+export async function POST(req: Request) {
+    try {
+        const body = await req.json();
+        
+        let newProduct;
+        if (dbType === 'firestore') {
+            const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
+            newProduct = { ...body, createdAt: serverTimestamp() };
+            const docRef = await addDoc(collection(db, COLLECTION_NAME), newProduct);
+            return NextResponse.json({ id: docRef.id, ...body }, { status: 201 });
+        } else if (dbType === 'tcb') {
+            newProduct = { ...body, createdAt: db.serverDate() };
+            const result = await db.collection(COLLECTION_NAME).add(newProduct);
+             return NextResponse.json({ id: result.id || result._id, ...body }, { status: 201 });
+        }
+
+    } catch (error: any) {
+        console.error('[API /products POST] Error:', error);
+        return NextResponse.json({ error: 'Failed to create product', details: error.message }, { status: 500 });
     }
 }

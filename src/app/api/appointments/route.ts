@@ -1,100 +1,89 @@
+
+/**
+ * @file src/app/api/appointments/route.ts
+ * @description API endpoint for managing appointments.
+ */
+
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-import * as z from 'zod';
+import { db, dbType } from '@/lib/services/db';
 
-const dataFile = path.join(process.cwd(), 'data', 'appointments.json');
+const COLLECTION_NAME = 'appointments';
 
-function readData() {
-  try {
-    if (!fs.existsSync(dataFile)) return [];
-    return JSON.parse(fs.readFileSync(dataFile, 'utf-8')) || [];
-  } catch {
-    return [];
-  }
+// Helper to extract ID from request URL
+function getIdFromRequest(req: Request): string | null {
+    const url = new URL(req.url);
+    const parts = url.pathname.split('/');
+    return parts.length === 4 ? parts[3] : null;
 }
 
-function writeData(list: any[]) {
-  fs.writeFileSync(dataFile, JSON.stringify(list, null, 2), 'utf-8');
-}
-
+/**
+ * GET /api/appointments
+ * Fetches appointments, filtering by creatorId.
+ */
 export async function GET(req: Request) {
-  try {
-    const url = new URL(req.url);
-    const parts = url.pathname.split('/').filter(Boolean);
-    const id = parts.length >= 3 ? parts[2] : null;
-    const list = readData();
-    if (id) {
-      const item = list.find((s: any) => s.id === id || s._id === id);
-      if (!item) return NextResponse.json({ message: 'not found' }, { status: 404 });
-      return NextResponse.json(item);
+    try {
+        const { searchParams } = new URL(req.url);
+        const creatorId = searchParams.get('creatorId');
+
+        if (!creatorId) {
+            return NextResponse.json({ error: 'creatorId is required' }, { status: 400 });
+        }
+
+        let appointments: any[] = [];
+        if (dbType === 'firestore') {
+            const { collection, query, where, getDocs, Timestamp } = await import('firebase/firestore');
+            const q = query(collection(db, COLLECTION_NAME), where('creatorId', '==', creatorId));
+            const snapshot = await getDocs(q);
+            appointments = snapshot.docs.map(doc => {
+                 const data = doc.data();
+                 return {
+                    id: doc.id,
+                    ...data,
+                    appointmentTime: data.appointmentTime instanceof Timestamp ? data.appointmentTime.toDate().toISOString() : data.appointmentTime,
+                    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
+                 }
+            });
+        } else if (dbType === 'tcb') {
+            const snapshot = await db.collection(COLLECTION_NAME).where({ creatorId }).get();
+            appointments = snapshot.data.map((item: any) => ({ ...item, id: item._id }));
+        }
+
+        // Sort by appointment time descending
+        appointments.sort((a, b) => new Date(b.appointmentTime).getTime() - new Date(a.appointmentTime).getTime());
+
+        return NextResponse.json(appointments);
+    } catch (error: any) {
+        console.error('[API /appointments GET] Error:', error);
+        return NextResponse.json({ error: 'Failed to fetch appointments', details: error.message }, { status: 500 });
     }
-    return NextResponse.json(list);
-  } catch (e: any) {
-    return NextResponse.json([], { status: 200 });
-  }
 }
 
-export async function POST(req: Request) {
-  try {
-    const body = await req.json();
-    const schema = z.object({
-      creatorId: z.string().min(1),
-      requesterId: z.string().min(1),
-      appointmentTime: z.string().min(1),
-      notes: z.string().optional(),
-    });
-    const parsed = schema.safeParse(body);
-    if (!parsed.success) return NextResponse.json({ error: 'validation', issues: parsed.error.format() }, { status: 400 });
-    const list = readData();
-    const id = (Date.now() + Math.floor(Math.random() * 1000)).toString();
-    const newItem = { ...body, id };
-    list.unshift(newItem);
-    writeData(list);
-    return NextResponse.json(newItem);
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'unknown' }, { status: 500 });
-  }
-}
-
+/**
+ * PUT /api/appointments/[id]
+ * Updates an appointment, typically its status.
+ */
 export async function PUT(req: Request) {
-  try {
-    const url = new URL(req.url);
-    const parts = url.pathname.split('/').filter(Boolean);
-    const id = parts.length >= 3 ? parts[2] : null;
-    if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 });
-    const body = await req.json();
-    const list = readData();
-    const idx = list.findIndex((s: any) => s.id === id || s._id === id);
-    if (idx === -1) {
-      const newItem = { ...body, id };
-      list.unshift(newItem);
-      writeData(list);
-      return NextResponse.json(newItem, { status: 201 });
+    try {
+        const id = getIdFromRequest(req);
+        if (!id) {
+            return NextResponse.json({ error: 'Missing ID in request URL' }, { status: 400 });
+        }
+
+        const { status } = await req.json();
+        if (!status) {
+            return NextResponse.json({ error: 'Status is required' }, { status: 400 });
+        }
+
+        if (dbType === 'firestore') {
+            const { doc, updateDoc } = await import('firebase/firestore');
+            await updateDoc(doc(db, COLLECTION_NAME, id), { status });
+        } else if (dbType === 'tcb') {
+            await db.collection(COLLECTION_NAME).doc(id).update({ status });
+        }
+
+        return NextResponse.json({ success: true, id, status });
+    } catch (error: any) {
+        console.error('[API /appointments PUT] Error:', error);
+        return NextResponse.json({ error: 'Failed to update appointment', details: error.message }, { status: 500 });
     }
-    list[idx] = { ...list[idx], ...body };
-    writeData(list);
-    return NextResponse.json(list[idx]);
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'unknown' }, { status: 500 });
-  }
-}
-
-export async function PATCH(req: Request) {
-  return PUT(req);
-}
-
-export async function DELETE(req: Request) {
-  try {
-    const url = new URL(req.url);
-    const parts = url.pathname.split('/').filter(Boolean);
-    const id = parts.length >= 3 ? parts[2] : null;
-    if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 });
-    const list = readData();
-    const newList = list.filter((s: any) => (s.id || s._id) !== id);
-    writeData(newList);
-    return NextResponse.json({ success: true });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'unknown' }, { status: 500 });
-  }
 }

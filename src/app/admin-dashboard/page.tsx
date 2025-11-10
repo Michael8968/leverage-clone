@@ -12,10 +12,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 
-
 import { Edit, Trash2, Loader2, PlusCircle, Frown, Bot, TestTube2, KeyRound, Settings2, Star, Globe, Link, ChevronsUpDown, Check, Circle, RefreshCw } from 'lucide-react';
 import { useEffect, useState, useMemo, useCallback, useTransition } from 'react';
-import { collection, getDocs, query, orderBy, doc, updateDoc, addDoc, serverTimestamp, deleteDoc } from '@/lib/cloudbase-compat';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useForm } from 'react-hook-form';
@@ -23,7 +21,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuthStore } from '@/store/auth';
 import { useRouter } from 'next/navigation';
-
 import { cn } from '@/lib/utils';
 
 // Local LlmConnection type
@@ -38,7 +35,6 @@ interface LlmConnection {
     category: string;
     lastTestStatus?: DisplayTestResultStatus;
 }
-
 
 // =================================================================
 // HELPER FUNCTIONS
@@ -88,7 +84,6 @@ const llmConnectionSchema = z.object({
   scope: z.string().min(1, "范围不能为空。"),
   category: z.string().min(1, "类别不能为空。"),
 });
-
 
 // =================================================================
 // HELPER & UTILITY COMPONENTS
@@ -186,13 +181,12 @@ function RestrictedAccess() {
 
 function LlmConnectionForm({ llm, onSave, onCancel, onTest, isTesting }: {
     llm: Partial<LlmConnection> | null;
-    onSave: () => void;
+    onSave: (values: z.infer<typeof llmConnectionSchema>) => Promise<void>;
     onCancel: () => void;
     onTest: (modelId: string, formData?: any) => void;
     isTesting: boolean;
 }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const { toast } = useToast();
     const isEditing = !!llm?.id;
     const [providers, setProviders] = useState<LlmProvider[]>([]);
 
@@ -216,9 +210,8 @@ function LlmConnectionForm({ llm, onSave, onCancel, onTest, isTesting }: {
 
     useEffect(() => {
         if (llm) {
-            form.reset(llm);
+            form.reset(llm as any);
         } else {
-             // Reset to default for new form
             form.reset({
                 provider: '', modelName: '', apiKey: '', priority: 10,
                 status: '活跃', scope: '通用', category: '文本',
@@ -242,28 +235,10 @@ function LlmConnectionForm({ llm, onSave, onCancel, onTest, isTesting }: {
 
     const handleSubmit = async (values: z.infer<typeof llmConnectionSchema>) => {
         setIsSubmitting(true);
-        try {
-            const dataToSave = {
-                ...values,
-                lastTestStatus: isEditing ? llm?.lastTestStatus : 'untested',
-            };
-            if (isEditing && llm?.id) {
-                const docRef = doc('llm_connections', llm.id);
-                await updateDoc(docRef, dataToSave);
-                toast({ title: "成功", description: "模型连接已更新。" });
-            } else {
-                await addDoc(collection('llm_connections'), { ...dataToSave, createdAt: serverTimestamp() });
-                toast({ title: "成功", description: "新模型连接已添加。" });
-            }
-            onSave();
-        } catch (error) {
-            console.error("Error saving LLM connection:", error);
-            toast({ title: "保存失败", description: "操作失败，请重试。", variant: "destructive" });
-        } finally {
-            setIsSubmitting(false);
-        }
+        await onSave(values);
+        setIsSubmitting(false);
     };
-    
+
     const scopeOptions = [{value: '通用', label: '通用'}, {value: '专属', label: '专属'}];
     const categoryOptions = [
         {value: '文本', label: '文本'}, 
@@ -359,6 +334,7 @@ function LlmConnectionForm({ llm, onSave, onCancel, onTest, isTesting }: {
     );
 }
 
+
 // =================================================================
 // MAIN PAGE COMPONENT
 // =================================================================
@@ -372,7 +348,6 @@ export default function AdminDashboardPage() {
     const [testingId, setTestingId] = useState<string | null>(null);
     const [isUpdatingFromLiteLLM, setIsUpdatingFromLiteLLM] = useState(false);
 
-
     const { toast } = useToast();
     const { user, role, isLoading: isAuthLoading } = useAuthStore();
     const router = useRouter();
@@ -382,11 +357,10 @@ export default function AdminDashboardPage() {
     const fetchLlms = useCallback(async () => {
         setIsLoading(true);
         try {
-            const llmsCollection = collection('llm_connections');
-            const q = query(llmsCollection, orderBy('priority'));
-            const llmsSnapshot = await getDocs(q);
-            const connections = llmsSnapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as LlmConnection));
-            setLlms(connections);
+            const response = await fetch('/api/llm_connections');
+            if (!response.ok) throw new Error('Network response was not ok.');
+            const data = await response.json();
+            setLlms(data);
         } catch (error) {
             toast({ title: '加载失败', description: '无法加载LLM连接列表。', variant: 'destructive' });
         } finally {
@@ -413,6 +387,58 @@ export default function AdminDashboardPage() {
 
     const handleDelete = (llm: LlmConnection) => {
         setItemToDelete(llm);
+    };
+    
+    const handleSave = async (values: z.infer<typeof llmConnectionSchema>) => {
+        const isEditing = !!selectedLlm?.id;
+        const url = isEditing ? `/api/llm_connections/${selectedLlm.id}` : '/api/llm_connections';
+        const method = isEditing ? 'PUT' : 'POST';
+
+        try {
+            const response = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(values),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || '保存失败');
+            }
+
+            toast({ title: "成功", description: `模型连接已${isEditing ? '更新' : '创建'}。` });
+            setIsFormVisible(false);
+            setSelectedLlm(null);
+            fetchLlms(); // Refresh the list
+        } catch (error: any) {
+            toast({ title: "保存失败", description: error.message || "操作失败，请重试。", variant: "destructive" });
+        }
+    };
+
+    const confirmDelete = async () => {
+        if (!itemToDelete) return;
+        try {
+            const response = await fetch(`/api/llm_connections/${itemToDelete.id}`, {
+                method: 'DELETE',
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || '删除失败');
+            }
+            
+            toast({ title: "成功", description: `“${itemToDelete.modelName}”已删除。` });
+            fetchLlms();
+        } catch (error: any) {
+             toast({ title: "删除失败", description: error.message || "操作失败，请重试。", variant: "destructive" });
+        } finally {
+            setItemToDelete(null);
+        }
+    };
+    
+    const handleCancel = () => {
+        setIsFormVisible(false);
+        setSelectedLlm(null);
     };
 
     const handleTestAvailability = async (modelId: string, formData?: any) => {
@@ -462,31 +488,6 @@ export default function AdminDashboardPage() {
                 setTestingId(null);
             }
         });
-    };
-
-
-    const confirmDelete = async () => {
-        if (!itemToDelete) return;
-        try {
-            await deleteDoc(doc('llm_connections', itemToDelete.id));
-            toast({ title: "成功", description: `“${itemToDelete.modelName}”已删除。` });
-            fetchLlms();
-        } catch (error) {
-             toast({ title: "删除失败", description: "操作失败，请重试。", variant: "destructive" });
-        } finally {
-            setItemToDelete(null);
-        }
-    };
-    
-    const handleSave = () => {
-        setIsFormVisible(false);
-        setSelectedLlm(null);
-        fetchLlms();
-    };
-
-    const handleCancel = () => {
-        setIsFormVisible(false);
-        setSelectedLlm(null);
     };
 
     const handleUpdateFromLiteLLM = async () => {
@@ -617,6 +618,4 @@ export default function AdminDashboardPage() {
             </AlertDialog>
         </AppLayout>
     );
-
-    
 }

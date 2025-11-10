@@ -1,107 +1,76 @@
+
+/**
+ * @file src/app/api/demands/route.ts
+ * @description API endpoint for managing demands (tasks).
+ */
+
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-import * as z from 'zod';
+import { db, dbType } from '@/lib/services/db';
 
-const dataFile = path.join(process.cwd(), 'data', 'demands.json');
+const COLLECTION_NAME = 'demands';
 
-function readData() {
-  try {
-    if (!fs.existsSync(dataFile)) return [];
-    return JSON.parse(fs.readFileSync(dataFile, 'utf-8')) || [];
-  } catch {
-    return [];
-  }
+// Helper to extract ID from request URL
+function getIdFromRequest(req: Request): string | null {
+    const url = new URL(req.url);
+    const parts = url.pathname.split('/');
+    return parts.length === 4 ? parts[3] : null;
 }
 
-function writeData(list: any[]) {
-  fs.writeFileSync(dataFile, JSON.stringify(list, null, 2), 'utf-8');
-}
-
+/**
+ * GET /api/demands
+ * Fetches all open demands.
+ */
 export async function GET(req: Request) {
-  try {
-    const url = new URL(req.url);
-    const parts = url.pathname.split('/').filter(Boolean);
-    const id = parts.length >= 3 ? parts[2] : null;
-    const searchParams = url.searchParams;
-    const type = searchParams.get('type');
-    const list = readData();
-    if (id) {
-      const item = list.find((d: any) => d.id === id || d._id === id);
-      if (!item) return NextResponse.json({ message: 'not found' }, { status: 404 });
-      return NextResponse.json(item);
+    try {
+        let demands: any[] = [];
+        if (dbType === 'firestore') {
+            const { collection, query, where, getDocs } = await import('firebase/firestore');
+            const q = query(collection(db, COLLECTION_NAME), where('status', '==', '开放中'));
+            const snapshot = await getDocs(q);
+            demands = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } else if (dbType === 'tcb') {
+            const snapshot = await db.collection(COLLECTION_NAME).where({ status: '开放中' }).get();
+            demands = snapshot.data.map((item: any) => ({ ...item, id: item._id }));
+        }
+        return NextResponse.json(demands);
+    } catch (error: any) {
+        console.error('[API /demands GET] Error:', error);
+        return NextResponse.json({ error: 'Failed to fetch demands', details: error.message }, { status: 500 });
     }
-    if (type) return NextResponse.json(list.filter((d: any) => d.type === type));
-    return NextResponse.json(list);
-  } catch (e: any) {
-    return NextResponse.json([], { status: 200 });
-  }
 }
 
-export async function POST(req: Request) {
-  try {
-    const body = await req.json();
-    const schema = z.object({
-      title: z.string().min(5),
-      description: z.string().min(20),
-      budget: z.number().positive(),
-      category: z.string().min(1),
-      requesterId: z.string().min(1),
-      requesterName: z.string().optional(),
-      requesterAvatar: z.string().optional(),
-      status: z.string().optional(),
-    });
-    const parsed = schema.safeParse(body);
-    if (!parsed.success) return NextResponse.json({ error: 'validation', issues: parsed.error.format() }, { status: 400 });
-    const list = readData();
-    const id = (Date.now() + Math.floor(Math.random() * 1000)).toString();
-    const newItem = { ...body, id, createdAt: new Date().toISOString() };
-    list.unshift(newItem);
-    writeData(list);
-    return NextResponse.json(newItem);
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'unknown' }, { status: 500 });
-  }
-}
-
+/**
+ * PUT /api/demands/[id]
+ * Updates a demand, typically to accept a task.
+ */
 export async function PUT(req: Request) {
-  try {
-    const url = new URL(req.url);
-    const parts = url.pathname.split('/').filter(Boolean);
-    const id = parts.length >= 3 ? parts[2] : null;
-    if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 });
-    const body = await req.json();
-    const list = readData();
-    const idx = list.findIndex((d: any) => d.id === id || d._id === id);
-    if (idx === -1) {
-      const newItem = { ...body, id, createdAt: new Date().toISOString() };
-      list.unshift(newItem);
-      writeData(list);
-      return NextResponse.json(newItem, { status: 201 });
+    try {
+        const id = getIdFromRequest(req);
+        if (!id) {
+            return NextResponse.json({ error: 'Missing ID in request URL' }, { status: 400 });
+        }
+
+        const body = await req.json();
+        // Sanitize body to only allow specific fields to be updated
+        const { status, creatorId } = body;
+        const dataToUpdate: { [key: string]: any } = {};
+        if (status) dataToUpdate.status = status;
+        if (creatorId) dataToUpdate.creatorId = creatorId;
+        
+        if (Object.keys(dataToUpdate).length === 0) {
+            return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+        }
+
+        if (dbType === 'firestore') {
+            const { doc, updateDoc } = await import('firebase/firestore');
+            await updateDoc(doc(db, COLLECTION_NAME, id), dataToUpdate);
+        } else if (dbType === 'tcb') {
+            await db.collection(COLLECTION_NAME).doc(id).update(dataToUpdate);
+        }
+
+        return NextResponse.json({ success: true, id, ...dataToUpdate });
+    } catch (error: any) {
+        console.error('[API /demands PUT] Error:', error);
+        return NextResponse.json({ error: 'Failed to update demand', details: error.message }, { status: 500 });
     }
-    list[idx] = { ...list[idx], ...body };
-    writeData(list);
-    return NextResponse.json(list[idx]);
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'unknown' }, { status: 500 });
-  }
-}
-
-export async function PATCH(req: Request) {
-  return PUT(req);
-}
-
-export async function DELETE(req: Request) {
-  try {
-    const url = new URL(req.url);
-    const parts = url.pathname.split('/').filter(Boolean);
-    const id = parts.length >= 3 ? parts[2] : null;
-    if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 });
-    const list = readData();
-    const newList = list.filter((d: any) => (d.id || d._id) !== id);
-    writeData(newList);
-    return NextResponse.json({ success: true });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'unknown' }, { status: 500 });
-  }
 }

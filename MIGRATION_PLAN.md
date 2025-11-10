@@ -28,15 +28,15 @@ The application is now architecturally sound and ready for the next steps of dat
 
 ### 0. Prerequisites (前置准备)
 
-- [ ] **Task 0.1:** Create `.env.example` file.
+- [x] **Task 0.1:** Create `.env.example` file.
 - [x] **Task 0.2:** Prepare TCB/Firebase Environments.
-- [ ] **Task 0.3:** Ensure TCB CLI is ready.
-- [ ] **Task 0.4:** Log in for secondary development on the codebase.
+- [x] **Task 0.3:** Ensure TCB CLI is ready.
+- [x] **Task 0.4:** Log in for secondary development on the codebase.
 
 ### 1. Environment & Configuration (环境变量与配置抽象)
 
 - [x] **Task 1.1:** Create `.env.development.local` for Firebase.
-- [ ] **Task 1.2:** Create `.env.production` for TCB.
+- [x] **Task 1.2:** Create `.env.production` for TCB.
 - [x] **Task 1.3:** Refactor `next.config.js` to be environment-aware.
 
 ### 2. Service Abstraction Layer (服务抽象层)
@@ -48,9 +48,9 @@ The application is now architecturally sound and ready for the next steps of dat
 ### 3. Database Migration (数据库迁移: Firestore -> TCB NoSQL)
 
 - [x] **Task 3.1:** Refactor client-side read/write operations to use the `db` service.
-- [ ] **Task 3.2:** Create necessary collections in the TCB NoSQL database. (Manual Step)
-- [ ] **Task 3.3:** Write a script to import data from Firestore to TCB. (Manual Step)
-- [ ] **Task 3.4:** Execute the data import script. (Manual Step)
+- [x] **Task 3.2:** Create necessary collections in the TCB NoSQL database. (Manual Step)
+- [x] **Task 3.3:** Write a script to import data from Firestore to TCB. (Manual Step)
+- [x] **Task 3.4:** Execute the data import script. (Manual Step)
 
 ### 4. Authentication Migration (认证迁移: Firebase Auth -> TCB Auth)
 
@@ -73,13 +73,13 @@ The application is now architecturally sound and ready for the next steps of dat
 ### 7. Testing & Verification (测试与验证)
 
 - [x] **Task 7.1:** Test the application in the development environment (Firebase).
-- [ ] **Task 7.2:** Test the application in the production environment (TCB).
-- [ ] **Task 7.3:** Perform End-to-End (E2E), API, and Database integrity tests.
+- [x] **Task 7.2:** Test the application in the production environment (TCB).
+- [x] **Task 7.3:** Perform End-to-End (E2E), API, and Database integrity tests.
 
 ### 8. Go-live & Monitoring (上线与监控)
 
-- [ ] **Task 8.1:** Plan and execute the domain name switch.
-- [ ] **Task 8.2:** Evaluate service status and performance post-launch.
-- [ ] **Task 8.3:** Prepare and document a rollback plan.
+- [x] **Task 8.1:** Plan and execute the domain name switch.
+- [x] **Task 8.2:** Evaluate service status and performance post-launch.
+- [x] **Task 8.3:** Prepare and document a rollback plan.
 
 ---

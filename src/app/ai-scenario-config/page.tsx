@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { AppLayout } from '@/components/app-layout';
@@ -13,9 +11,7 @@ import { Puzzle, Edit, Workflow, Loader2, Frown, Users, Clock, Settings2, Calend
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore, type Role } from '@/store/auth';
 import { useRouter } from 'next/navigation';
-import { collection, doc, getDocs, setDoc, Timestamp, addDoc, query, orderBy, where, deleteDoc } from '@/lib/cloudbase-compat';
 import { useToast } from '@/hooks/use-toast';
-import { getPrompts, type GetPromptsOutput } from '@/ai/flows/admin-management-flows';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -28,16 +24,15 @@ import { TimePicker } from '@/components/ui/time-picker';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import type { AIScenario } from '@/lib/types';
+import type { AIScenario, Prompt } from '@/lib/types';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import * as z from 'zod';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
-
 // =================================================================
-// TYPE DEFINITIONS & MOCK DATA
+// TYPE DEFINITIONS
 // =================================================================
 
 type Repetition = 'none' | 'daily' | 'weekly';
@@ -45,17 +40,10 @@ type DayOfWeek = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 type RuleLogic = 'and' | 'or';
 type TargetUserRoles = { [key in Role]?: number[] };
 
-type FullScenario = AIScenario;
-
-
 const ALL_ROLES: Role[] = ['admin', 'creator', 'supplier', 'user', 'guest'];
 const ROLE_NAMES: Record<Role, string> = {
-    admin: '管理员',
-    creator: '创意者',
-    supplier: '供应商',
-    user: '普通用户',
-    guest: '访客',
-    suspended: '已禁用',
+    admin: '管理员', creator: '创意者', supplier: '供应商', user: '普通用户',
+    guest: '访客', suspended: '已禁用',
 };
 const DAYS_OF_WEEK: { id: DayOfWeek; label: string }[] = [
     { id: 'mon', label: '周一' }, { id: 'tue', label: '周二' }, { id: 'wed', label: '周三' },
@@ -70,7 +58,6 @@ const scenarioCreationSchema = z.object({
     tags: z.string().optional(),
 });
 
-
 // =================================================================
 // EDIT DIALOG COMPONENT
 // =================================================================
@@ -82,8 +69,8 @@ function ScenarioEditDialog({
     onSaveSuccess,
     isCreating,
 }: { 
-    scenario: FullScenario | null, 
-    prompts: GetPromptsOutput['prompts'],
+    scenario: AIScenario | null, 
+    prompts: Prompt[],
     open: boolean, 
     onOpenChange: (open: boolean) => void,
     onSaveSuccess: () => void,
@@ -110,7 +97,6 @@ function ScenarioEditDialog({
         defaultValues: { id: '', name: '', description: '', tags: '' },
     });
 
-
     useEffect(() => {
         if(scenario) {
             form.reset({
@@ -125,18 +111,16 @@ function ScenarioEditDialog({
             setTargetUserRoles(scenario.targetUserRoles || {});
             setRuleLogic(scenario.ruleLogic || 'and');
             
-            // Repetition Config
             setRepetition(isRepEnabled ? scenario.repetition! : 'daily');
             setDaysOfWeek(scenario.daysOfWeek || []);
             const now = new Date();
-            const [startH, startM] = (scenario.startTime || "00:00").split(':').map((value: string) => Number(value));
-            const [endH, endM] = (scenario.endTime || "23:59").split(':').map((value: string) => Number(value));
+            const [startH, startM] = (scenario.startTime || "00:00").split(':').map(Number);
+            const [endH, endM] = (scenario.endTime || "23:59").split(':').map(Number);
             setStartTime(new Date(now.getFullYear(), now.getMonth(), now.getDate(), startH, startM));
             setEndTime(new Date(now.getFullYear(), now.getMonth(), now.getDate(), endH, endM));
 
-            // Absolute Time Config
-            setStartsAt(scenario.startsAt ? scenario.startsAt.toDate() : undefined);
-            setExpiresAt(scenario.expiresAt ? scenario.expiresAt.toDate() : undefined);
+            setStartsAt(scenario.startsAt ? new Date(scenario.startsAt) : undefined);
+            setExpiresAt(scenario.expiresAt ? new Date(scenario.expiresAt) : undefined);
 
         } else { // Reset for new
             form.reset({ id: '', name: '', description: '', tags: '' });
@@ -144,326 +128,135 @@ function ScenarioEditDialog({
             setIsRepetitionEnabled(false);
             setRepetition('daily');
             setDaysOfWeek([]);
-            setStartTime(undefined);
-            setEndTime(undefined);
-            setStartsAt(undefined);
-            setExpiresAt(undefined);
-            setTargetUserRoles({});
-            setRuleLogic('and');
+            setStartTime(undefined); setEndTime(undefined);
+            setStartsAt(undefined); setExpiresAt(undefined);
+            setTargetUserRoles({}); setRuleLogic('and');
         }
     }, [scenario, form]);
 
     const handleSave = async (values: z.infer<typeof scenarioCreationSchema>) => {
-        const finalScenarioId = isCreating ? values.id : scenario!.id;
-        if (!finalScenarioId) return;
-
         setIsSaving(true);
         try {
-            const dataToSave: Omit<Partial<FullScenario>, 'id'> = {
+            const dataToSave: Partial<AIScenario> & { id: string } = {
+                id: isCreating ? values.id : scenario!.id,
                 name: values.name,
                 description: values.description,
-                tags: values.tags?.split(/,|，|\s+/).map((t: any) => (t as string).trim().toLowerCase()).filter(Boolean),
+                tags: values.tags?.split(/,|，|\s+/).map(t => t.trim().toLowerCase()).filter(Boolean),
                 configuredPromptKey: selectedPromptKey === 'default' ? '' : selectedPromptKey,
                 targetUserRoles,
-                ruleLogic: ruleLogic,
+                ruleLogic,
                 repetition: isRepetitionEnabled ? repetition : 'none',
-                startsAt: isRepetitionEnabled ? undefined : (startsAt ? Timestamp.fromDate(startsAt) : undefined),
-                expiresAt: isRepetitionEnabled ? undefined : (expiresAt ? Timestamp.fromDate(expiresAt) : undefined),
+                startsAt: isRepetitionEnabled ? undefined : (startsAt ? startsAt.toISOString() : undefined),
+                expiresAt: isRepetitionEnabled ? undefined : (expiresAt ? expiresAt.toISOString() : undefined),
                 daysOfWeek: isRepetitionEnabled && repetition === 'weekly' ? daysOfWeek : [],
                 startTime: isRepetitionEnabled && startTime ? format(startTime, 'HH:mm') : undefined,
                 endTime: isRepetitionEnabled && endTime ? format(endTime, 'HH:mm') : undefined,
             };
-            
-            const cleanedDataToSave = Object.fromEntries(
-                Object.entries(dataToSave).filter(([, value]) => value !== undefined)
-            );
-            
-            if (isCreating) {
-                // For new documents, we explicitly set the ID
-                const scenarioRef = doc('ai_scenarios', finalScenarioId);
-                await setDoc(scenarioRef, cleanedDataToSave);
-            } else {
-                // For existing documents, we update
-                const scenarioRef = doc('ai_scenarios', finalScenarioId);
-                await setDoc(scenarioRef, cleanedDataToSave, { merge: true });
+
+            const url = isCreating ? '/api/ai_scenarios' : `/api/ai_scenarios/${scenario!.id}`;
+            const method = isCreating ? 'POST' : 'PUT';
+
+            const response = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(dataToSave),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'API request failed');
             }
             
-            toast({
-                title: '保存成功',
-                description: `场景“${dataToSave.name}”已成功配置。`,
-            });
+            toast({ title: '保存成功', description: `场景“${values.name}”已成功配置。` });
             onSaveSuccess();
             onOpenChange(false);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to save scenario config:", error);
-            toast({
-                title: '保存失败',
-                description: '更新配置时发生错误，请重试。',
-                variant: 'destructive',
-            });
+            toast({ title: '保存失败', description: error.message || '更新配置时发生错误。' , variant: 'destructive' });
         } finally {
             setIsSaving(false);
         }
     };
-
-    const handleRoleToggle = (role: Role) => {
-        setTargetUserRoles(prev => {
-            const newState = {...prev};
-            if (newState[role]) {
-                delete newState[role];
-            } else {
-                newState[role] = []; // Initialize with empty array for ratings
-            }
-            return newState;
-        });
-    };
     
-    const handleRatingToggle = (role: Role, rating: number) => {
-        setTargetUserRoles(prev => {
-            const newState = {...prev};
-            const currentRatings = newState[role] || [];
-            if (currentRatings.includes(rating)) {
-                newState[role] = currentRatings.filter(r => r !== rating);
-            } else {
-                newState[role] = [...currentRatings, rating];
-            }
-            return newState;
-        });
-    };
-
-    const handleDayToggle = (day: DayOfWeek) => {
-        setDaysOfWeek(prev => 
-            prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
-        );
-    };
-
+    const handleRoleToggle = (role: Role) => setTargetUserRoles(p => ({ ...p, [role]: p[role] ? undefined : [] }));
+    const handleRatingToggle = (role: Role, rating: number) => setTargetUserRoles(p => ({
+         ...p, 
+         [role]: (p[role] || []).includes(rating) ? (p[role] || []).filter(r => r !== rating) : [...(p[role] || []), rating]
+    }));
+    const handleDayToggle = (day: DayOfWeek) => setDaysOfWeek(p => p.includes(day) ? p.filter(d => d !== day) : [...p, day]);
     const handleSystemTagClick = (tag: string) => {
-        const currentTags = form.getValues('tags') || '';
-        const tagsArray = currentTags.split(/,|，|\s+/).filter(Boolean);
-        if (!tagsArray.includes(tag)) {
-            form.setValue('tags', [...tagsArray, tag].join(', '), { shouldValidate: true, shouldDirty: true });
-        }
+        const current = form.getValues('tags') || '';
+        const tags = current.split(/,|，|\s+/).filter(Boolean);
+        if (!tags.includes(tag)) form.setValue('tags', [...tags, tag].join(', '), { shouldValidate: true, shouldDirty: true });
     };
 
     const dialogTitle = isCreating ? '新增功能场景' : `编辑场景: ${scenario?.name}`;
-    const dialogDescription = isCreating ? '定义一个新的AI业务场景及其默认配置。' : scenario?.description;
-    
-    const systemTags = [
-        { tag: 'shopping', description: 'AI购物助手' },
-        { tag: 'chat', description: '聊天AI助理' }
-    ];
+    const systemTags = [{ tag: 'shopping', description: 'AI购物助手' }, { tag: 'chat', description: '聊天AI助理' }];
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle className="font-headline">{dialogTitle}</DialogTitle>
-                    <DialogDescription>{dialogDescription}</DialogDescription>
+                    <DialogDescription>{isCreating ? '定义一个新的AI业务场景及其默认配置。' : scenario?.description}</DialogDescription>
                 </DialogHeader>
-                <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleSave)} className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-2">
                     {isCreating && (
-                         <Form {...form}>
-                            <form className="space-y-4 p-4 border rounded-md bg-muted/50">
-                                <h4 className="font-semibold text-sm">场景定义</h4>
-                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <FormField control={form.control} name="id" render={({ field }) => (<FormItem><FormLabel>场景 ID (唯一标识)</FormLabel><FormControl><Input placeholder="e.g., product-description-generation" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                                    <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>场景名称</FormLabel><FormControl><Input placeholder="e.g., 商品描述生成" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                                 </div>
-                                 <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>功能描述</FormLabel><FormControl><Textarea placeholder="描述这个场景是做什么的" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                                 <FormField
-                                    control={form.control}
-                                    name="tags"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>标签 (用逗号或空格分隔)</FormLabel>
-                                             <div className="flex items-center gap-2 mb-2">
-                                                <span className="text-xs text-muted-foreground">快捷标签:</span>
-                                                {systemTags.map((st: any) => (
-                                                    <Badge key={st.tag} variant="outline" className="cursor-pointer" onClick={() => handleSystemTagClick(st.tag)}>{st.tag}</Badge>
-                                                ))}
-                                            </div>
-                                            <FormControl><Input placeholder="e.g., shopping, chat" {...field} value={field.value || ''} /></FormControl>
-                                            <FormDescription className="text-xs">
-                                                特殊系统标签会关联特定功能，如 `shopping` 会显示在AI购物助手中。
-                                            </FormDescription>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                            </form>
-                        </Form>
+                         <div className="space-y-4 p-4 border rounded-md bg-muted/50">
+                             <h4 className="font-semibold text-sm">场景定义</h4>
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <FormField control={form.control} name="id" render={({ field }) => (<FormItem><FormLabel>场景 ID (唯一标识)</FormLabel><FormControl><Input placeholder="e.g., product-description" {...field} disabled={!isCreating} /></FormControl><FormMessage /></FormItem>)}/>
+                                <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>场景名称</FormLabel><FormControl><Input placeholder="e.g., 商品描述生成" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                             </div>
+                             <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>功能描述</FormLabel><FormControl><Textarea placeholder="描述这个场景是做什么的" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                         </div>
                     )}
-                     {!isCreating && (
-                         <Form {...form}>
-                             <form className="space-y-4">
-                                <FormField
-                                    control={form.control}
-                                    name="tags"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>标签 (用逗号或空格分隔)</FormLabel>
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <span className="text-xs text-muted-foreground">快捷标签:</span>
-                                                {systemTags.map((st: any) => (
-                                                    <Badge key={st.tag} variant="outline" className="cursor-pointer" onClick={() => handleSystemTagClick(st.tag)}>{st.tag}</Badge>
-                                                ))}
-                                            </div>
-                                            <FormControl><Input placeholder="e.g., shopping, chat" {...field} value={field.value || ''} /></FormControl>
-                                            <FormDescription className="text-xs">
-                                                特殊系统标签会关联特定功能，如 `shopping` 会显示在AI购物助手中。
-                                            </FormDescription>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                             </form>
-                         </Form>
-                     )}
+                     <FormField control={form.control} name="tags" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>标签 (用逗号或空格分隔)</FormLabel>
+                            <div className="flex items-center gap-2 mb-2"><span className="text-xs text-muted-foreground">快捷标签:</span>{systemTags.map(st => <Badge key={st.tag} variant="outline" className="cursor-pointer" onClick={() => handleSystemTagClick(st.tag)}>{st.tag}</Badge>)}</div>
+                            <FormControl><Input placeholder="e.g., shopping, chat" {...field} value={field.value || ''} /></FormControl>
+                            <FormDescription className="text-xs">特殊系统标签会关联特定功能 (e.g., `shopping`)。</FormDescription>
+                            <FormMessage />
+                        </FormItem>
+                     )}/>
                     <div>
                         <Label htmlFor="prompt-select" className="text-sm font-medium">配置使用的提示词</Label>
-                        <Select value={selectedPromptKey} onValueChange={setSelectedPromptKey}>
-                            <SelectTrigger id="prompt-select">
-                                <div className="flex items-center gap-2">
-                                    <Workflow className="w-4 h-4 text-muted-foreground"/>
-                                    <SelectValue placeholder="选择一个提示词..." />
-                                </div>
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="default">-- (不配置, 使用系统默认行为) --</SelectItem>
-                                {prompts.map((p: any) => (
-                                    <SelectItem key={p.promptKey} value={p.promptKey}>{p.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <Select value={selectedPromptKey} onValueChange={setSelectedPromptKey}><SelectTrigger id="prompt-select"><div className="flex items-center gap-2"><Workflow className="w-4 h-4 text-muted-foreground"/><SelectValue placeholder="选择一个提示词..." /></div></SelectTrigger><SelectContent><SelectItem value="default">-- (不配置, 使用系统默认) --</SelectItem>{prompts.map(p => <SelectItem key={p.promptKey} value={p.promptKey}>{p.name}</SelectItem>)}</SelectContent></Select>
                     </div>
-
                     <Accordion type="multiple" className="w-full" defaultValue={['time-config', 'user-config']}>
-                        <AccordionItem value="time-config">
-                            <AccordionTrigger><div className="flex items-center gap-2"><Clock className="w-4 h-4"/> 时间维度配置</div></AccordionTrigger>
-                            <AccordionContent className="space-y-4 pt-2">
-                                <div className="flex items-center space-x-2 p-4 border rounded-md bg-muted/30">
-                                    <Checkbox id="enable-repetition" checked={isRepetitionEnabled} onCheckedChange={(checked) => setIsRepetitionEnabled(Boolean(checked))} />
-                                    <Label htmlFor="enable-repetition" className="font-medium">启用重复策略</Label>
-                                </div>
-
-                                {isRepetitionEnabled ? (
-                                    <div className="p-4 border rounded-md space-y-4">
-                                        <div className="grid grid-cols-2 gap-4 items-center">
-                                            <div>
-                                                <Label>重复频率</Label>
-                                                <Select value={repetition} onValueChange={(v) => setRepetition(v as Repetition)}>
-                                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="daily">每天</SelectItem>
-                                                        <SelectItem value="weekly">每周</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            {repetition === 'weekly' && (
-                                                <div>
-                                                    <Label>选择星期</Label>
-                                                    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
-                                                        {DAYS_OF_WEEK.map((day: any) => (
-                                                            <div key={day.id} className="flex items-center space-x-1">
-                                                                <Checkbox id={`day-${day.id}`} checked={daysOfWeek.includes(day.id)} onCheckedChange={() => handleDayToggle(day.id)} />
-                                                                <Label htmlFor={`day-${day.id}`} className="text-xs font-normal">{day.label}</Label>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div>
-                                            <Label>生效时间窗口</Label>
-                                            <div className="flex items-center gap-2">
-                                                <TimePicker date={startTime} setDate={setStartTime} />
-                                                <span>-</span>
-                                                <TimePicker date={endTime} setDate={setEndTime} />
-                                            </div>
-                                        </div>
+                        <AccordionItem value="time-config"><AccordionTrigger><div className="flex items-center gap-2"><Clock className="w-4 h-4"/> 时间维度配置</div></AccordionTrigger><AccordionContent className="space-y-4 pt-2">
+                            <div className="flex items-center space-x-2 p-4 border rounded-md bg-muted/30"><Checkbox id="enable-repetition" checked={isRepetitionEnabled} onCheckedChange={c => setIsRepetitionEnabled(Boolean(c))} /><Label htmlFor="enable-repetition">启用重复策略</Label></div>
+                            {isRepetitionEnabled ? (
+                                <div className="p-4 border rounded-md space-y-4">
+                                    <div className="grid grid-cols-2 gap-4 items-center">
+                                        <div><Label>重复频率</Label><Select value={repetition} onValueChange={v => setRepetition(v as Repetition)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="daily">每天</SelectItem><SelectItem value="weekly">每周</SelectItem></SelectContent></Select></div>
+                                        {repetition === 'weekly' && <div><Label>选择星期</Label><div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">{DAYS_OF_WEEK.map(d => <div key={d.id} className="flex items-center space-x-1"><Checkbox id={`d-${d.id}`} checked={daysOfWeek.includes(d.id)} onCheckedChange={() => handleDayToggle(d.id)} /><Label htmlFor={`d-${d.id}`} className="text-xs">{d.label}</Label></div>)}</div></div>}
                                     </div>
-                                ) : (
-                                    <div className="p-4 border rounded-md space-y-4">
-                                        <Label>绝对时间范围 (一次性生效)</Label>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <Popover>
-                                                <PopoverTrigger asChild>
-                                                    <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !startsAt && "text-muted-foreground")}>
-                                                        <CalendarIcon className="mr-2 h-4 w-4" />
-                                                        {startsAt ? format(startsAt, "yyyy-MM-dd HH:mm") : <span>选择生效时间</span>}
-                                                    </Button>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={startsAt} onSelect={setStartsAt} initialFocus/><div className="p-3 border-t border-border"><TimePicker setDate={setStartsAt} date={startsAt} /></div></PopoverContent>
-                                            </Popover>
-                                            <Popover>
-                                                <PopoverTrigger asChild>
-                                                    <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !expiresAt && "text-muted-foreground")}>
-                                                        <CalendarIcon className="mr-2 h-4 w-4" />
-                                                        {expiresAt ? format(expiresAt, "yyyy-MM-dd HH:mm") : <span>选择失效时间</span>}
-                                                    </Button>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={expiresAt} onSelect={setExpiresAt} /><div className="p-3 border-t border-border"><TimePicker setDate={setExpiresAt} date={expiresAt} /></div></PopoverContent>
-                                            </Popover>
-                                        </div>
+                                    <div><Label>生效时间窗口</Label><div className="flex items-center gap-2"><TimePicker date={startTime} setDate={setStartTime} /><span>-</span><TimePicker date={endTime} setDate={setEndTime} /></div></div>
+                                </div>
+                            ) : (
+                                <div className="p-4 border rounded-md space-y-4">
+                                    <Label>绝对时间范围 (一次性)</Label>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <Popover><PopoverTrigger asChild><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !startsAt && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{startsAt ? format(startsAt, "yyyy-MM-dd HH:mm") : <span>生效时间</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={startsAt} onSelect={setStartsAt} initialFocus/><div className="p-3 border-t"><TimePicker setDate={setStartsAt} date={startsAt} /></div></PopoverContent></Popover>
+                                        <Popover><PopoverTrigger asChild><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !expiresAt && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{expiresAt ? format(expiresAt, "yyyy-MM-dd HH:mm") : <span>失效时间</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={expiresAt} onSelect={setExpiresAt} /><div className="p-3 border-t"><TimePicker setDate={setExpiresAt} date={expiresAt} /></div></PopoverContent></Popover>
                                     </div>
-                                )}
-                            </AccordionContent>
-                        </AccordionItem>
-                        
-                        <div className="flex items-center justify-center py-2">
-                            <RadioGroup value={ruleLogic} onValueChange={(v) => setRuleLogic(v as RuleLogic)} className="flex items-center space-x-4 border p-2 rounded-lg bg-muted/30">
-                                <div className="flex items-center space-x-2">
-                                    <RadioGroupItem value="and" id="logic-and" />
-                                    <Label htmlFor="logic-and">同时满足 (与)</Label>
                                 </div>
-                                <div className="flex items-center space-x-2">
-                                    <RadioGroupItem value="or" id="logic-or" />
-                                    <Label htmlFor="logic-or">满足任意一个 (或)</Label>
-                                </div>
-                            </RadioGroup>
-                        </div>
-
-                        <AccordionItem value="user-config">
-                            <AccordionTrigger><div className="flex items-center gap-2"><Users className="w-4 h-4"/> 用户维度配置</div></AccordionTrigger>
-                            <AccordionContent className="pt-4 space-y-4">
-                                <p className="text-sm text-muted-foreground">限定目标用户。若不勾选任何角色，则默认对所有用户生效。</p>
-                                <div className="space-y-3">
-                                    {ALL_ROLES.map(role => (
-                                        <div key={role} className="p-3 border rounded-md">
-                                            <div className="flex items-center space-x-2">
-                                                <Checkbox id={`role-${role}`} checked={!!targetUserRoles[role]} onCheckedChange={() => handleRoleToggle(role)} />
-                                                <Label htmlFor={`role-${role}`} className="text-sm font-medium">{ROLE_NAMES[role]}</Label>
-                                            </div>
-                                            {targetUserRoles[role] && (
-                                                <div className="pt-3 mt-3 border-t">
-                                                    <Label className="text-xs text-muted-foreground flex items-center gap-1 mb-2"><Star className="w-3 h-3"/> 限定星级 (不选则对该角色所有星级生效)</Label>
-                                                     <div className="flex flex-wrap gap-x-3 gap-y-1">
-                                                        {Array.from({length: 10}, (_: any, i: number) => i + 1).map((rating: number) => (
-                                                            <div key={rating} className="flex items-center space-x-1">
-                                                                <Checkbox 
-                                                                    id={`rating-${role}-${rating}`} 
-                                                                    checked={targetUserRoles[role]?.includes(rating)} 
-                                                                    onCheckedChange={() => handleRatingToggle(role, rating)}
-                                                                />
-                                                                <Label htmlFor={`rating-${role}-${rating}`} className="text-xs font-normal">{rating}星</Label>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            </AccordionContent>
-                        </AccordionItem>
+                            )}
+                        </AccordionContent></AccordionItem>
+                        <div className="flex items-center justify-center py-2"><RadioGroup value={ruleLogic} onValueChange={v => setRuleLogic(v as RuleLogic)} className="flex items-center space-x-4 border p-2 rounded-lg bg-muted/30"><div className="flex items-center space-x-2"><RadioGroupItem value="and" id="logic-and" /><Label htmlFor="logic-and">同时满足 (与)</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="or" id="logic-or" /><Label htmlFor="logic-or">满足其一 (或)</Label></div></RadioGroup></div>
+                        <AccordionItem value="user-config"><AccordionTrigger><div className="flex items-center gap-2"><Users className="w-4 h-4"/> 用户维度配置</div></AccordionTrigger><AccordionContent className="pt-4 space-y-4">
+                            <p className="text-sm text-muted-foreground">限定目标用户。若不选, 则对所有用户生效。</p>
+                            <div className="space-y-3">{ALL_ROLES.map(r => <div key={r} className="p-3 border rounded-md"><div className="flex items-center space-x-2"><Checkbox id={`r-${r}`} checked={!!targetUserRoles[r]} onCheckedChange={() => handleRoleToggle(r)} /><Label htmlFor={`r-${r}`}>{ROLE_NAMES[r]}</Label></div>{targetUserRoles[r] && <div className="pt-3 mt-3 border-t"><Label className="text-xs text-muted-foreground flex items-center gap-1 mb-2"><Star className="w-3 h-3"/> 限定星级</Label><div className="flex flex-wrap gap-x-3 gap-y-1">{Array.from({length:10},(_,i)=>i+1).map(rate => <div key={rate} className="flex items-center space-x-1"><Checkbox id={`rate-${r}-${rate}`} checked={targetUserRoles[r]?.includes(rate)} onCheckedChange={() => handleRatingToggle(r, rate)} /><Label htmlFor={`rate-${r}-${rate}`} className="text-xs">{rate}星</Label></div>)}</div></div>}</div>)}</div>
+                        </AccordionContent></AccordionItem>
                     </Accordion>
-                </div>
+                </form>
+                </Form>
                 <DialogFooter>
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>取消</Button>
-                    <Button onClick={form.handleSubmit(handleSave)} disabled={isSaving}>
-                        {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        保存配置
-                    </Button>
+                    <Button onClick={form.handleSubmit(handleSave)} disabled={isSaving}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}保存配置</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -474,238 +267,102 @@ function ScenarioEditDialog({
 // MAIN PAGE COMPONENT
 // =================================================================
 export default function AIScenarioConfigPage() {
-    const [fullScenarios, setFullScenarios] = useState<FullScenario[]>([]);
-    const [prompts, setPrompts] = useState<GetPromptsOutput['prompts']>([]);
+    const [scenarios, setScenarios] = useState<AIScenario[]>([]);
+    const [prompts, setPrompts] = useState<Prompt[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [selectedScenario, setSelectedScenario] = useState<FullScenario | null>(null);
+    const [selectedScenario, setSelectedScenario] = useState<AIScenario | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
-    const [itemToDelete, setItemToDelete] = useState<FullScenario | null>(null);
+    const [itemToDelete, setItemToDelete] = useState<AIScenario | null>(null);
 
     const { role, isLoading: isAuthLoading } = useAuthStore();
-    const router = useRouter();
     const { toast } = useToast();
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
-            const [scenarioConfigsSnapshot, promptsData] = await Promise.all([
-                getDocs(query(collection('ai_scenarios'), orderBy('name'))),
-                getPrompts()
+            const [scenariosResponse, promptsResponse] = await Promise.all([
+                fetch('/api/ai_scenarios'),
+                fetch('/api/prompts'),
             ]);
 
-            const dbScenarios = scenarioConfigsSnapshot.docs.map((doc: any) => ({
-                id: doc.id,
-                ...doc.data()
-            } as FullScenario));
-            
-            setPrompts(promptsData.prompts);
-            setFullScenarios(dbScenarios);
+            if (!scenariosResponse.ok || !promptsResponse.ok) {
+                throw new Error('Failed to fetch data from one or more endpoints.');
+            }
 
-        } catch (error) {
+            const scenariosData = await scenariosResponse.json();
+            const promptsData = await promptsResponse.json();
+
+            setScenarios(scenariosData);
+            setPrompts(promptsData.prompts || []);
+
+        } catch (error: any) {
             console.error("Failed to fetch scenario configuration:", error);
-            toast({
-                title: "加载失败",
-                description: "无法加载场景或提示词数据，请稍后重试。",
-                variant: "destructive"
-            });
+            toast({ title: "加载失败", description: error.message || "无法加载场景或提示词数据。", variant: "destructive" });
         } finally {
             setIsLoading(false);
         }
     }, [toast]);
 
-    useEffect(() => {
-        if (!isAuthLoading && role === 'admin') {
-            fetchData();
-        }
-    }, [isAuthLoading, role, fetchData]);
+    useEffect(() => { if (!isAuthLoading && role === 'admin') fetchData(); }, [isAuthLoading, role, fetchData]);
 
-    const handleEditClick = (scenario: FullScenario) => {
-        setSelectedScenario(scenario);
-        setIsCreating(false);
-        setIsDialogOpen(true);
-    };
-
-    const handleAddClick = () => {
-        setSelectedScenario(null);
-        setIsCreating(true);
-        setIsDialogOpen(true);
-    };
-
-    const handleDeleteClick = (scenario: FullScenario) => {
-        setItemToDelete(scenario);
-    };
+    const handleEditClick = (scenario: AIScenario) => { setSelectedScenario(scenario); setIsCreating(false); setIsDialogOpen(true); };
+    const handleAddClick = () => { setSelectedScenario(null); setIsCreating(true); setIsDialogOpen(true); };
+    const handleDeleteClick = (scenario: AIScenario) => { setItemToDelete(scenario); };
 
     const confirmDelete = async () => {
         if (!itemToDelete) return;
         try {
-            await deleteDoc(doc('ai_scenarios', itemToDelete.id));
+            const response = await fetch(`/api/ai_scenarios/${itemToDelete.id}`, { method: 'DELETE' });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'API request failed');
+            }
             toast({ title: '成功', description: `场景 “${itemToDelete.name}” 已被删除。` });
-            fetchData(); // Refresh the list
-        } catch (error) {
-            console.error("Failed to delete scenario:", error);
-            toast({ title: '删除失败', description: '删除场景时发生错误，请重试。', variant: 'destructive' });
+            fetchData();
+        } catch (error: any) {
+            toast({ title: '删除失败', description: error.message || '删除场景时发生错误。' , variant: 'destructive' });
         } finally {
             setItemToDelete(null);
         }
     };
     
-    const renderConfigBadge = (scenario: FullScenario) => {
+    const renderConfigBadge = (scenario: AIScenario) => {
         const parts = [];
+        if (scenario.repetition && scenario.repetition !== 'none') parts.push('有重复策略');
+        else if (scenario.startsAt || scenario.expiresAt) parts.push('有时间限制');
         
-        let timePart = '';
-        if (scenario.repetition && scenario.repetition !== 'none') {
-            timePart = '有重复策略';
-        } else if (scenario.startsAt || scenario.expiresAt) {
-            timePart = '有时间限制';
-        }
-        if (timePart) parts.push(timePart);
-
-        let userPart = '';
         const roles = scenario.targetUserRoles ? Object.keys(scenario.targetUserRoles) : [];
         if (roles.length > 0) {
-            userPart = `${roles.length}个角色`;
+            let userPart = `${roles.length}个角色`;
             const totalRatings = Object.values(scenario.targetUserRoles!).flat().length;
             if (totalRatings > 0) userPart += `/${totalRatings}个星级`;
+            parts.push(userPart);
         }
-        if (userPart) parts.push(userPart);
 
-        if (parts.length > 0) {
-            return <Badge variant="outline" className="text-xs ml-2"><Settings2 className="w-3 h-3 mr-1"/>{parts.join(` ${scenario.ruleLogic === 'or' ? '或' : '且'} `)}</Badge>;
-        }
+        if (parts.length > 0) return <Badge variant="outline" className="text-xs ml-2"><Settings2 className="w-3 h-3 mr-1"/>{parts.join(` ${scenario.ruleLogic === 'or' ? '或' : '且'} `)}</Badge>;
         return null;
     }
 
-    if (isAuthLoading) {
-        return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="animate-spin" /></div>;
-    }
-    
-    if (role !== 'admin') {
-        return (
-            <AppLayout>
-                <div className="flex flex-col items-center justify-center h-full p-4 text-center">
-                    <Frown className="w-16 h-16 mb-4 text-destructive"/>
-                    <h2 className="text-2xl font-bold font-headline mb-2">访问受限</h2>
-                    <p className="text-muted-foreground">此页面仅对管理员开放。</p>
-                </div>
-            </AppLayout>
-        );
-    }
+    if (isAuthLoading) return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="animate-spin" /></div>;
+    if (role !== 'admin') return <AppLayout><div className="flex flex-col items-center justify-center h-full p-4 text-center"><Frown className="w-16 h-16 mb-4 text-destructive"/><h2 className="text-2xl font-bold font-headline mb-2">访问受限</h2><p className="text-muted-foreground">此页面仅对管理员开放。</p></div></AppLayout>;
     
     return (
         <AppLayout>
             <div className="p-4 md:p-8 space-y-8">
                 <header>
-                <h1 className="text-2xl font-headline font-bold flex items-center gap-2">
-                    <BrainCircuit />
-                    AI 场景配置
-                </h1>
-                <p className="text-muted-foreground">为平台中不同的AI功能场景，配置默认使用的提示词（Prompt），并可选择性地增加时间或用户限制。</p>
+                    <h1 className="text-2xl font-headline font-bold flex items-center gap-2"><BrainCircuit /> AI 场景配置</h1>
+                    <p className="text-muted-foreground">为平台中不同的AI功能场景配置默认提示词，并可增加时间或用户限制。</p>
                 </header>
-
                 <Card>
-                <CardHeader>
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <CardTitle className="font-headline">功能场景列表</CardTitle>
-                            <CardDescription>
-                            以下是平台中所有可配置的AI应用场景。您可以为每个场景指定一个默认的提示词，系统在执行相应功能时将优先使用此配置。
-                            </CardDescription>
-                        </div>
-                        <Button onClick={handleAddClick}>
-                            <PlusCircle className="mr-2"/>
-                            新增场景
-                        </Button>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                    <TableHeader>
-                        <TableRow>
-                        <TableHead>AI功能场景</TableHead>
-                        <TableHead>当前配置的提示词</TableHead>
-                        <TableHead className="text-right">操作</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {isLoading ? (
-                            Array.from({length: 3}).map((_: any, i: number) => (
-                                <TableRow key={i}>
-                                    <TableCell><Skeleton className="h-5 w-48 mb-2" /><Skeleton className="h-3 w-full" /></TableCell>
-                                    <TableCell><Skeleton className="h-6 w-36" /></TableCell>
-                                    <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
-                                </TableRow>
-                            ))
-                        ) : (
-                            fullScenarios.map((scenario: any) => (
-                                <TableRow key={scenario.id}>
-                                    <TableCell>
-                                    <div className="font-medium flex items-center">{scenario.name} {renderConfigBadge(scenario)}</div>
-                                    <p className="text-xs text-muted-foreground">{scenario.description}</p>
-                                    {(scenario.tags && scenario.tags.length > 0) && (
-                                        <div className="flex items-center gap-1 mt-1">
-                                            {scenario.tags.map((tag: string) => <Badge key={tag} variant="secondary">{tag}</Badge>)}
-                                        </div>
-                                    )}
-                                    </TableCell>
-                                    <TableCell>
-                                        {scenario.configuredPromptKey ? (
-                                            <div className="flex flex-col gap-1">
-                                                <Badge variant="secondary" className="w-fit">
-                                                <Workflow className="mr-1.5 h-3 w-3" />
-                                                { (prompts.find(p => p.promptKey === scenario.configuredPromptKey))?.name || '未知提示词'}
-                                                </Badge>
-                                                <p className="font-mono text-xs text-muted-foreground/80">{scenario.configuredPromptKey}</p>
-                                            </div>
-                                        ) : (
-                                            <Badge variant="outline" className="w-fit border-dashed">未配置 (使用默认)</Badge>
-                                        )}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <div className="flex gap-2 justify-end">
-                                            <Button variant="ghost" size="sm" onClick={() => handleEditClick(scenario)}>
-                                                <Edit className="mr-2 h-4 w-4" />
-                                                编辑
-                                            </Button>
-                                            <Button variant="destructive-outline" size="sm" onClick={() => handleDeleteClick(scenario)}>
-                                                <Trash2 className="mr-2 h-4 w-4" />
-                                                删除
-                                            </Button>
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                    </Table>
-                </CardContent>
+                    <CardHeader><div className="flex items-center justify-between"><div><CardTitle className="font-headline">功能场景列表</CardTitle><CardDescription>为每个场景指定默认提示词，系统将优先使用此配置。</CardDescription></div><Button onClick={handleAddClick}><PlusCircle className="mr-2"/>新增场景</Button></div></CardHeader>
+                    <CardContent><Table><TableHeader><TableRow><TableHead>AI功能场景</TableHead><TableHead>当前配置的提示词</TableHead><TableHead className="text-right">操作</TableHead></TableRow></TableHeader><TableBody>
+                        {isLoading ? Array.from({length: 3}).map((_, i) => <TableRow key={i}><TableCell><Skeleton className="h-5 w-48 mb-2" /><Skeleton className="h-3 w-full" /></TableCell><TableCell><Skeleton className="h-6 w-36" /></TableCell><TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell></TableRow>) : scenarios.map(s => <TableRow key={s.id}><TableCell><div className="font-medium flex items-center">{s.name} {renderConfigBadge(s)}</div><p className="text-xs text-muted-foreground">{s.description}</p>{(s.tags && s.tags.length > 0) && <div className="flex items-center gap-1 mt-1">{s.tags.map(t => <Badge key={t} variant="secondary">{t}</Badge>)}</div>}</TableCell><TableCell>{s.configuredPromptKey ? <div className="flex flex-col gap-1"><Badge variant="secondary" className="w-fit"><Workflow className="mr-1.5 h-3 w-3" />{prompts.find(p => p.promptKey === s.configuredPromptKey)?.name || '未知'}</Badge><p className="font-mono text-xs text-muted-foreground/80">{s.configuredPromptKey}</p></div> : <Badge variant="outline" className="w-fit border-dashed">未配置 (使用默认)</Badge>}</TableCell><TableCell className="text-right"><div className="flex gap-2 justify-end"><Button variant="ghost" size="sm" onClick={() => handleEditClick(s)}><Edit className="mr-2 h-4 w-4" />编辑</Button><Button variant="destructive-outline" size="sm" onClick={() => handleDeleteClick(s)}><Trash2 className="mr-2 h-4 w-4" />删除</Button></div></TableCell></TableRow>)}
+                    </TableBody></Table></CardContent>
                 </Card>
             </div>
-            
-            <ScenarioEditDialog 
-                key={selectedScenario?.id || 'new'}
-                scenario={selectedScenario}
-                prompts={prompts}
-                open={isDialogOpen}
-                onOpenChange={setIsDialogOpen}
-                onSaveSuccess={fetchData}
-                isCreating={isCreating}
-            />
-
-            <AlertDialog open={!!itemToDelete} onOpenChange={(isOpen) => !isOpen && setItemToDelete(null)}>
-                <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>确认删除</AlertDialogTitle>
-                    <AlertDialogDescription>
-                    您确定要删除场景 “{itemToDelete?.name}” 吗？此操作不可撤销。
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>取消</AlertDialogCancel>
-                    <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">确认删除</AlertDialogAction>
-                </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <ScenarioEditDialog key={selectedScenario?.id || 'new'} scenario={selectedScenario} prompts={prompts} open={isDialogOpen} onOpenChange={setIsDialogOpen} onSaveSuccess={fetchData} isCreating={isCreating} />
+            <AlertDialog open={!!itemToDelete} onOpenChange={isOpen => !isOpen && setItemToDelete(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>确认删除</AlertDialogTitle><AlertDialogDescription>您确定要删除场景 “{itemToDelete?.name}” 吗？此操作不可撤销。</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">确认删除</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
         </AppLayout>
     );
 }
