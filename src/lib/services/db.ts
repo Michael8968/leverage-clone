@@ -1,137 +1,136 @@
 /**
  * @file src/lib/services/db.ts
- * @description Database Service Abstraction Layer.
- *
- * This module provides a unified database interface that abstracts away the specific
- * database implementation (Firebase Firestore for development, TCB NoSQL for production).
- * It uses the NEXT_PUBLIC_ENV environment variable to determine which service to initialize.
- *
- * This is a core component of the Firebase -> TCB migration strategy.
+ * 惰性初始化的数据库服务：
+ * - 构建阶段通过 SKIP_ENV_VALIDATION 跳过任何外部连接
+ * - 生产运行时：服务端使用 @cloudbase/node-sdk，客户端使用 @cloudbase/js-sdk
+ * - 开发：保持 Firebase Firestore（或在未配置时提供 mock）
  */
 
-let db: any; // Using 'any' for simplicity, a more robust implementation would use a common interface.
+let dbInstance: any | null = null;
 let dbType: 'firestore' | 'tcb' | 'mock' | null = null;
 let initializationError: Error | null = null;
 
-try {
-  // This block runs once when the module is first imported.
-  console.log(`[DB Service] Initializing for environment: '${process.env.NEXT_PUBLIC_ENV}'`);
-
-  if (process.env.NEXT_PUBLIC_ENV === 'production') {
-    // =================================================================
-    // PRODUCTION: Initialize Tencent CloudBase (TCB)
-    // =================================================================
-    console.log('[DB Service] Using TCB Database.');
-    
-    // Check if we're in build time (SKIP_ENV_VALIDATION is set during Docker build)
-    if (process.env.SKIP_ENV_VALIDATION === 'true') {
-      console.log('[DB Service] Build time detected, skipping database initialization.');
-      db = null;
-      dbType = 'mock';
-    } else {
-      // Dynamically import the TCB SDK to avoid including it in the development bundle if not needed.
-      const { init } = require('@cloudbase/js-sdk');
-
-      if (!process.env.NEXT_PUBLIC_TCB_ENV_ID) {
-        throw new Error('NEXT_PUBLIC_TCB_ENV_ID is not defined for production environment.');
-      }
-
-      const tcbApp = init({
-        env: process.env.NEXT_PUBLIC_TCB_ENV_ID,
-      });
-      
-      // It's a common requirement to authenticate before using other services.
-      // Assuming anonymous auth is enabled on TCB for this to work.
-      tcbApp.auth({ persistence: 'local' }).anonymousAuthProvider().signIn();
-
-      db = tcbApp.database();
-      dbType = 'tcb';
-      console.log('[DB Service] TCB Database initialized successfully.');
-    }
-
-  } else {
-    // =================================================================
-    // DEVELOPMENT: Initialize Firebase Firestore
-    // =================================================================
-    console.log('[DB Service] Using Firebase Firestore.');
-    
-    // Dynamically import Firebase to avoid bundling in production.
-    const { initializeApp, getApps, getApp } = require('firebase/app');
-    const { getFirestore } = require('firebase/firestore');
-
-    const firebaseConfigRaw = process.env.FIREBASE_CONFIG;
-    
-    // Since we know .env.local is empty, we handle this case gracefully.
-    if (!firebaseConfigRaw || firebaseConfigRaw.trim() === '') {
-      console.warn('[DB Service] WARNING: FIREBASE_CONFIG is not set in .env.local. Using a mock database for development. App will run but database calls will fail.');
-      db = new Proxy({}, {
-        get(target, prop) {
-          console.error(`[Mock DB] Attempted to access property '${String(prop)}'. Database is not configured. Please set FIREBASE_CONFIG in your .env.local file.`);
-          // Return a function that does nothing or throws, to prevent runtime errors on calls like db.collection().
-          return () => {
-            console.error(`[Mock DB] Attempted to call a method on the unconfigured database.`);
-          };
-        }
-      });
-      dbType = 'mock';
-
-    } else {
-      const firebaseConfig = JSON.parse(firebaseConfigRaw);
-      
-      // Standard Firebase initialization (singleton pattern)
-      const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-      
-      db = getFirestore(app);
-      dbType = 'firestore';
-      console.log('[DB Service] Firebase Firestore initialized successfully.');
-    }
-  }
-} catch (error) {
-  console.error('[DB Service] CRITICAL: Database initialization failed.', error);
-  initializationError = error as Error;
-  
-  // Export a proxy that throws a clear error on any access attempt.
-  // This makes it immediately obvious that the DB is not available.
-  db = new Proxy({}, {
-    get(target, prop) {
-      throw new Error(`Database service is not available due to initialization failure: ${initializationError.message}`);
-    }
-  });
-  dbType = null;
+function resolveEnvId() {
+  return process.env.NEXT_PUBLIC_TCB_ENV_ID || process.env.TCB_ENV_ID;
 }
 
-/**
- * The singleton database instance.
- * It's either a Firestore instance, a TCB Database instance, or a mock/proxy if initialization failed.
- */
-export { db };
+function createMockDb() {
+  return new Proxy({}, {
+    get(target, prop) {
+      console.warn(`[Mock DB] Accessed '${String(prop)}' on mock database.`);
+      return () => {
+        console.warn('[Mock DB] Called a method on mock database. No-op.');
+      };
+    }
+  });
+}
 
-/**
- * The type of the initialized database.
- * Can be 'firestore', 'tcb', 'mock', or null if initialization failed catastrophically.
- */
-export { dbType };
+function initDbIfNeeded() {
+  if (dbInstance || initializationError) return;
 
-/**
- * The error object if initialization failed.
- * Can be used by other parts of the app to check the service status.
- */
-export { initializationError };
+  try {
+    const env = process.env.NEXT_PUBLIC_ENV;
+    const isBuildSkip = process.env.SKIP_ENV_VALIDATION === 'true';
+    const isServer = typeof window === 'undefined';
 
-/**
- * Get storage service instance.
- */
-export const getStorage = () => {
-  if (process.env.NEXT_PUBLIC_ENV === 'production') {
-    // TCB storage
-    const { init } = require('@cloudbase/js-sdk');
-    const tcbApp = init({
-      env: process.env.NEXT_PUBLIC_TCB_ENV_ID,
-    });
-    return tcbApp.storage();
-  } else {
-    // Mock storage for development
-    console.warn('[Storage Service] Using mock storage for development');
+    if (isBuildSkip) {
+      // 构建阶段：确保无副作用
+      dbInstance = null;
+      dbType = 'mock';
+      return;
+    }
+
+    if (env === 'production') {
+      // 生产：区分服务端与客户端
+      const envId = resolveEnvId();
+      if (!envId) {
+        throw new Error('TCB envId is not configured. Set NEXT_PUBLIC_TCB_ENV_ID or TCB_ENV_ID.');
+      }
+
+      if (isServer) {
+        // Node 运行时使用 Node SDK
+        const tcb = require('@cloudbase/node-sdk');
+        const app = tcb.init({ env: envId });
+        dbInstance = app.database();
+        dbType = 'tcb';
+      } else {
+        // 浏览器端使用 JS SDK，可选匿名登录
+        const { init } = require('@cloudbase/js-sdk');
+        const app = init({ env: envId });
+        try {
+          app.auth({ persistence: 'local' }).anonymousAuthProvider().signIn();
+        } catch (_) {
+          // 浏览器不可用或未开启匿名登录时忽略
+        }
+        dbInstance = app.database();
+        dbType = 'tcb';
+      }
+    } else {
+      // 开发：优先使用 Firebase（若未配置则 mock）
+      const firebaseConfigRaw = process.env.FIREBASE_CONFIG;
+      if (!firebaseConfigRaw || firebaseConfigRaw.trim() === '') {
+        dbInstance = createMockDb();
+        dbType = 'mock';
+      } else {
+        const { initializeApp, getApps, getApp } = require('firebase/app');
+        const { getFirestore } = require('firebase/firestore');
+        const firebaseConfig = JSON.parse(firebaseConfigRaw);
+        const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+        dbInstance = getFirestore(app);
+        dbType = 'firestore';
+      }
+    }
+  } catch (err) {
+    console.error('[DB Service] CRITICAL: Database initialization failed.', err);
+    initializationError = err as Error;
+    dbInstance = null;
+    dbType = null;
+  }
+}
+
+export function getDb() {
+  initDbIfNeeded();
+  if (dbInstance) return dbInstance;
+  if (initializationError) {
+    const reason = initializationError?.message || 'unknown error';
+    throw new Error(`Database service is not available due to initialization failure: ${reason}`);
+  }
+  // 构建阶段或显式 mock
+  return createMockDb();
+}
+
+export function getDbType() {
+  initDbIfNeeded();
+  return dbType;
+}
+
+export function getDbInitializationError() {
+  initDbIfNeeded();
+  return initializationError;
+}
+
+// ---- Backwards compatibility exports ----
+// Some legacy modules may still import { db, dbType } directly.
+// Provide live getters to avoid refactor churn.
+export const db = new Proxy({}, {
+  get(_target, prop) {
+    const real = getDb();
+    // Forward property access to real instance
+    return (real as any)[prop as any];
+  }
+});
+
+Object.defineProperty(exports, 'dbType', {
+  enumerable: true,
+  get() {
+    return getDbType();
+  }
+});
+
+export function getStorage() {
+  const env = process.env.NEXT_PUBLIC_ENV;
+  const isBuildSkip = process.env.SKIP_ENV_VALIDATION === 'true';
+  if (isBuildSkip) {
     return {
       uploadFile: async () => ({ fileID: 'mock-file-id' }),
       downloadFile: async () => ({ fileContent: 'mock-content' }),
@@ -139,4 +138,29 @@ export const getStorage = () => {
       deleteFile: async () => ({ fileList: [] })
     };
   }
-};
+
+  if (env === 'production') {
+    const envId = resolveEnvId();
+    if (!envId) {
+      throw new Error('TCB envId is not configured. Set NEXT_PUBLIC_TCB_ENV_ID or TCB_ENV_ID.');
+    }
+    const isServer = typeof window === 'undefined';
+    if (isServer) {
+      const tcb = require('@cloudbase/node-sdk');
+      const app = tcb.init({ env: envId });
+      return app.storage();
+    }
+    const { init } = require('@cloudbase/js-sdk');
+    const app = init({ env: envId });
+    return app.storage();
+  }
+
+  // 开发：mock storage
+  console.warn('[Storage Service] Using mock storage for development');
+  return {
+    uploadFile: async () => ({ fileID: 'mock-file-id' }),
+    downloadFile: async () => ({ fileContent: 'mock-content' }),
+    getTempFileURL: async () => ({ fileList: [{ tempFileURL: 'mock-url' }] }),
+    deleteFile: async () => ({ fileList: [] })
+  };
+}

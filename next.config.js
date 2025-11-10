@@ -54,7 +54,27 @@ const nextConfig = {
       '@/utils': require('path').resolve(__dirname, 'src/utils'),
       // 将 Firestore 运行时映射到我们的 CloudBase 兼容层
       'firebase/firestore': require('path').resolve(__dirname, 'src/lib/cloudbase-compat.ts'),
+  // Route firebase-admin to our stub for tracing if it's ever imported
+  'firebase-admin': require('path').resolve(__dirname, 'src/stubs/firebase-admin-stub.ts'),
     };
+
+    // 在客户端构建中屏蔽 Node 专用 SDK，避免引入 fs/net/tls 依赖
+    if (!isServer) {
+      config.resolve.alias['@cloudbase/node-sdk'] = false;
+    }
+
+    // Inject admin instrumentation only on server build.
+    if (isServer) {
+      const originalEntry = config.entry;
+      config.entry = async () => {
+        const entries = await originalEntry();
+        // Attach instrumentation BEFORE other server code executes.
+        if (!entries['instrumentation/admin-origin']) {
+          entries['instrumentation/admin-origin'] = path.resolve(__dirname, 'src/instrumentation/admin-origin.ts');
+        }
+        return entries;
+      };
+    }
     
     // 减少构建日志噪音
     if (!dev) {
@@ -100,7 +120,8 @@ const nextConfig = {
     
     // --- Existing variables ---
     NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: process.env.FIREBASE_STORAGE_BUCKET,
-    FIREBASE_SERVICE_ACCOUNT_KEY: process.env.FIREBASE_SERVICE_ACCOUNT_KEY,
+    // DO NOT expose Firebase Admin credentials to client/server bundle.
+    // Access via process.env at runtime only if absolutely needed.
   },
   
   // 减少并发以降低内存压力 (preserved from original)

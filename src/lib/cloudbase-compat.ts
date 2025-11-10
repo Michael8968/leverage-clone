@@ -4,19 +4,19 @@
  * This file provides a drop-in replacement for Firebase Firestore SDK.
  */
 
-import { db } from './services/db';
+import { getDb } from './services/db';
 
-// Re-export TCB database as Firestore-compatible interface
-export { db as firestore };
+// Re-export a Firestore-compatible handle
+export const firestore = getDb();
 
 // Mock Firebase app for compatibility
 export const app = {
-  firestore: () => db,
+  firestore: () => getDb(),
 };
 
 // Mock getFirestore function
 export function getFirestore(app?: any) {
-  return db;
+  return getDb();
 }
 
 // Mock initializeApp
@@ -36,13 +36,13 @@ export function getApp() {
 
 // Firestore-compatible functions
 export function collection(path: string) {
-  return db.collection(path);
+  return getDb().collection(path);
 }
 
 export function doc(path: string) {
   const parts = path.split('/');
   if (parts.length === 2) {
-    return db.collection(parts[0]).doc(parts[1]);
+    return getDb().collection(parts[0]).doc(parts[1]);
   }
   throw new Error('Invalid document path');
 }
