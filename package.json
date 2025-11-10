@@ -129,7 +129,13 @@
     "testEnvironment": "node",
     "testTimeout": 60000,
     "transform": {
-      "^.+\\.(js|jsx|ts|tsx)$": "babel-jest"
+      "^.+\\.(js|jsx|ts|tsx)$": ["babel-jest", {
+        "presets": [
+          ["@babel/preset-env", { "targets": { "node": "current" } }],
+          ["@babel/preset-react", { "runtime": "automatic" }],
+          "@babel/preset-typescript"
+        ]
+      }]
     },
     "transformIgnorePatterns": [
       "node_modules/(?!(@cloudbase|lucide-react)/)"

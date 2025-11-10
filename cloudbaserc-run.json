@@ -1,0 +1,53 @@
+{
+  "version": "2.0",
+  "envId": "cloud1-7galmfiu70af91a6",
+  "services": [
+    {
+      "name": "leverage-ai",
+      "description": "Leverage AI 智能匹配平台 - Next.js 应用",
+      "dockerfilePath": "./Dockerfile",
+      "buildDir": ".",
+      "containerPort": 3000,
+      "cpu": 1,
+      "mem": 2,
+      "minNum": 1,
+      "maxNum": 5,
+      "policyType": "cpu",
+      "policyThreshold": 80,
+      "envVariables": {
+        "NODE_ENV": "production",
+        "NEXT_PUBLIC_ENV": "production",
+        "NEXT_PUBLIC_USE_TCB_AUTH": "true",
+        "PORT": "3000",
+        "NEXT_PUBLIC_TCB_ENV_ID": "cloud1-7galmfiu70af91a6",
+        "TCB_ENV_ID": "cloud1-7galmfiu70af91a6",
+        "TENCENTCLOUD_REGION": "ap-shanghai",
+        "AI_DEFAULT_AGENT": "hunyuan",
+        "HUNYUAN_BASE_URL": "https://api.hunyuan.cloud.tencent.com/v1",
+        "HUNYUAN_MODEL": "hunyuan-lite",
+        "COS_REGION": "ap-shanghai"
+      },
+      "customLogs": {
+        "enabled": true,
+        "logPath": "/app/.next/standalone"
+      },
+      "healthCheck": {
+        "enabled": true,
+        "type": "http",
+        "path": "/",
+        "port": 3000,
+        "interval": 30,
+        "timeout": 10,
+        "successThreshold": 1,
+        "failureThreshold": 3,
+        "initialDelaySeconds": 15
+      },
+      "volumeMounts": [],
+      "lifecycle": {
+        "postStart": null,
+        "preStop": null
+      }
+    }
+  ],
+  "region": "ap-shanghai"
+}

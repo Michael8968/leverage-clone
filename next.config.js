@@ -15,9 +15,8 @@ const isProd = process.env.NODE_ENV === 'production';
  * 注意：此配置为 Firebase -> TCB 迁移的核心部分
  */
 const nextConfig = {
-  // Temporarily disable static export to fix API routes
-  // TODO: Migrate API routes to TCB cloud functions for static hosting
-  // ...(isProd && { output: 'export' }),
+  // Enable standalone output for Docker deployment
+  output: 'standalone',
 
   experimental: {
     // 禁用 CSS 优化（避免 Critters 卡顿）
