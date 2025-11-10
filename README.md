@@ -1,36 +1,30 @@
-# AI 智能匹配与创意生成平台 (Leverage)# AI 智能匹配与创意生成平台 (Leverage)# AI 智能匹配与创意生成平台 (Leverage)
+# AI 智能匹配与创意生成平台 (Leverage)
 
+这是一个基于 Next.js 15、腾讯云 CloudBase (TCB) 和 AI 大模型构建的全栈应用，旨在无缝连接用户的个性化需求与高品质的产品及服务。
 
+## 🎉 项目状态
 
-这是一个基于 Next.js, TCB (腾讯云开发), 和 Genkit 构建的全栈AI应用，旨在无缝连接用户的个性化需求与高品质的产品及服务。
+**✅ 生产环境已部署上线**
 
+- **部署日期**: 2025年11月10-11日
+- **部署环境**: 腾讯云 CloudBase 云托管
+- **部署分支**: `tcb-cloudrun-fullstack-ready`
+- **运行状态**: 生产环境稳定运行中
 
+📚 **部署文档**:
+- [生产部署成功记录](./PRODUCTION_DEPLOYMENT_SUCCESS.md)
+- [TCB 云托管部署方案](./TCB_DEPLOYMENT_SOLUTION.md)
+- [健康检查配置指南](./TCB_HEALTH_CHECK_FIX.md)
 
-## 项目状态这是一个基于 Next.js, TCB (腾讯云开发), 和 Genkit 构建的全栈AI应用，旨在无缝连接用户的个性化需求与高品质的产品及服务。这是一个基于 Next.js, Firebase, 和 Genkit 构建的全栈AI应用，旨在无缝连接用户的个性化需求与高品质的产品及服务。
+## 核心技术栈
 
-
-
-**V2.5 (Final) - 生产上线版本**
-
-
-
-项目已完成所有核心功能的开发、重构和文档固化，并通过了最终的系统稳定性、完整性与健壮性审查。所有已知BUG均已修复，所有文档均已对齐至最终状态。## 项目状态## 项目状态
-
-
-
-平台具备动态、可配置的多厂商大语言模型（LLM）对接能力，以及带有高级规则（时间、用户维度）的AI场景配置系统。所有模块都已接入真实的数据库逻辑，形成了一个功能完整、逻辑自洽、可扩展性强的全栈AI应用，已达到上线标准。
-
-
-
-## 核心技术栈**V2.5 (Final) - 生产上线版本****V2.5 (Final) - 上线归档**
-
-
-
-*   **前端**: Next.js, React, TypeScript, ShadCN UI, Tailwind CSS
-
-*   **后端 & 数据库**: TCB (腾讯云开发) - 云数据库、云函数、云存储
-
-*   **AI**: Google Genkit (Gemini) 及通过原生API对接的多个第三方LLM项目已完成所有核心功能的开发、重构和文档固化，并通过了最终的系统稳定性、完整性与健壮性审查。所有已知BUG均已修复，所有文档均已对齐至最终状态。项目已完成所有核心功能的开发、重构和文档固化，并通过了最终的系统稳定性、完整性与健壮性审查。所有已知BUG均已修复，所有文档均已对齐至最终状态。
+*   **前端**: Next.js 15.5.6 (App Router), React 18, TypeScript, ShadCN UI, Tailwind CSS
+*   **后端**: Next.js API Routes, Node.js 20 LTS
+*   **数据库**: 腾讯云 CloudBase Database (NoSQL)
+*   **存储**: 腾讯云 COS (对象存储)
+*   **AI 服务**: 腾讯混元 (Hunyuan)、OpenAI、Google Gemini
+*   **部署**: Docker + Kubernetes (TCB Cloud Run)
+*   **CI/CD**: GitHub + TCB 自动构建部署
 
 
 
