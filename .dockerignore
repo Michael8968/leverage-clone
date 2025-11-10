@@ -38,7 +38,6 @@ workspace
 videos
 public/videos
 
-# Docker files
-Dockerfile*
+# Docker infrastructure files (保留 Dockerfile 以供远程构建使用)
 docker-compose*.yml
 .dockerignore

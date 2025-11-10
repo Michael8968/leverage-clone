@@ -52,8 +52,8 @@ RUN addgroup -g 1001 -S nodejs && \
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-# Copy production node_modules from deps stage so runtime can require external modules
-COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
+# Next.js standalone already contains the required node_modules in .next/standalone
+# Do NOT copy full node_modules to significantly reduce image size
 
 # Switch to non-root user
 USER nextjs

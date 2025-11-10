@@ -41,9 +41,18 @@ const nextConfig = {
       ...config.resolve.fallback,
       'tencentcloud-sdk-nodejs-hunyuan': false,
     };
-    // 将 Firestore 运行时映射到我们的 CloudBase 兼容层
+    
+    // 显式配置路径别名，确保 Docker 构建时能正确解析
     config.resolve.alias = {
-      ...(config.resolve.alias || {}),
+      ...config.resolve.alias,
+      '@': require('path').resolve(__dirname, 'src'),
+      '@/components': require('path').resolve(__dirname, 'src/components'),
+      '@/lib': require('path').resolve(__dirname, 'src/lib'),
+      '@/hooks': require('path').resolve(__dirname, 'src/hooks'),
+      '@/store': require('path').resolve(__dirname, 'src/store'),
+      '@/types': require('path').resolve(__dirname, 'src/types'),
+      '@/utils': require('path').resolve(__dirname, 'src/utils'),
+      // 将 Firestore 运行时映射到我们的 CloudBase 兼容层
       'firebase/firestore': require('path').resolve(__dirname, 'src/lib/cloudbase-compat.ts'),
     };
     
