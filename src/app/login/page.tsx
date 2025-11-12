@@ -36,16 +36,23 @@ export default function LoginPage() {
     },
   });
 
-  // 动态视频源 - 直接从 public 目录加载
+  // 动态视频源 - 优先使用 COS（NEXT_PUBLIC_TCB_PUBLIC_BASE 或 NEXT_PUBLIC_ASSETS_BASE），否则回退到本地 public
   const videoSrc = useMemo(() => {
+    const publicBase = (typeof process !== 'undefined')
+      ? (process.env.NEXT_PUBLIC_ASSETS_BASE || process.env.NEXT_PUBLIC_TCB_PUBLIC_BASE)
+      : undefined;
+    const base = publicBase ? String(publicBase).replace(/\/$/, '') : '';
+
+    const pick = (name: string) => base ? `${base}/videos/${name}-bg.mp4` : `/videos/${name}-bg.mp4`;
+
     switch (theme) {
       case 'dark':
-        return '/videos/dark-bg.mp4';
+        return pick('dark');
       case 'gradient':
-        return '/videos/gradient-bg.mp4';
+        return pick('gradient');
       case 'light':
       default:
-        return '/videos/light-bg.mp4';
+        return pick('light');
     }
   }, [theme]);
 
