@@ -53,11 +53,17 @@ export async function POST(req: Request) {
       avatar: '',
       level: 'New',
       pointsBalance: 0,
+      // include both camelCase and snake_case names to remain compatible
       signupDate: now,
+      signup_date: now,
       lastLevelCheckDate: now,
+      last_level_check: now,
       totalLLMCalls: 0,
+      total_llm_calls: 0,
       status: 'active',
+      // store both password field variants used across codebase
       passwordHash: hash,
+      password_hash: hash,
       createdAt: now,
     };
     await db.collection('users').add(userDoc);
