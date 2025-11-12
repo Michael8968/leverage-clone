@@ -197,3 +197,21 @@
 [data-state=closed] > [data-radix-collapsible-content] {
   animation: accordion-up 200ms ease-out;
 }
+
+/* Video background utilities */
+.video-background {
+  /* ensure the video sits behind interactive UI */
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none; /* prevent video from intercepting clicks */
+  z-index: 0;
+}
+
+/* Apply to containers that should float above video background */
+.video-foreground {
+  position: relative;
+  z-index: 20; /* higher than .video-background */
+}

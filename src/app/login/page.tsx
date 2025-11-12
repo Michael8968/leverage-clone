@@ -14,6 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useToast } from '@/hooks/use-toast';
 import { useAuthStore } from '@/store/auth';
 import { useTheme } from '@/hooks/useTheme';
+import { getVideoSrcForTheme } from '@/lib/video-urls';
 
 const loginSchema = z.object({
   email: z.string().email({ message: '请输入有效的邮箱地址' }),
@@ -36,25 +37,7 @@ export default function LoginPage() {
     },
   });
 
-  // 动态视频源 - 优先使用 COS（NEXT_PUBLIC_TCB_PUBLIC_BASE 或 NEXT_PUBLIC_ASSETS_BASE），否则回退到本地 public
-  const videoSrc = useMemo(() => {
-    const publicBase = (typeof process !== 'undefined')
-      ? (process.env.NEXT_PUBLIC_ASSETS_BASE || process.env.NEXT_PUBLIC_TCB_PUBLIC_BASE)
-      : undefined;
-    const base = publicBase ? String(publicBase).replace(/\/$/, '') : '';
-
-    const pick = (name: string) => base ? `${base}/videos/${name}-bg.mp4` : `/videos/${name}-bg.mp4`;
-
-    switch (theme) {
-      case 'dark':
-        return pick('dark');
-      case 'gradient':
-        return pick('gradient');
-      case 'light':
-      default:
-        return pick('light');
-    }
-  }, [theme]);
+  const videoSrc = useMemo(() => getVideoSrcForTheme(theme), [theme]);
 
   const onSubmit = async (data: LoginFormValues) => {
     try {
@@ -104,9 +87,12 @@ export default function LoginPage() {
         loop
         muted
         playsInline
-        className="fixed inset-0 w-full h-full object-cover"
-        style={{ 
+        aria-hidden
+        className="fixed inset-0 w-full h-full object-cover video-background"
+        style={{
+          // keep far behind interactive content
           zIndex: 0,
+          pointerEvents: 'none',
           filter: 'brightness(0.7)'
         }}
       >
@@ -115,7 +101,7 @@ export default function LoginPage() {
 
       {/* 登录表单容器 - 浮于视频之上 (遮罩层已移除) */}
       <div 
-        className="relative flex min-h-screen items-center justify-center p-4"
+        className="relative flex min-h-screen items-center justify-center p-4 video-foreground"
         style={{ zIndex: 10 }}
       >
         <Card className="w-full max-w-sm shadow-2xl bg-card">

@@ -298,7 +298,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
-        <main className="flex-1">
+        <main className="flex-1 video-foreground">
           <header className="flex items-center justify-end p-2 border-b md:hidden">
               <SidebarTrigger/>
           </header>

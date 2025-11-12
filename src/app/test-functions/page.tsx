@@ -30,7 +30,7 @@ export default function CloudFunctionsTestPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8 video-foreground">
       <div className="max-w-6xl mx-auto">
         <div className="bg-white rounded-lg shadow-xl p-8 mb-8">
           <h1 className="text-4xl font-bold text-gray-800 mb-2">
