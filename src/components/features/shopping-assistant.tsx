@@ -30,6 +30,7 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { differenceInHours, format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { useTheme } from '@/hooks/useTheme';
+import { getVideoSrcForTheme } from '@/lib/video-urls';
 
 // Type definitions for chat messages
 type Message = {
@@ -63,40 +64,7 @@ function DynamicVideoBackground() {
 
     // 使用 useMemo 计算视频源,避免在 effect 中同步 setState
         const videoSrc = useMemo(() => {
-        // TCB COS URL重写逻辑
-        const constructCosUrl = (theme: string): string => {
-          const videoPath = `videos/${theme}-bg.mp4`;
-          const cosUrl = `https://d565-static-leverage-test-abc123-9bn41a84185-1382937545.cos.ap-shanghai.myqcloud.com/${videoPath}`;
-          console.log('TCB COS URL constructed:', { theme, videoPath, cosUrl });
-          return cosUrl;
-        };
-
-        // If NEXT_PUBLIC_ASSETS_BASE is configured (public object storage / CDN), prefer that
-        const publicBase = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_ASSETS_BASE || process.env.NEXT_PUBLIC_TCB_PUBLIC_BASE) : undefined;
-        const base = publicBase ? publicBase.replace(/\/$/, '') : '';
-
-        let src: string;
-        switch (theme) {
-            case 'light':
-                src = base ? `${base}/videos/light-bg.mp4` : constructCosUrl('light');
-                break;
-            case 'dark':
-                src = base ? `${base}/videos/dark-bg.mp4` : constructCosUrl('dark');
-                break;
-            case 'gradient':
-                src = base ? `${base}/videos/gradient-bg.mp4` : constructCosUrl('gradient');
-                break;
-            default:
-                // Fallback for system theme or initial load
-                if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                    src = base ? `${base}/videos/dark-bg.mp4` : constructCosUrl('dark');
-                } else {
-                    src = base ? `${base}/videos/light-bg.mp4` : constructCosUrl('light');
-                }
-        }
-
-        console.log('Theme switched to', theme, 'video src:', src);
-        return src;
+        return getVideoSrcForTheme(theme);
         }, [theme]);
 
     // Probe whether the video can be loaded/playback to avoid showing broken media in production
@@ -161,33 +129,35 @@ function DynamicVideoBackground() {
 
     // If video is available, render it; otherwise render a themed gradient fallback
     if (canPlay) {
-        return (
-            <video
-                ref={videoRef}
-                key={videoSrc} // Use key to force re-render when src changes
-                className="absolute top-0 left-0 w-full h-full object-cover -z-10"
-                autoPlay
-                loop
-                muted
-                playsInline
-                onCanPlayThrough={() => console.log('Video can play through:', videoSrc)}
-                onError={(e) => {
-                  const error = e.currentTarget.error;
-                  console.error('Dashboard video error:', {
-                    code: error?.code,
-                    message: error?.message,
-                    src: videoSrc,
-                    networkState: e.currentTarget.networkState,
-                    readyState: e.currentTarget.readyState
-                  });
-                  setCanPlay(false);
-                  setVideoError(`Video playback failed: ${error?.message || 'Unknown error'}`);
-                }}
-                data-video-src={videoSrc}
-            >
-                <source src={videoSrc} type="video/mp4" />
-            </video>
-        );
+                return (
+                        <video
+                                ref={videoRef}
+                                key={videoSrc} // Use key to force re-render when src changes
+                                className="absolute top-0 left-0 w-full h-full object-cover video-background"
+                                autoPlay
+                                loop
+                                muted
+                                playsInline
+                                aria-hidden
+                                onCanPlayThrough={() => console.log('Video can play through:', videoSrc)}
+                                onError={(e) => {
+                                    const error = e.currentTarget.error;
+                                    console.error('Dashboard video error:', {
+                                        code: error?.code,
+                                        message: error?.message,
+                                        src: videoSrc,
+                                        networkState: e.currentTarget.networkState,
+                                        readyState: e.currentTarget.readyState
+                                    });
+                                    setCanPlay(false);
+                                    setVideoError(`Video playback failed: ${error?.message || 'Unknown error'}`);
+                                }}
+                                data-video-src={videoSrc}
+                                style={{ zIndex: 0, pointerEvents: 'none' }}
+                        >
+                                <source src={videoSrc} type="video/mp4" />
+                        </video>
+                );
     }
 
     // Fallback gradient background when video cannot be loaded

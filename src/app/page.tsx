@@ -19,8 +19,8 @@ const getRedirectPath = (role: string | null): string => {
 };
 
 function InitialLoader() {
-    return (
-        <div className="flex h-screen w-full items-center justify-center bg-background">
+  return (
+    <div className="flex h-screen w-full items-center justify-center bg-background video-foreground">
             <div className="text-center">
                 <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto mb-4" />
                 <p className="text-sm text-muted-foreground">正在跳转到登录页...</p>

@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 export default function PrivacyPolicyPage() {
     return (
-        <div className="bg-background min-h-screen">
+        <div className="bg-background min-h-screen video-foreground">
             <div className="container mx-auto py-8 md:py-12">
                 <Card className="max-w-4xl mx-auto">
                     <CardHeader className="text-center">
