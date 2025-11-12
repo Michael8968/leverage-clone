@@ -10,7 +10,7 @@ let tcbApp: ReturnType<typeof cloudbase.init> | null = null;
 /**
  * Initialize TCB app lazily
  */
-function initTcbApp() {
+export function initTcbApp() {
   if (tcbApp) {
     return tcbApp;
   }

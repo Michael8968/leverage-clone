@@ -36,28 +36,16 @@ export default function LoginPage() {
     },
   });
 
-  // 动态视频源
+  // 动态视频源 - 直接从 public 目录加载
   const videoSrc = useMemo(() => {
-    const constructCosUrl = (theme: string): string => {
-      const videoPath = `videos/${theme}-bg.mp4`;
-      return `https://d565-static-leverage-test-abc123-9bn41a84185-1382937545.cos.ap-shanghai.myqcloud.com/${videoPath}`;
-    };
-
-    const publicBase = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_ASSETS_BASE || process.env.NEXT_PUBLIC_TCB_PUBLIC_BASE) : undefined;
-    const base = publicBase ? publicBase.replace(/\/$/, '') : '';
-
     switch (theme) {
-      case 'light':
-        return base ? `${base}/videos/light-bg.mp4` : constructCosUrl('light');
       case 'dark':
-        return base ? `${base}/videos/dark-bg.mp4` : constructCosUrl('dark');
+        return '/videos/dark-bg.mp4';
       case 'gradient':
-        return base ? `${base}/videos/gradient-bg.mp4` : constructCosUrl('gradient');
+        return '/videos/gradient-bg.mp4';
+      case 'light':
       default:
-        if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
-          return base ? `${base}/videos/dark-bg.mp4` : constructCosUrl('dark');
-        }
-        return base ? `${base}/videos/light-bg.mp4` : constructCosUrl('light');
+        return '/videos/light-bg.mp4';
     }
   }, [theme]);
 
