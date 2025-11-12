@@ -17,10 +17,18 @@ RUN npm ci --omit=dev --no-audit --no-fund && \
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Build-time configuration - no secrets needed during build
+# Build-time arguments (will be passed from TCB Cloud Run)
+ARG NEXT_PUBLIC_TCB_ENV_ID
+ARG NEXT_PUBLIC_ENV
+ARG NEXT_PUBLIC_USE_TCB_AUTH
+
+# Build-time configuration - minimal env vars for build
 ENV NEXT_TELEMETRY_DISABLED=1 \
     NODE_ENV=production \
-    SKIP_ENV_VALIDATION=true
+    SKIP_ENV_VALIDATION=true \
+    NEXT_PUBLIC_TCB_ENV_ID=${NEXT_PUBLIC_TCB_ENV_ID:-cloud1-7galmfiu70af91a6} \
+    NEXT_PUBLIC_ENV=${NEXT_PUBLIC_ENV:-production} \
+    NEXT_PUBLIC_USE_TCB_AUTH=${NEXT_PUBLIC_USE_TCB_AUTH:-true}
 
 # Copy production node_modules from deps stage
 COPY --from=deps /app/node_modules ./node_modules
@@ -32,7 +40,7 @@ RUN npm ci --no-audit --no-fund
 # Copy source code
 COPY . .
 
-# Build Next.js standalone bundle (without requiring runtime env vars)
+# Build Next.js standalone bundle
 RUN npm run build
 
 # ===== Runtime Stage =====
