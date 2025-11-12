@@ -89,7 +89,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center p-4 overflow-hidden">
+    <div className="relative min-h-screen w-full overflow-hidden">
       {/* 视频背景层 - 位于底层 */}
       <video
         key={videoSrc}
@@ -97,65 +97,76 @@ export default function LoginPage() {
         loop
         muted
         playsInline
-        className="absolute inset-0 w-full h-full object-cover z-0"
-        style={{ filter: 'brightness(0.7)' }}
+        className="fixed inset-0 w-full h-full object-cover"
+        style={{ 
+          zIndex: 0,
+          filter: 'brightness(0.7)'
+        }}
       >
         <source src={videoSrc} type="video/mp4" />
       </video>
 
       {/* 半透明遮罩层 */}
-      <div className="absolute inset-0 bg-background/30 backdrop-blur-sm z-[1]" />
+      <div 
+        className="fixed inset-0 bg-background/30 backdrop-blur-sm" 
+        style={{ zIndex: 1 }}
+      />
 
-      {/* 登录表单 - 浮于视频之上 */}
-      <Card className="relative z-10 w-full max-w-sm shadow-2xl">
-        <CardHeader>
-          <CardTitle className="text-2xl">登录</CardTitle>
-          <CardDescription>
-            输入您的邮箱和密码以继续
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>邮箱</FormLabel>
-                    <FormControl>
-                      <Input placeholder="user@example.com" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>密码</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? '登录中...' : '登录'}
-              </Button>
-            </form>
-          </Form>
-          <div className="mt-4 text-center text-sm">
-            还没有账户？{" "}
-            <Link href="/signup" className="underline">
-              注册
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+      {/* 登录表单容器 - 浮于视频之上 */}
+      <div 
+        className="relative flex min-h-screen items-center justify-center p-4"
+        style={{ zIndex: 10 }}
+      >
+        <Card className="w-full max-w-sm shadow-2xl bg-card">
+          <CardHeader>
+            <CardTitle className="text-2xl">登录</CardTitle>
+            <CardDescription>
+              输入您的邮箱和密码以继续
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>邮箱</FormLabel>
+                      <FormControl>
+                        <Input placeholder="user@example.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>密码</FormLabel>
+                      <FormControl>
+                        <Input type="password" placeholder="••••••••" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+                  {form.formState.isSubmitting ? '登录中...' : '登录'}
+                </Button>
+              </form>
+            </Form>
+            <div className="mt-4 text-center text-sm">
+              还没有账户？{" "}
+              <Link href="/signup" className="underline">
+                注册
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

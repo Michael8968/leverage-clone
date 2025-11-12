@@ -167,7 +167,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center p-4 overflow-hidden">
+    <div className="relative min-h-screen w-full overflow-hidden">
       {/* 视频背景层 - 位于底层 */}
       <video
         key={videoSrc}
@@ -175,22 +175,31 @@ export default function RegisterPage() {
         loop
         muted
         playsInline
-        className="absolute inset-0 w-full h-full object-cover z-0"
-        style={{ filter: 'brightness(0.7)' }}
+        className="fixed inset-0 w-full h-full object-cover"
+        style={{ 
+          zIndex: 0,
+          filter: 'brightness(0.7)'
+        }}
       >
         <source src={videoSrc} type="video/mp4" />
       </video>
 
       {/* 半透明遮罩层 */}
-      <div className="absolute inset-0 bg-background/30 backdrop-blur-sm z-[1]" />
+      <div 
+        className="fixed inset-0 bg-background/30 backdrop-blur-sm" 
+        style={{ zIndex: 1 }}
+      />
 
       {/* 注册表单容器 - 浮于视频之上 */}
-      <div className="relative z-10 w-full max-w-sm">
+      <div 
+        className="relative flex min-h-screen flex-col items-center justify-center p-4"
+        style={{ zIndex: 10 }}
+      >
         <div className="mb-8 flex flex-col items-center gap-2 text-2xl font-headline font-semibold whitespace-nowrap">
             <Logo />
             <h1>Leverage</h1>
         </div>
-        <Card className="shadow-2xl">
+        <Card className="w-full max-w-sm shadow-2xl bg-card">
           <CardHeader>
             <CardTitle className="font-headline text-2xl">
               {isAdminMode ? '创建用户账户' : '创建您的账户'}
