@@ -1,8 +1,7 @@
 
-
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -23,6 +22,7 @@ import { useAuthStore } from '@/store/auth';
 // Firebase 客户端已移除，使用自研 JWT 注册
 import { Checkbox } from '@/components/ui/checkbox';
 import type { User, RoleGiftsConfig } from '@/lib/types';
+import { useTheme } from '@/hooks/useTheme';
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "姓名必须至少包含2个字符。" }),
@@ -49,6 +49,7 @@ export default function RegisterPage() {
   const { setUser, user: currentUser } = useAuthStore();
   const [isPending, startTransition] = useTransition();
   const [isAdminMode, setIsAdminMode] = useState(false);
+  const { theme } = useTheme();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -66,6 +67,31 @@ export default function RegisterPage() {
       setIsAdminMode(true);
     }
   }, [currentUser]);
+
+  // 动态视频源
+  const videoSrc = useMemo(() => {
+    const constructCosUrl = (theme: string): string => {
+      const videoPath = `videos/${theme}-bg.mp4`;
+      return `https://d565-static-leverage-test-abc123-9bn41a84185-1382937545.cos.ap-shanghai.myqcloud.com/${videoPath}`;
+    };
+
+    const publicBase = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_ASSETS_BASE || process.env.NEXT_PUBLIC_TCB_PUBLIC_BASE) : undefined;
+    const base = publicBase ? publicBase.replace(/\/$/, '') : '';
+
+    switch (theme) {
+      case 'light':
+        return base ? `${base}/videos/light-bg.mp4` : constructCosUrl('light');
+      case 'dark':
+        return base ? `${base}/videos/dark-bg.mp4` : constructCosUrl('dark');
+      case 'gradient':
+        return base ? `${base}/videos/gradient-bg.mp4` : constructCosUrl('gradient');
+      default:
+        if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
+          return base ? `${base}/videos/dark-bg.mp4` : constructCosUrl('dark');
+        }
+        return base ? `${base}/videos/light-bg.mp4` : constructCosUrl('light');
+    }
+  }, [theme]);
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
     startTransition(async () => {
@@ -135,13 +161,30 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-      <div className="w-full max-w-sm">
+    <div className="relative flex min-h-screen flex-col items-center justify-center p-4 overflow-hidden">
+      {/* 视频背景层 - 位于底层 */}
+      <video
+        key={videoSrc}
+        autoPlay
+        loop
+        muted
+        playsInline
+        className="absolute inset-0 w-full h-full object-cover z-0"
+        style={{ filter: 'brightness(0.7)' }}
+      >
+        <source src={videoSrc} type="video/mp4" />
+      </video>
+
+      {/* 半透明遮罩层 */}
+      <div className="absolute inset-0 bg-background/30 backdrop-blur-sm z-[1]" />
+
+      {/* 注册表单容器 - 浮于视频之上 */}
+      <div className="relative z-10 w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-2 text-2xl font-headline font-semibold whitespace-nowrap">
             <Logo />
             <h1>Leverage</h1>
         </div>
-        <Card>
+        <Card className="shadow-2xl">
           <CardHeader>
             <CardTitle className="font-headline text-2xl">
               {isAdminMode ? '创建用户账户' : '创建您的账户'}
