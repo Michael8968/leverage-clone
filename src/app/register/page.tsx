@@ -184,13 +184,7 @@ export default function RegisterPage() {
         <source src={videoSrc} type="video/mp4" />
       </video>
 
-      {/* 半透明遮罩层 */}
-      <div 
-        className="fixed inset-0 bg-background/30 backdrop-blur-sm" 
-        style={{ zIndex: 1 }}
-      />
-
-      {/* 注册表单容器 - 浮于视频之上 */}
+      {/* 注册表单容器 - 浮于视频之上 (遮罩层已移除) */}
       <div 
         className="relative flex min-h-screen flex-col items-center justify-center p-4"
         style={{ zIndex: 10 }}

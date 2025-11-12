@@ -106,13 +106,7 @@ export default function LoginPage() {
         <source src={videoSrc} type="video/mp4" />
       </video>
 
-      {/* 半透明遮罩层 */}
-      <div 
-        className="fixed inset-0 bg-background/30 backdrop-blur-sm" 
-        style={{ zIndex: 1 }}
-      />
-
-      {/* 登录表单容器 - 浮于视频之上 */}
+      {/* 登录表单容器 - 浮于视频之上 (遮罩层已移除) */}
       <div 
         className="relative flex min-h-screen items-center justify-center p-4"
         style={{ zIndex: 10 }}
