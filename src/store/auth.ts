@@ -48,14 +48,21 @@ export const useAuthStore = create<AuthState>()(
       initializeAuthListener: () => {
         console.log("Unified auth listener initializing in store...");
         set({ isLoading: true });
-        
-        // The auth service handles the underlying complexity (Firebase or TCB)
-        const unsubscribe = auth.onAuthStateChanged((user, role) => {
-          console.log("Auth state updated in store:", { user, role });
-          set({ user, role, isLoading: false });
-        });
 
-        return unsubscribe;
+        // The auth service now returns unsubscribe synchronously; attach listener directly.
+        try {
+          const unsubscribe = auth.onAuthStateChanged((user, role) => {
+            console.log("Auth state updated in store:", { user, role });
+            set({ user, role, isLoading: false });
+          });
+          return () => {
+            try { unsubscribe(); } catch {}
+          };
+        } catch (error) {
+          console.error("Error initializing auth listener:", error);
+          set({ isLoading: false });
+          return () => {};
+        }
       },
     }),
     {

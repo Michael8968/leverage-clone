@@ -5,8 +5,23 @@
 
 import cloudbase from '@cloudbase/node-sdk';
 
+// Validate required environment variables
+const envId = process.env.NEXT_PUBLIC_TCB_ENV_ID || process.env.TCB_ENV_ID;
+const secretId = process.env.TCB_SECRET_ID;
+const secretKey = process.env.TCB_SECRET_KEY;
+
+if (!envId) {
+  throw new Error('TCB environment ID is not configured. Set NEXT_PUBLIC_TCB_ENV_ID or TCB_ENV_ID.');
+}
+
+if (!secretId || !secretKey) {
+  console.warn('[TCB] Secret ID or Secret Key not configured. TCB operations may fail.');
+}
+
 const tcbApp = cloudbase.init({
-  env: process.env.NEXT_PUBLIC_TCB_ENV_ID || 'your-env-id',
+  env: envId,
+  secretId: secretId,
+  secretKey: secretKey,
 });
 
 // Initialize services

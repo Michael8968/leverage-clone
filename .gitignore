@@ -69,3 +69,7 @@ docs/backup/
 
 # Environment variables
 .env.local
+
+# Archive files with sensitive info
+LOCAL_DEV_CONFIG_ARCHIVE.md
+*ARCHIVE*.md

@@ -23,24 +23,24 @@ async function writeJsonFallback(data: any[]) {
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const id = url.pathname.split('/').pop();
-  // if id present, return single
   try {
     const db = getTcbDb();
     if (db) {
       if (id) {
-        const doc = await db.collection('resources').doc(id).get();
-        if (!doc.data) return NextResponse.json(null, { status: 404 });
-        return NextResponse.json(doc.data);
+        const res = await db.collection('resources').doc(id).get();
+        const doc = Array.isArray(res?.data) ? res.data[0] : res?.data;
+        if (!doc) return NextResponse.json(null, { status: 404 });
+        return NextResponse.json({ ...doc, id: doc._id || doc.id });
       }
       const listRes = await db.collection('resources').get();
-      const data = (listRes.data || listRes).map((d: any) => ({ ...d, id: d._id || d.id }));
+      const raw = listRes?.data || [];
+      const data = raw.map((d: any) => ({ ...d, id: d._id || d.id }));
       return NextResponse.json({ data });
     }
   } catch (e) {
     // fallback
   }
 
-  // JSON fallback
   const all = await readJsonFallback();
   if (id) {
     const found = all.find((r: any) => String(r.id) === String(id));
@@ -58,7 +58,10 @@ export async function POST(req: NextRequest) {
       const now = new Date();
       const toInsert = { ...body, createdAt: now };
       const res = await db.collection('resources').add(toInsert);
-      return NextResponse.json({ id: res.id || res._id || null, ...toInsert });
+      // CloudBase add may return id in different shapes; normalize
+      const anyRes: any = res as any;
+      const newId = anyRes?.id ?? anyRes?._id ?? null;
+      return NextResponse.json({ id: newId, ...toInsert });
     }
   } catch (e) {}
 

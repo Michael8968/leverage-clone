@@ -126,16 +126,19 @@ function SearchPageComponent() {
   const handleAiSearch = () => {
     startAiSearch(async () => {
       try {
-        const profile = await generateUserProfile({ description: initialQuery });
-        setAiProfile(profile);
+        const profile = await generateUserProfile({ userId: 'guest', data: { query: initialQuery } });
+        setAiProfile({
+          summary: typeof profile.profile === 'object' ? JSON.stringify(profile.profile) : String(profile.profile),
+          tags: [initialQuery]
+        });
 
                 const recommendations = await getProductRecommendations({
-                    description: initialQuery,
-                    products: allProducts,
-                    suppliers: allSuppliers as any,
+                    userId: 'guest',
+                    preferences: [initialQuery],
+                    limit: 10,
                 });
 
-        setAiRecommendedIds(recommendations.recommendations);
+        setAiRecommendedIds(recommendations.recommendations.map(r => r.productId));
 
       } catch (e) {
         console.error("AI search failed:", e);

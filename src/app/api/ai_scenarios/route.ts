@@ -7,7 +7,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { db, dbType } from '@/lib/services/db';
+import { getDb } from '@/lib/services/db';
 
 const COLLECTION_NAME = 'ai_scenarios';
 
@@ -41,17 +41,9 @@ function convertTimestamps(data: any): any {
  */
 export async function GET(req: Request) {
     try {
-        let scenarios: any[] = [];
-        if (dbType === 'firestore') {
-            const { collection, query, orderBy, getDocs } = await import('firebase/firestore');
-            const scenariosCollection = collection(db, COLLECTION_NAME);
-            const q = query(scenariosCollection, orderBy('name'));
-            const snapshot = await getDocs(q);
-            scenarios = snapshot.docs.map(doc => convertTimestamps({ id: doc.id, ...doc.data() }));
-        } else if (dbType === 'tcb') {
-            const snapshot = await db.collection(COLLECTION_NAME).orderBy('name', 'asc').get();
-            scenarios = snapshot.data.map((item: any) => ({ ...item, id: item._id }));
-        }
+        const db = getDb();
+        const snapshot = await db.collection(COLLECTION_NAME).orderBy('name', 'asc').get();
+        const scenarios = (snapshot?.data || []).map((item: any) => ({ ...item, id: item._id || item.id }));
         return NextResponse.json(scenarios);
     } catch (error: any) {
         console.error('[API /ai_scenarios GET] Error:', error);
@@ -72,31 +64,15 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Scenario ID is required' }, { status: 400 });
         }
 
-        let finalData: any;
-
-        if (dbType === 'firestore') {
-            const { Timestamp, doc, setDoc } = await import('firebase/firestore');
-            finalData = {
-                ...data,
-                createdAt: Timestamp.now(),
-                startsAt: data.startsAt ? Timestamp.fromDate(new Date(data.startsAt)) : undefined,
-                expiresAt: data.expiresAt ? Timestamp.fromDate(new Date(data.expiresAt)) : undefined,
-            };
-            // In Firestore, we can set a document with a specific ID directly.
-            await setDoc(doc(db, COLLECTION_NAME, scenarioId), finalData);
-
-        } else if (dbType === 'tcb') {
-            finalData = {
-                _id: scenarioId,
-                ...data,
-                createdAt: db.serverDate(),
-                startsAt: data.startsAt ? new Date(data.startsAt) : undefined,
-                expiresAt: data.expiresAt ? new Date(data.expiresAt) : undefined,
-            };
-             // TCB uses _id for the document ID.
-            await db.collection(COLLECTION_NAME).add(finalData);
-        }
-
+        const db = getDb();
+        const finalData = {
+            _id: scenarioId,
+            ...data,
+            createdAt: new Date().toISOString(),
+            startsAt: data.startsAt ? new Date(data.startsAt) : undefined,
+            expiresAt: data.expiresAt ? new Date(data.expiresAt) : undefined,
+        };
+        await db.collection(COLLECTION_NAME).add(finalData);
         return NextResponse.json({ id: scenarioId, ...finalData }, { status: 201 });
     } catch (error: any) {
         console.error('[API /ai_scenarios POST] Error:', error);
@@ -118,26 +94,13 @@ export async function PUT(req: Request) {
         const body = await req.json();
         const { id: bodyId, _id, ...dataToUpdate } = body;
 
-        let finalData: any;
-
-        if (dbType === 'firestore') {
-            const { Timestamp, doc, updateDoc } = await import('firebase/firestore');
-            finalData = {
-                ...dataToUpdate,
-                startsAt: dataToUpdate.startsAt ? Timestamp.fromDate(new Date(dataToUpdate.startsAt)) : undefined,
-                expiresAt: dataToUpdate.expiresAt ? Timestamp.fromDate(new Date(dataToUpdate.expiresAt)) : undefined,
-            };
-            await updateDoc(doc(db, COLLECTION_NAME, id), finalData);
-
-        } else if (dbType === 'tcb') {
-            finalData = {
-                ...dataToUpdate,
-                startsAt: dataToUpdate.startsAt ? new Date(dataToUpdate.startsAt) : undefined,
-                expiresAt: dataToUpdate.expiresAt ? new Date(dataToUpdate.expiresAt) : undefined,
-            };
-            await db.collection(COLLECTION_NAME).doc(id).update(finalData);
-        }
-
+        const db = getDb();
+        const finalData = {
+            ...dataToUpdate,
+            startsAt: dataToUpdate.startsAt ? new Date(dataToUpdate.startsAt) : undefined,
+            expiresAt: dataToUpdate.expiresAt ? new Date(dataToUpdate.expiresAt) : undefined,
+        };
+        await db.collection(COLLECTION_NAME).doc(id).update(finalData);
         return NextResponse.json({ id, ...finalData });
     } catch (error: any) {
         console.error('[API /ai_scenarios PUT] Error:', error);
@@ -156,12 +119,8 @@ export async function DELETE(req: Request) {
             return NextResponse.json({ error: 'Missing ID in request URL' }, { status: 400 });
         }
 
-        if (dbType === 'firestore') {
-            const { doc, deleteDoc } = await import('firebase/firestore');
-            await deleteDoc(doc(db, COLLECTION_NAME, id));
-        } else if (dbType === 'tcb') {
-            await db.collection(COLLECTION_NAME).doc(id).remove();
-        }
+        const db = getDb();
+        await db.collection(COLLECTION_NAME).doc(id).remove();
 
         return NextResponse.json({ success: true, id });
     } catch (error: any) {

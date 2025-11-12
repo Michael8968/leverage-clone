@@ -5,7 +5,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { db, dbType } from '@/lib/services/db';
+import { getDb } from '@/lib/services/db';
 
 // A mock function to simulate calling an external 3D model generation API
 // In a real application, this would contain the actual fetch() call to the provider's API.
@@ -60,21 +60,12 @@ export async function POST(req: Request) {
 
         // If a providerId is given, fetch its details.
         if (providerId) {
-             if (dbType === 'firestore') {
-                const { doc, getDoc } = await import('firebase/firestore');
-                const llmRef = doc(db, 'llm_connections', providerId);
-                const llmSnap = await getDoc(llmRef);
-                if (!llmSnap.exists()) {
-                    return NextResponse.json({ error: 'Specified 3D service provider not found.' }, { status: 404 });
-                }
-                providerInfo = llmSnap.data();
-            } else if (dbType === 'tcb') {
-                const snapshot = await db.collection('llm_connections').doc(providerId).get();
-                if (!snapshot.data || snapshot.data.length === 0) {
-                     return NextResponse.json({ error: 'Specified 3D service provider not found.' }, { status: 404 });
-                }
-                providerInfo = snapshot.data[0];
+            const db = getDb();
+            const snapshot = await db.collection('llm_connections').doc(providerId).get();
+            if (!snapshot?.data || snapshot.data.length === 0) {
+                return NextResponse.json({ error: 'Specified 3D service provider not found.' }, { status: 404 });
             }
+            providerInfo = snapshot.data[0];
             
             provider = providerInfo.provider;
             modelName = providerInfo.modelName;
@@ -88,7 +79,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'API Key is required. Provide a personal key or configure a global key for the service.' }, { status: 400 });
         }
 
-        const generationResult = await initiateGeneration(provider, modelName, apiKey, prompt);
+    const generationResult = await initiateGeneration(provider, modelName, apiKey, prompt);
 
         return NextResponse.json({
             taskId: generationResult.taskId,

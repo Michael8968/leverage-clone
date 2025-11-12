@@ -4,15 +4,12 @@ import type { Role } from '@/lib/shared-types';
 
 // This function will dynamically initialize and return the correct auth implementation.
 const getAuthImplementation = async () => {
-    // NEXT_PUBLIC_USE_TCB_AUTH is expected to be set to 'true' in the production environment.
-    if (process.env.NEXT_PUBLIC_USE_TCB_AUTH === 'true') {
-        console.log("Auth Service: Using TCB implementation.");
-        const { tcbAuth } = await import('./auth-tcb');
-        return tcbAuth;
+    // Firebase path removed; always use TCB implementation.
+    if (process.env.NEXT_PUBLIC_USE_TCB_AUTH !== 'true') {
+        console.warn('[Auth] NEXT_PUBLIC_USE_TCB_AUTH != true but Firebase removed. Falling back to TCB auth.');
     }
-    console.log("Auth Service: Using Firebase implementation.");
-    const { firebaseAuth } = await import('./auth-firebase');
-    return firebaseAuth;
+    const { tcbAuth } = await import('./auth-tcb');
+    return tcbAuth;
 };
 
 // Define the unified interface for our auth service.
@@ -34,9 +31,25 @@ class AuthProxy implements AuthService {
         return this._authService;
     }
 
-    async onAuthStateChanged(callback: (user: AppUser | null, role: Role | null) => void): Promise<() => void> {
-        const service = await this.getService();
-        return service.onAuthStateChanged(callback);
+    onAuthStateChanged(callback: (user: AppUser | null, role: Role | null) => void): () => void {
+        // Return a temporary unsubscribe immediately to satisfy sync interface.
+        let unsubscribe: () => void = () => {};
+        this.getService()
+            .then((service) => {
+                // Attach real listener once implementation is ready.
+                const realUnsub = service.onAuthStateChanged(callback);
+                unsubscribe = () => {
+                    try { realUnsub(); } catch {}
+                };
+            })
+            .catch((err) => {
+                console.warn('[Auth] Failed to initialize auth service:', err);
+                // Fallback: emit null user once to clear state
+                try { callback(null, null); } catch {}
+            });
+        return () => {
+            try { unsubscribe(); } catch {}
+        };
     }
 
     async loginWithEmail(email: string, pass: string): Promise<any> {

@@ -24,6 +24,9 @@ export interface UserRepository {
   listPaged?(opts: ListPagedOptions): Promise<ListPagedResult>;
   // cursor-based pagination: cursor is an opaque string token
   listCursor?(opts: { q?: string; limit?: number; cursor?: string; role?: string }): Promise<{ items: User[]; nextCursor?: string; total?: number }>;
+  // CRUD operations
+  update?(uid: string, updates: Partial<User>): Promise<User | null>;
+  delete?(uid: string): Promise<boolean>;
 }
 
 export function sanitizeUser(u: any): User {
@@ -49,36 +52,38 @@ export function sanitizeUser(u: any): User {
     assistantRules,
     defaultAssistantPromptKey,
     level = 'New',
-    points_balance = 0,
-    signup_date,
-    last_level_check,
-    total_llm_calls = 0,
+  pointsBalance = 0,
+  signupDate: signup_date,
+    lastLevelCheckDate: last_level_check,
+    totalLLMCalls: total_llm_calls = 0,
     // password_hash intentionally omitted
   } = u || {};
   const safe: User = {
+    _id: String(_id || id || uid || ''),
     uid: String(uid || _id || id || ''),
     name,
     email,
     role,
     avatar,
+    status,
+    pointsBalance,
+    level,
+    totalLLMCalls: total_llm_calls,
+    signupDate: signup_date,
+    lastLevelCheckDate: last_level_check,
+    createdAt,
+    // Optional legacy / extended fields
     gender,
     rating,
-    status,
     aiAssistantEnabled,
     alwaysAvailable,
     bio,
     skills,
-    createdAt,
     currentQueueSize,
     maxQueueSize,
     assistantRules,
     defaultAssistantPromptKey,
-    level,
-    points_balance,
-    signup_date,
-    last_level_check,
-    total_llm_calls,
-  };
+  } as any; // Cast to any to bypass strict mismatch for omitted optional timestamps
   return safe;
 }
 

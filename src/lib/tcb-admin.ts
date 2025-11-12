@@ -44,7 +44,7 @@ class TcbAuthAdmin {
    */
   async getUserByEmail(email: string) {
     const db = getTcbDb();
-    const result = await db.collection('users').where('email', '==', email).limit(1).get();
+    const result = await db.collection('users').where({ email }).limit(1).get();
     if (!result.data || result.data.length === 0) return null;
     const user = result.data[0];
     return {

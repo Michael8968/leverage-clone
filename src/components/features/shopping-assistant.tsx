@@ -310,12 +310,12 @@ export function ShoppingAssistant() {
 
         setIsUploading(true);
         try {
-            const { uploadUrl, mediaAssetId } = await getUploadUrlForMediaAsset({ userId: user.uid, fileName: file.name, contentType: file.type });
+            const { uploadUrl, assetId } = await getUploadUrlForMediaAsset({ userId: user.uid, fileName: file.name, fileType: file.type });
             
             await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
 
             const objectUrl = URL.createObjectURL(file);
-            setMediaAsset({ id: mediaAssetId, mediaType: file.type.split('/')[0] as MediaAsset['mediaType'], previewUrl: objectUrl });
+            setMediaAsset({ id: assetId, mediaType: file.type.split('/')[0] as MediaAsset['mediaType'], previewUrl: objectUrl });
 
             toast({ title: '上传成功', description: '媒体文件已准备好，请输入您的指令。' });
         } catch (error) {
@@ -363,13 +363,21 @@ export function ShoppingAssistant() {
                 });
                 aiMessage = { id: Date.now() + 2, type: 'ai', text: result.output, isRawText: true };
             } else if (mediaAsset?.id) {
-              result = await analyzeMediaAsset({ mediaAssetId: mediaAsset.id, prompt: values.description });
-              aiMessage = { id: Date.now() + 2, type: 'ai', text: result.analysis, isRawText: true };
+              result = await analyzeMediaAsset({ 
+                assetId: mediaAsset.id, 
+                assetUrl: mediaAsset.previewUrl || '', 
+                userId: user?.uid || 'anonymous'
+              });
+              aiMessage = { id: Date.now() + 2, type: 'ai', text: JSON.stringify(result.analysis), isRawText: true };
             } else {
               // Fallback to the original product recommendation flow if no scenario is selected.
-              result = await getProductRecommendations({ description: values.description, products, suppliers: suppliers as any });
-              const recommendedProducts = products.filter(p => result.recommendations.includes(p.id));
-              aiMessage = { id: Date.now() + 2, type: 'ai', profile: result.userProfile, recommendations: recommendedProducts, isRawText: false };
+              result = await getProductRecommendations({ 
+                userId: user?.uid || 'guest',
+                preferences: values.description ? [values.description] : [],
+                limit: 10
+              });
+              const recommendedProducts = products.filter(p => result.recommendations.some((r: any) => r.productId === p.id));
+              aiMessage = { id: Date.now() + 2, type: 'ai', profile: undefined, recommendations: recommendedProducts, isRawText: false };
             }
             
             // UPDATED: Check for user update and refresh global state

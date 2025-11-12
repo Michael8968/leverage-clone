@@ -11,7 +11,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { db, dbType } from '@/lib/services/db';
+import { getDb } from '@/lib/services/db';
 
 const COLLECTION_NAME = 'llm_connections';
 
@@ -33,34 +33,13 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url);
         const category = searchParams.get('category');
 
-        let connections: any[] = [];
-
-        if (dbType === 'firestore') {
-            const { collection, query, where, orderBy, getDocs } = await import('firebase/firestore');
-            const llmsCollection = collection(db, COLLECTION_NAME);
-            
-            // Base query with ordering
-            let queries = [orderBy('priority')];
-
-            // Add category filter if present
-            if (category) {
-                queries.unshift(where('category', '==', category));
-            }
-
-            const q = query(llmsCollection, ...queries);
-            const snapshot = await getDocs(q);
-            connections = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-        } else if (dbType === 'tcb') {
-            let query = db.collection(COLLECTION_NAME).orderBy('priority', 'asc');
-
-            // Add category filter if present
-            if (category) {
-                query = query.where({ category });
-            }
-            const snapshot = await query.get();
-            connections = snapshot.data.map((item: any) => ({ ...item, id: item._id }));
+        const db = getDb();
+        let query = db.collection(COLLECTION_NAME).orderBy('priority', 'asc');
+        if (category) {
+            query = query.where({ category });
         }
+        const snapshot = await query.get();
+        const connections = (snapshot?.data || []).map((item: any) => ({ ...item, id: item._id || item.id }));
 
         return NextResponse.json(connections);
     } catch (error: any) {
@@ -75,28 +54,12 @@ export async function GET(req: Request) {
  */
 export async function POST(req: Request) {
     try {
+        const db = getDb();
         const body = await req.json();
-        const dataToSave = { ...body, createdAt: new Date().toISOString() };
-        
-        let newId: string;
-        if (dbType === 'firestore') {
-            const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
-            const docRef = await addDoc(collection(db, COLLECTION_NAME), {
-                ...body,
-                createdAt: serverTimestamp(),
-            });
-            newId = docRef.id;
-        } else if (dbType === 'tcb') {
-            const result = await db.collection(COLLECTION_NAME).add({
-                ...body,
-                createdAt: db.serverDate(),
-            });
-            newId = result.id || result._id;
-        } else {
-             throw new Error('Database service is not properly configured.');
-        }
-
-        return NextResponse.json({ id: newId, ...dataToSave }, { status: 201 });
+        const toSave = { ...body, createdAt: new Date().toISOString() };
+        const result = await db.collection(COLLECTION_NAME).add(toSave);
+        const newId: string = result?.id || result?._id;
+        return NextResponse.json({ id: newId, ...toSave }, { status: 201 });
     } catch (error: any) {
         console.error('[API /llm_connections POST] Error:', error);
         return NextResponse.json({ error: 'Failed to create item', details: error.message }, { status: 500 });
@@ -118,12 +81,8 @@ export async function PUT(req: Request) {
         // Remove id from body to avoid conflicts
         const { id: bodyId, _id, ...dataToUpdate } = body;
 
-        if (dbType === 'firestore') {
-            const { doc, updateDoc } = await import('firebase/firestore');
-            await updateDoc(doc(db, COLLECTION_NAME, id), dataToUpdate);
-        } else if (dbType === 'tcb') {
-            await db.collection(COLLECTION_NAME).doc(id).update(dataToUpdate);
-        }
+        const db = getDb();
+        await db.collection(COLLECTION_NAME).doc(id).update(dataToUpdate);
 
         return NextResponse.json({ id, ...dataToUpdate });
     } catch (error: any) {
@@ -143,12 +102,8 @@ export async function DELETE(req: Request) {
             return NextResponse.json({ error: 'Missing ID in request URL' }, { status: 400 });
         }
 
-        if (dbType === 'firestore') {
-            const { doc, deleteDoc } = await import('firebase/firestore');
-            await deleteDoc(doc(db, COLLECTION_NAME, id));
-        } else if (dbType === 'tcb') {
-            await db.collection(COLLECTION_NAME).doc(id).remove();
-        }
+        const db = getDb();
+        await db.collection(COLLECTION_NAME).doc(id).remove();
 
         return NextResponse.json({ success: true, id });
     } catch (error: any) {

@@ -5,7 +5,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { db, dbType } from '@/lib/services/db';
+import { getDb } from '@/lib/services/db';
 
 const COLLECTION_NAME = 'appointments';
 
@@ -29,24 +29,9 @@ export async function GET(req: Request) {
             return NextResponse.json({ error: 'creatorId is required' }, { status: 400 });
         }
 
-        let appointments: any[] = [];
-        if (dbType === 'firestore') {
-            const { collection, query, where, getDocs, Timestamp } = await import('firebase/firestore');
-            const q = query(collection(db, COLLECTION_NAME), where('creatorId', '==', creatorId));
-            const snapshot = await getDocs(q);
-            appointments = snapshot.docs.map(doc => {
-                 const data = doc.data();
-                 return {
-                    id: doc.id,
-                    ...data,
-                    appointmentTime: data.appointmentTime instanceof Timestamp ? data.appointmentTime.toDate().toISOString() : data.appointmentTime,
-                    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
-                 }
-            });
-        } else if (dbType === 'tcb') {
-            const snapshot = await db.collection(COLLECTION_NAME).where({ creatorId }).get();
-            appointments = snapshot.data.map((item: any) => ({ ...item, id: item._id }));
-        }
+        const db = getDb();
+        const snapshot = await db.collection(COLLECTION_NAME).where({ creatorId }).get();
+        let appointments: any[] = (snapshot?.data || []).map((item: any) => ({ ...item, id: item._id || item.id }));
 
         // Sort by appointment time descending
         appointments.sort((a, b) => new Date(b.appointmentTime).getTime() - new Date(a.appointmentTime).getTime());
@@ -74,12 +59,8 @@ export async function PUT(req: Request) {
             return NextResponse.json({ error: 'Status is required' }, { status: 400 });
         }
 
-        if (dbType === 'firestore') {
-            const { doc, updateDoc } = await import('firebase/firestore');
-            await updateDoc(doc(db, COLLECTION_NAME, id), { status });
-        } else if (dbType === 'tcb') {
-            await db.collection(COLLECTION_NAME).doc(id).update({ status });
-        }
+        const db = getDb();
+        await db.collection(COLLECTION_NAME).doc(id).update({ status });
 
         return NextResponse.json({ success: true, id, status });
     } catch (error: any) {

@@ -3,23 +3,24 @@ import { getTcbDb } from '@/lib/tcb';
 
 export function createTcbPointsRepository(): PointsRepository {
   return {
-    async listTransactions(uid?: string) {
+    async listTransactions(userId?: string) {
       const db = getTcbDb();
       const coll = db.collection('points_transactions');
-      const q = uid ? coll.where({ uid }) : coll;
+      const q = userId ? coll.where({ userId }) : coll;
       const res = await q.get();
       return res?.data || [];
     },
-    async getBalance(uid: string) {
+    async getBalance(userId: string) {
       const db = getTcbDb();
-      // Simple aggregation: sum amounts for uid
-      const res = await db.collection('points_transactions').where({ uid }).get();
+      // Simple aggregation: sum pointsChange for userId
+      const res = await db.collection('points_transactions').where({ userId }).get();
       const list = res?.data || [];
-      return list.reduce((s: number, r: any) => s + (typeof r.amount === 'number' ? r.amount : 0), 0);
+      return list.reduce((s: number, r: any) => s + (typeof r.pointsChange === 'number' ? r.pointsChange : 0), 0);
     },
     async addTransaction(tx) {
       const db = getTcbDb();
-      await db.collection('points_transactions').add(tx);
+      const toInsert = { ...tx, createdAt: new Date() };
+      await db.collection('points_transactions').add(toInsert);
     }
   };
 }

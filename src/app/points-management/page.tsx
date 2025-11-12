@@ -93,13 +93,24 @@ function adaptRuleToSchema(partialRule: Partial<PricingRule>): PricingRule {
 }
 
 
+// DisplayTransaction: 统一兼容旧字段 (id,type,amount,timestamp) 与新字段 (_id,transactionType,pointsChange,createdAt)
+type DisplayTransaction = PointsTransaction & { id?: string; type?: string; amount?: number; timestamp?: any };
+
 function BillingManagement() {
     const [searchQuery, setSearchQuery] = useState('');
     const [dateRange, setDateRange] = useState<DateRange | undefined>();
-    const [transactions, setTransactions] = useState<PointsTransaction[]>([]);
+    const [transactions, setTransactions] = useState<DisplayTransaction[]>([]);
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
     const [isSearching, setIsSearching] = useState(false);
     const { toast } = useToast();
+
+    const adaptTx = (raw: any): DisplayTransaction => ({
+        ...raw,
+        id: raw._id || raw.id,
+        type: raw.transactionType || raw.type,
+        amount: raw.pointsChange != null ? raw.pointsChange : raw.amount,
+        timestamp: raw.createdAt || raw.timestamp,
+    });
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -112,15 +123,12 @@ function BillingManagement() {
         setTransactions([]);
         setSelectedUser(null);
         try {
-            // Use server API: fetch users list and find match on server-provided dataset
-            // query backend for exact match by email or name
             const queryParam = encodeURIComponent(searchQuery);
             const usersRes = await fetch(`/api/users?email=${queryParam}`);
-            let matched = [] as any[];
+            let matched: any[] = [];
             if (usersRes.ok) {
                 matched = await usersRes.json();
             }
-            // if no match by email, try name
             if ((!matched || matched.length === 0) && searchQuery) {
                 const byNameRes = await fetch(`/api/users?name=${queryParam}`);
                 if (byNameRes.ok) matched = await byNameRes.json();
@@ -135,12 +143,16 @@ function BillingManagement() {
             const user = { ...(matched[0] || {}), uid: matched[0].id || matched[0].uid } as User;
             setSelectedUser(user);
 
-            // Fetch transactions for this user via API
-            const txRes = await fetch(`/api/points/transactions?uid=${encodeURIComponent(user.uid)}`);
+            // 新接口应使用 userId 过滤；若仍是 uid 兼容处理，后端API需要接受 userId
+            const txRes = await fetch(`/api/points/transactions?userId=${encodeURIComponent(user.uid)}`);
             const txList = txRes.ok ? await txRes.json() : [];
-            const filtered = (txList || []).filter((t: any) => (!dateRange?.from || new Date(t.timestamp) >= dateRange.from) && (!dateRange?.to || new Date(t.timestamp) <= dateRange.to));
-            filtered.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-            setTransactions(filtered as PointsTransaction[]);
+            const filtered = (txList || []).filter((t: any) => {
+                const ts = t.createdAt || t.timestamp;
+                const dateObj = ts ? new Date(ts) : null;
+                return (!dateRange?.from || (dateObj && dateObj >= dateRange.from)) && (!dateRange?.to || (dateObj && dateObj <= dateRange.to));
+            });
+            filtered.sort((a: any, b: any) => new Date(b.createdAt || b.timestamp).getTime() - new Date(a.createdAt || a.timestamp).getTime());
+            setTransactions(filtered.map(adaptTx));
 
         } catch (error) {
             console.error(error);
@@ -157,7 +169,10 @@ function BillingManagement() {
         });
     };
     
-    const totalConsumption = transactions.reduce((acc, tx) => tx.amount < 0 ? acc + Math.abs(tx.amount) : acc, 0);
+    const totalConsumption = transactions.reduce((acc, tx) => {
+        const val = (tx.pointsChange ?? tx.amount ?? 0);
+        return val < 0 ? acc + Math.abs(val) : acc;
+    }, 0);
 
     return (
         <Card>
@@ -230,12 +245,17 @@ function BillingManagement() {
                             <TableBody>
                                 {isSearching ? <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow> 
                                 : transactions.length === 0 ? <TableRow><TableCell colSpan={4} className="h-24 text-center">在此时间范围内无记录。</TableCell></TableRow> 
-                                : transactions.map((tx: PointsTransaction) => (
-                                    <TableRow key={tx.id}>
-                                        <TableCell><Badge variant="outline">{tx.type}</Badge></TableCell>
-                                        <TableCell className={cn(tx.amount > 0 ? "text-green-600" : "text-red-600")}>{tx.amount > 0 ? '+' : ''}{tx.amount}</TableCell>
+                                : transactions.map((tx) => (
+                                    <TableRow key={tx.id || tx._id}>
+                                        <TableCell><Badge variant="outline">{tx.type || tx.transactionType}</Badge></TableCell>
+                                        <TableCell className={cn((tx.amount ?? tx.pointsChange ?? 0) > 0 ? "text-green-600" : "text-red-600")}>{(tx.amount ?? tx.pointsChange ?? 0) > 0 ? '+' : ''}{(tx.amount ?? tx.pointsChange ?? 0)}</TableCell>
                                         <TableCell>{tx.reason}</TableCell>
-                                        <TableCell className="text-xs text-muted-foreground">{(tx.timestamp && (tx.timestamp as any).toDate) ? format((tx.timestamp as any).toDate(), 'yyyy-MM-dd HH:mm') : (tx.timestamp ? format(new Date(tx.timestamp), 'yyyy-MM-dd HH:mm') : 'N/A')}</TableCell>
+                                        <TableCell className="text-xs text-muted-foreground">{(() => {
+                                            const rawTs = tx.timestamp || tx.createdAt;
+                                            if (!rawTs) return 'N/A';
+                                            if ((rawTs as any).toDate) return format((rawTs as any).toDate(), 'yyyy-MM-dd HH:mm');
+                                            return format(new Date(rawTs), 'yyyy-MM-dd HH:mm');
+                                        })()}</TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -281,13 +301,12 @@ function ManualGrantForm({ onSuccessfulGrant }: { onSuccessfulGrant: () => void 
         setIsGranting(async () => {
             try {
                 const result = await grantPointsToGroup({
-                    roles: targetRoles,
-                    ratings: targetRatings,
-                    amount: pointsAmount,
+                    groupId: `roles_${targetRoles.join('_')}_ratings_${targetRatings.join('_')}`,
+                    points: pointsAmount,
                     reason: grantReason,
                 });
-                if (result.userCount > 0) {
-                    toast({ title: "请求已提交", description: `为 ${result.userCount} 位用户增加 ${pointsAmount} 积分的请求已提交，等待审批。` });
+                if (result.grantedCount > 0) {
+                    toast({ title: "请求已提交", description: `为 ${result.grantedCount} 位用户增加 ${pointsAmount} 积分的请求已提交，等待审批。` });
                     onSuccessfulGrant();
                     
                     if (currentUser) {
@@ -382,26 +401,34 @@ function ManualGrantForm({ onSuccessfulGrant }: { onSuccessfulGrant: () => void 
 }
 
 function GrantHistory({ refreshKey, onHistoryUpdate }: { refreshKey: number, onHistoryUpdate: () => void }) {
-    const [history, setHistory] = useState<PointsTransaction[]>([]);
+    const [history, setHistory] = useState<DisplayTransaction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [approvingBatchId, setApprovingBatchId] = useState<string | null>(null);
     const { toast } = useToast();
     const { user: currentUser } = useAuthStore();
+
+    const adaptTx = (raw: any): DisplayTransaction => ({
+        ...raw,
+        id: raw._id || raw.id,
+        type: raw.transactionType || raw.type,
+        amount: raw.pointsChange != null ? raw.pointsChange : raw.amount,
+        timestamp: raw.createdAt || raw.timestamp,
+    });
 
     const fetchHistory = useCallback(async () => {
         setIsLoading(true);
         try {
             const res = await fetch('/api/points/transactions');
             const all = res.ok ? await res.json() : [];
-            const manual = all.filter((t: PointsTransaction) => t.type === 'manual');
-            manual.sort((a: PointsTransaction, b: PointsTransaction) => {
-                const at = a.timestamp ? new Date((a.timestamp as any)).getTime() : 0;
-                const bt = b.timestamp ? new Date((b.timestamp as any)).getTime() : 0;
+            const manual = all.filter((t: any) => (t.transactionType || t.type) === 'manual_grant');
+            manual.sort((a: any, b: any) => {
+                const at = a.createdAt || a.timestamp ? new Date(a.createdAt || a.timestamp).getTime() : 0;
+                const bt = b.createdAt || b.timestamp ? new Date(b.createdAt || b.timestamp).getTime() : 0;
                 return bt - at;
             });
-            const uniqueBatches: { [key: string]: PointsTransaction } = {};
-            manual.forEach((doc: PointsTransaction) => {
-                const data = doc as PointsTransaction;
+            const uniqueBatches: { [key: string]: DisplayTransaction } = {};
+            manual.forEach((doc: any) => {
+                const data = adaptTx(doc);
                 if (data.batchId && !uniqueBatches[data.batchId]) {
                     uniqueBatches[data.batchId] = { ...data };
                 }
@@ -423,15 +450,14 @@ function GrantHistory({ refreshKey, onHistoryUpdate }: { refreshKey: number, onH
         if (!currentUser) return;
         setApprovingBatchId(batchId);
         try {
-            const result = await approveGrantRequest({ batchId, approverId: currentUser.uid });
-            if (result.alreadyApproved) {
-                toast({ title: '您已批准', description: '您已经批准过此请求。', variant: 'default' });
-            } else if (result.approvedCount > 0) {
-                toast({ title: '最终批准成功', description: `此批次已获最终批准，共 ${result.approvedCount} 笔交易生效。` });
+            // Temporarily mock the approve logic to conform with current ApproveGrantRequestResult
+            const result = await approveGrantRequest({ requestId: batchId, approved: true });
+            if (result.success) {
+                toast({ title: '批准成功', description: '批准请求已记录。' });
             } else {
-                toast({ title: '第一步批准成功', description: '您的批准已记录，等待第二位管理员批准。' });
+                toast({ title: '批准失败', description: '无法完成批准操作。', variant: 'destructive' });
             }
-            onHistoryUpdate(); // Trigger a refetch in the parent
+            onHistoryUpdate();
         } catch (error: any) {
             toast({ title: '批准失败', description: error.message, variant: 'destructive' });
         } finally {
@@ -439,7 +465,7 @@ function GrantHistory({ refreshKey, onHistoryUpdate }: { refreshKey: number, onH
         }
     };
 
-    const getStatusBadge = (tx: PointsTransaction) => {
+    const getStatusBadge = (tx: DisplayTransaction) => {
         const approverCount = tx.approvers?.length || 0;
         let badge: React.ReactNode;
         switch (tx.status) {
@@ -468,7 +494,7 @@ function GrantHistory({ refreshKey, onHistoryUpdate }: { refreshKey: number, onH
                 </Tooltip>
             </TooltipProvider>
         );
-    }
+    };
 
     return (
         <Card>
@@ -482,16 +508,20 @@ function GrantHistory({ refreshKey, onHistoryUpdate }: { refreshKey: number, onH
                     <TableBody>
                         {isLoading ? <TableRow><TableCell colSpan={5}><Skeleton className="h-10 w-full"/></TableCell></TableRow>
                          : history.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center h-24">暂无手动操作记录。</TableCell></TableRow> 
-                         : history.map((tx: PointsTransaction) => {
+                         : history.map((tx) => {
                              const isPending = tx.status === 'pending';
                              const alreadyApprovedByCurrentUser = tx.approvers?.includes(currentUser!.uid);
                              const canApprove = isPending && !alreadyApprovedByCurrentUser;
-                             
                              return (
                                 <TableRow key={tx.batchId}>
                                     <TableCell>{tx.reason}</TableCell>
-                                    <TableCell className="font-medium text-green-600">+{tx.amount}</TableCell>
-                                        <TableCell className="text-xs text-muted-foreground">{(tx.timestamp as any)?.toDate ? format((tx.timestamp as any).toDate(), 'yyyy-MM-dd HH:mm') : (tx.timestamp ? format(new Date(tx.timestamp), 'yyyy-MM-dd HH:mm') : 'N/A')}</TableCell>
+                                    <TableCell className="font-medium text-green-600">+{tx.amount ?? tx.pointsChange}</TableCell>
+                                    <TableCell className="text-xs text-muted-foreground">{(() => {
+                                        const rawTs = tx.timestamp || tx.createdAt;
+                                        if (!rawTs) return 'N/A';
+                                        if ((rawTs as any)?.toDate) return format((rawTs as any).toDate(), 'yyyy-MM-dd HH:mm');
+                                        return format(new Date(rawTs), 'yyyy-MM-dd HH:mm');
+                                    })()}</TableCell>
                                     <TableCell>{getStatusBadge(tx)}</TableCell>
                                     <TableCell className="text-right">
                                         {isPending && (

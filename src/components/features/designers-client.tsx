@@ -300,14 +300,18 @@ export function DesignersClient({ initialDesigners }: { initialDesigners: User[]
         
         setIsLoading(true);
         try {
-            const { demandId, message } = await createPrivateDemand({ 
-                requesterId: user.uid, 
-                creatorId: selectedDesigner.uid,
-                preferredAgent: preferredAgent,
+            const { demandId, success } = await createPrivateDemand({ 
+                demandData: {
+                  requesterId: user.uid,
+                  creatorId: selectedDesigner.uid,
+                  preferredAgent: preferredAgent,
+                  title: `与 ${selectedDesigner?.name || ''} 的专属沟通`,
+                },
+                userId: user.uid,
             });
 
-            if (message) {
-                toast({ title: "提示", description: message });
+            if (success) {
+                toast({ title: "成功", description: "已创建专属沟通需求" });
             }
             
             const tempDemand: Demand = {

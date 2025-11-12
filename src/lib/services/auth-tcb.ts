@@ -72,7 +72,7 @@ class TcbAuth implements AuthService {
         const response = await fetch('/api/auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password }),
+            body: JSON.stringify({ email, password: pass }),
         });
 
         if (!response.ok) {
@@ -89,7 +89,7 @@ class TcbAuth implements AuthService {
          const response = await fetch('/api/auth/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password }),
+            body: JSON.stringify({ email, password: pass }),
         });
 
         if (!response.ok) {

@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -32,21 +32,23 @@ const formSchema = z.object({
   gender: z.enum(["male", "female", "other"], { required_error: "请选择您的性别。" }),
   acceptedTerms: z.boolean().default(false).refine(val => val === true, {
     message: '您必须同意用户服务协议和隐私政策才能继续。'
-  })
+  }),
+  adminKey: z.string().optional(),
 });
 
 const getRedirectPath = (role: string | null) => {
   if (role === 'admin') {
       return '/demand-pool';
   }
-  return '/dashboard'; 
+  return '/dashboard';
 };
 
 export default function RegisterPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { setUser } = useAuthStore();
+  const { setUser, user: currentUser } = useAuthStore();
   const [isPending, startTransition] = useTransition();
+  const [isAdminMode, setIsAdminMode] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -58,13 +60,51 @@ export default function RegisterPage() {
     },
   });
 
+  // Check if current user is admin
+  useEffect(() => {
+    if (currentUser?.role === 'admin') {
+      setIsAdminMode(true);
+    }
+  }, [currentUser]);
+
   const onSubmit = (values: z.infer<typeof formSchema>) => {
     startTransition(async () => {
       try {
-        const res = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: values.email, password: values.password, name: values.name, role: values.role, gender: values.gender }) });
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
+        // If creating admin user, include auth token
+        if (values.role === 'admin' && currentUser?.role === 'admin') {
+          const token = localStorage.getItem('auth_token');
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+          }
+        }
+
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            email: values.email,
+            password: values.password,
+            name: values.name,
+            role: values.role,
+            gender: values.gender
+          })
+        });
         const json = await res.json();
         if (!res.ok) throw new Error(json?.error || '注册失败');
         const { token, user } = json as { token: string, user: User };
+
+        // If admin created a new user, don't auto-login
+        if (values.role === 'admin' && currentUser?.role === 'admin') {
+          toast({
+            title: "管理员账户创建成功",
+            description: `管理员 ${values.name} 已创建。`,
+          });
+          form.reset();
+          return;
+        }
+
         localStorage.setItem('auth_token', token);
         setUser(user, user.role);
 
@@ -80,8 +120,10 @@ export default function RegisterPage() {
       } catch (error: any) {
         console.error("Registration failed:", error);
         let description = "注册过程中发生未知错误。";
-        if (error.code === 'auth/email-already-in-use') {
+        if (error.message.includes('邮箱已注册')) {
           description = "该电子邮件地址已被注册。";
+        } else if (error.message.includes('管理员')) {
+          description = error.message;
         }
         toast({
           title: "注册失败",
@@ -101,8 +143,15 @@ export default function RegisterPage() {
         </div>
         <Card>
           <CardHeader>
-            <CardTitle className="font-headline text-2xl">创建您的账户</CardTitle>
-            <CardDescription>加入平台，开启智能匹配之旅。</CardDescription>
+            <CardTitle className="font-headline text-2xl">
+              {isAdminMode ? '创建用户账户' : '创建您的账户'}
+            </CardTitle>
+            <CardDescription>
+              {isAdminMode
+                ? '作为管理员，您可以创建新用户或管理员账户。'
+                : '加入平台，开启智能匹配之旅。'
+              }
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -163,7 +212,7 @@ export default function RegisterPage() {
                             <SelectItem value="user">用户</SelectItem>
                             <SelectItem value="creator">创意者</SelectItem>
                             <SelectItem value="supplier">供应商</SelectItem>
-                            <SelectItem value="admin">平台管理员</SelectItem>
+                            {isAdminMode && <SelectItem value="admin">平台管理员</SelectItem>}
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -222,7 +271,7 @@ export default function RegisterPage() {
                   )}
                 />
                 <Button type="submit" className="w-full" disabled={isPending}>
-                  {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "创建账户"}
+                  {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (isAdminMode ? "创建账户" : "创建账户")}
                 </Button>
               </form>
             </Form>

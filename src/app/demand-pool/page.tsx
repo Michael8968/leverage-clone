@@ -27,7 +27,6 @@ import type { Demand, ProductService, Supplier } from '@/lib/types';
 import { useAuthStore } from '@/store/auth';
 import { PlusCircle, Sparkles, BrainCircuit, Loader2, MessageSquare, Check, Search, Filter, Workflow } from 'lucide-react';
 import { recommendCreatives } from '@/ai/flows/demand-matching';
-import type { RecommendCreativesOutput } from '@/ai/flows/demand-matching';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -41,7 +40,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
-import { getPrompts, type GetPromptsOutput } from '@/ai/flows/admin-management-flows';
+import { getPrompts } from '@/ai/flows/admin-management-flows';
 import { executePrompt } from '@/ai/flows/prompt-execution-flow';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -51,7 +50,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 function RecommendationDialog({ open, onOpenChange, recommendations, demandTitle }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    recommendations: RecommendCreativesOutput['recommendations'];
+    recommendations: Array<{ creativeId: string; reason: string }>;
     demandTitle: string;
 }) {
     return (
@@ -182,13 +181,13 @@ export default function DemandPoolPage() {
   const [demands, setDemands] = useState<Demand[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
-  const [recommendations, setRecommendations] = useState<RecommendCreativesOutput['recommendations']>([]);
+  const [recommendations, setRecommendations] = useState<Array<{ creativeId: string; reason: string }>>([]);
   const [isRecDialogOpen, setIsRecDialogOpen] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isChatDialogOpen, setIsChatDialogOpen] = useState(false);
   const [isAiMatching, setIsAiMatching] = useState(false);
   const [selectedDemand, setSelectedDemand] = useState<Demand | null>(null);
-  const [availablePrompts, setAvailablePrompts] = useState<GetPromptsOutput['prompts']>([]);
+  const [availablePrompts, setAvailablePrompts] = useState<Array<{ id: string; name: string; content: string; category?: string }>>([]);
   const [selectedPromptKey, setSelectedPromptKey] = useState<string | null>(null);
   const { role, user } = useAuthStore();
   const { toast } = useToast();
@@ -234,7 +233,12 @@ export default function DemandPoolPage() {
   const fetchDialogData = useCallback(async () => {
     try {
         const promptsData = await getPrompts();
-        setAvailablePrompts(promptsData.prompts);
+        setAvailablePrompts(promptsData.prompts.map((p: any) => ({
+          id: p.promptKey,
+          name: p.name,
+          content: p.promptKey,
+          category: p.ownerType
+        })));
     } catch(error) {
         console.error("Error fetching dialog data:", error);
         const errorMessage = error instanceof Error ? error.message : '未知错误';
@@ -280,13 +284,12 @@ export default function DemandPoolPage() {
             scenario: selectedPromptKey,
             userId: user?.uid || 'anonymous',
         });
-        setRecommendations([{ creativeId: "AI分析结果", reason: result.output || 'No output', matchScore: 0 }]);
+        setRecommendations([{ creativeId: "AI分析结果", reason: result.output || 'No output' }]);
       } else {
         const result = await recommendCreatives({
-            demand: selectedDemand,
-            creatives: creatives,
+            demandId: selectedDemand.id,
         });
-        setRecommendations(result.recommendations);
+        setRecommendations(result.creatives);
       }
       
       setIsRecDialogOpen(true);

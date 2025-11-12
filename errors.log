@@ -1,0 +1,169 @@
+.next/types/app/api/3d-models/[taskId]/route.ts(49,7): error TS2344: Type '{ __tag__: "GET"; __param_position__: "second"; __param_type__: { params: { taskId: string; }; }; }' does not satisfy the constraint 'ParamCheck<RouteContext>'.
+  The types of '__param_type__.params' are incompatible between these types.
+    Type '{ taskId: string; }' is missing the following properties from type 'Promise<any>': then, catch, finally, [Symbol.toStringTag]
+.next/types/validator.ts(261,31): error TS2344: Type 'typeof import("D:/code/leverage-clone-feature-backend-refactor-and-bugfix/leverage-clone-feature-backend-refactor-and-bugfix/src/app/api/3d-models/[taskId]/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/3d-models/[taskId]">'.
+  Types of property 'GET' are incompatible.
+    Type '(req: Request, { params }: { params: { taskId: string; }; }) => Promise<NextResponse<any>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ taskId: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ taskId: string; }>; }' is not assignable to type '{ params: { taskId: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'taskId' is missing in type 'Promise<{ taskId: string; }>' but required in type '{ taskId: string; }'.
+src/app/api/3d-models/route.ts(8,14): error TS2459: Module '"@/lib/services/db"' declares 'dbType' locally, but it is not exported.
+src/app/api/3d-models/route.ts(72,43): error TS2339: Property 'collection' does not exist on type '{}'.
+src/app/api/ai_scenarios/route.ts(10,14): error TS2459: Module '"@/lib/services/db"' declares 'dbType' locally, but it is not exported.
+src/app/api/ai_scenarios/route.ts(52,39): error TS2339: Property 'collection' does not exist on type '{}'.
+src/app/api/ai_scenarios/route.ts(92,31): error TS2339: Property 'serverDate' does not exist on type '{}'.
+src/app/api/ai_scenarios/route.ts(97,22): error TS2339: Property 'collection' does not exist on type '{}'.
+src/app/api/ai_scenarios/route.ts(138,22): error TS2339: Property 'collection' does not exist on type '{}'.
+src/app/api/ai_scenarios/route.ts(163,22): error TS2339: Property 'collection' does not exist on type '{}'.
+src/app/api/appointments/route.ts(8,14): error TS2459: Module '"@/lib/services/db"' declares 'dbType' locally, but it is not exported.
+src/app/api/appointments/route.ts(42,70): error TS2359: The right-hand side of an 'instanceof' expression must be either of type 'any', a class, function, or other type assignable to the 'Function' interface type, or an object type with a 'Symbol.hasInstance' method.
+src/app/api/appointments/route.ts(43,58): error TS2359: The right-hand side of an 'instanceof' expression must be either of type 'any', a class, function, or other type assignable to the 'Function' interface type, or an object type with a 'Symbol.hasInstance' method.
+src/app/api/appointments/route.ts(47,39): error TS2339: Property 'collection' does not exist on type '{}'.
+src/app/api/appointments/route.ts(81,22): error TS2339: Property 'collection' does not exist on type '{}'.
+src/app/api/auth/firebase-sync/route.ts(77,13): error TS2739: Type '{ uid: string; email: string; name: any; avatar: string; role: "user"; status: "active"; createdAt: Date; }' is missing the following properties from type 'Omit<User, "_id">': pointsBalance, level, totalLLMCalls, signupDate
+src/app/api/auth/firebase-sync/route.ts(89,41): error TS2551: Property 'insertedId' does not exist on type 'IAddRes'. Did you mean 'inserted'?
+src/app/api/auth/firebase-sync/route.ts(94,42): error TS2551: Property 'insertedId' does not exist on type 'IAddRes'. Did you mean 'inserted'?
+src/app/api/auth/register/route.ts(55,39): error TS2554: Expected 1 arguments, but got 0.
+src/app/api/auth/register/route.ts(56,44): error TS2554: Expected 1 arguments, but got 0.
+src/app/api/auth/register/route.ts(60,37): error TS2554: Expected 1 arguments, but got 0.
+src/app/api/availabilities/route.ts(8,14): error TS2459: Module '"@/lib/services/db"' declares 'dbType' locally, but it is not exported.
+src/app/api/availabilities/route.ts(35,41): error TS2359: The right-hand side of an 'instanceof' expression must be either of type 'any', a class, function, or other type assignable to the 'Function' interface type, or an object type with a 'Symbol.hasInstance' method.
+src/app/api/availabilities/route.ts(40,28): error TS2339: Property 'collection' does not exist on type '{}'.
+src/app/api/availabilities/route.ts(84,35): error TS2339: Property 'collection' does not exist on type '{}'.
+src/app/api/demands/route.ts(8,14): error TS2459: Module '"@/lib/services/db"' declares 'dbType' locally, but it is not exported.
+src/app/api/demands/route.ts(32,39): error TS2339: Property 'collection' does not exist on type '{}'.
+src/app/api/demands/route.ts(68,22): error TS2339: Property 'collection' does not exist on type '{}'.
+src/app/api/llm_connections/route.ts(14,14): error TS2459: Module '"@/lib/services/db"' declares 'dbType' locally, but it is not exported.
+src/app/api/llm_connections/route.ts(55,28): error TS2339: Property 'collection' does not exist on type '{}'.
+src/app/api/llm_connections/route.ts(90,37): error TS2339: Property 'collection' does not exist on type '{}'.
+src/app/api/llm_connections/route.ts(92,31): error TS2339: Property 'serverDate' does not exist on type '{}'.
+src/app/api/llm_connections/route.ts(125,22): error TS2339: Property 'collection' does not exist on type '{}'.
+src/app/api/llm_connections/route.ts(150,22): error TS2339: Property 'collection' does not exist on type '{}'.
+src/app/api/media-assets/route.ts(8,14): error TS2459: Module '"@/lib/services/db"' declares 'dbType' locally, but it is not exported.
+src/app/api/media-assets/route.ts(39,37): error TS2339: Property 'collection' does not exist on type '{}'.
+src/app/api/media-assets/route.ts(44,31): error TS2339: Property 'serverDate' does not exist on type '{}'.
+src/app/api/media-assets/route.ts(51,52): error TS2454: Variable 'mediaAssetId' is used before being assigned.
+src/app/api/media-assets/route.ts(56,21): error TS2339: Property 'getSignedUrl' does not exist on type 'typeof import("D:/code/leverage-clone-feature-backend-refactor-and-bugfix/leverage-clone-feature-backend-refactor-and-bugfix/node_modules/@google-cloud/storage/build/esm/src/index")'.
+src/app/api/media-assets/route.ts(92,55): error TS2454: Variable 'mediaAssetId' is used before being assigned.
+src/app/api/media-assets/route.ts(92,72): error TS2454: Variable 'publicUrl' is used before being assigned.
+src/app/api/media-assets/route.ts(94,23): error TS2339: Property 'collection' does not exist on type '{}'.
+src/app/api/media-assets/route.ts(94,55): error TS2454: Variable 'mediaAssetId' is used before being assigned.
+src/app/api/media-assets/route.ts(94,78): error TS2454: Variable 'publicUrl' is used before being assigned.
+src/app/api/media-assets/route.ts(97,36): error TS2454: Variable 'uploadUrl' is used before being assigned.
+src/app/api/media-assets/route.ts(97,47): error TS2454: Variable 'mediaAssetId' is used before being assigned.
+src/app/api/media-assets/route.ts(97,61): error TS2454: Variable 'publicUrl' is used before being assigned.
+src/app/api/points-transactions/route.ts(8,14): error TS2459: Module '"@/lib/services/db"' declares 'dbType' locally, but it is not exported.
+src/app/api/points-transactions/route.ts(35,58): error TS2359: The right-hand side of an 'instanceof' expression must be either of type 'any', a class, function, or other type assignable to the 'Function' interface type, or an object type with a 'Symbol.hasInstance' method.
+src/app/api/points-transactions/route.ts(39,39): error TS2339: Property 'collection' does not exist on type '{}'.
+src/app/api/products/route.ts(8,14): error TS2459: Module '"@/lib/services/db"' declares 'dbType' locally, but it is not exported.
+src/app/api/products/route.ts(35,58): error TS2359: The right-hand side of an 'instanceof' expression must be either of type 'any', a class, function, or other type assignable to the 'Function' interface type, or an object type with a 'Symbol.hasInstance' method.
+src/app/api/products/route.ts(39,39): error TS2339: Property 'collection' does not exist on type '{}'.
+src/app/api/products/route.ts(65,51): error TS2339: Property 'serverDate' does not exist on type '{}'.
+src/app/api/products/route.ts(66,37): error TS2339: Property 'collection' does not exist on type '{}'.
+src/app/api/prompts/route.ts(10,14): error TS2459: Module '"@/lib/services/db"' declares 'dbType' locally, but it is not exported.
+src/app/api/prompts/route.ts(31,61): error TS2359: The right-hand side of an 'instanceof' expression must be either of type 'any', a class, function, or other type assignable to the 'Function' interface type, or an object type with a 'Symbol.hasInstance' method.
+src/app/api/prompts/route.ts(38,39): error TS2339: Property 'collection' does not exist on type '{}'.
+src/app/api/recharge/route.ts(14,33): error TS2353: Object literal may only specify known properties, and 'uid' does not exist in type 'Omit<PointsTransaction, "id" | "timestamp">'.
+src/app/api/resources/route.ts(61,52): error TS2339: Property '_id' does not exist on type 'IAddRes'.
+src/app/api/user-settings/route.ts(8,14): error TS2459: Module '"@/lib/services/db"' declares 'dbType' locally, but it is not exported.
+src/app/api/user-settings/route.ts(46,32): error TS2339: Property 'collection' does not exist on type '{}'.
+src/app/creator-workbench/page.tsx(221,36): error TS2339: Property 'mediaAssetId' does not exist on type 'GetUploadUrlForMediaAssetResult'.
+src/app/creator-workbench/page.tsx(224,21): error TS2353: Object literal may only specify known properties, and 'contentType' does not exist in type 'GetUploadUrlForMediaAssetParams'.
+src/app/creator-workbench/page.tsx(402,72): error TS2554: Expected 1 arguments, but got 3.
+src/app/creator-workbench/page.tsx(405,21): error TS2367: This comparison appears to be unintentional because the types '"pending" | "failed" | "processing" | "completed"' and '"success"' have no overlap.
+src/app/creator-workbench/page.tsx(633,39): error TS2339: Property 'error' does not exist on type 'GetTripo3DStatusResult'.
+src/app/creator-workbench/page.tsx(662,30): error TS2339: Property 'data' does not exist on type 'GenerateTripo3DResult'.
+src/app/creator-workbench/page.tsx(662,51): error TS2339: Property 'data' does not exist on type 'GenerateTripo3DResult'.
+src/app/creator-workbench/page.tsx(663,48): error TS2339: Property 'data' does not exist on type 'GenerateTripo3DResult'.
+src/app/creator-workbench/page.tsx(1300,88): error TS2551: Property 'points_balance' does not exist on type 'User'. Did you mean 'pointsBalance'?
+src/app/demand-pool/page.tsx(30,15): error TS2724: '"@/ai/flows/demand-matching"' has no exported member named 'RecommendCreativesOutput'. Did you mean 'recommendCreatives'?
+src/app/demand-pool/page.tsx(44,27): error TS2305: Module '"@/ai/flows/admin-management-flows"' has no exported member 'GetPromptsOutput'.
+src/app/demand-pool/page.tsx(286,13): error TS2561: Object literal may only specify known properties, but 'demand' does not exist in type 'RecommendCreativesParams'. Did you mean to write 'demandId'?
+src/app/demand-pool/page.tsx(289,35): error TS2339: Property 'recommendations' does not exist on type 'RecommendCreativesResult'.
+src/app/designers/page.tsx(10,16): error TS2352: Conversion of type '{ id: string; name: string; skills: string[]; }[]' to type 'User[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ id: string; name: string; skills: string[]; }' is missing the following properties from type 'User': _id, uid, email, role, and 6 more.
+src/app/permissions/page.tsx(296,17): error TS2353: Object literal may only specify known properties, and 'userIds' does not exist in type 'BatchUpdateUsersParams'.
+src/app/permissions/page.tsx(481,19): error TS2304: Cannot find name 'Dialog'.
+src/app/permissions/page.tsx(482,22): error TS2304: Cannot find name 'DialogContent'.
+src/app/permissions/page.tsx(483,26): error TS2304: Cannot find name 'DialogHeader'.
+src/app/permissions/page.tsx(484,30): error TS2304: Cannot find name 'DialogTitle'.
+src/app/permissions/page.tsx(484,77): error TS2304: Cannot find name 'DialogTitle'.
+src/app/permissions/page.tsx(485,30): error TS2304: Cannot find name 'DialogDescription'.
+src/app/permissions/page.tsx(485,60): error TS2304: Cannot find name 'DialogDescription'.
+src/app/permissions/page.tsx(486,27): error TS2304: Cannot find name 'DialogHeader'.
+src/app/permissions/page.tsx(492,26): error TS2304: Cannot find name 'DialogFooter'.
+src/app/permissions/page.tsx(492,169): error TS2304: Cannot find name 'DialogFooter'.
+src/app/permissions/page.tsx(493,23): error TS2304: Cannot find name 'DialogContent'.
+src/app/permissions/page.tsx(494,19): error TS2304: Cannot find name 'Dialog'.
+src/app/points-management/page.tsx(160,66): error TS2339: Property 'amount' does not exist on type 'PointsTransaction'.
+src/app/points-management/page.tsx(160,97): error TS2339: Property 'amount' does not exist on type 'PointsTransaction'.
+src/app/points-management/page.tsx(234,55): error TS2339: Property 'id' does not exist on type 'PointsTransaction'.
+src/app/points-management/page.tsx(235,81): error TS2339: Property 'type' does not exist on type 'PointsTransaction'.
+src/app/points-management/page.tsx(236,69): error TS2339: Property 'amount' does not exist on type 'PointsTransaction'.
+src/app/points-management/page.tsx(236,122): error TS2339: Property 'amount' does not exist on type 'PointsTransaction'.
+src/app/points-management/page.tsx(236,148): error TS2339: Property 'amount' does not exist on type 'PointsTransaction'.
+src/app/points-management/page.tsx(238,99): error TS2339: Property 'timestamp' does not exist on type 'PointsTransaction'.
+src/app/points-management/page.tsx(238,116): error TS2339: Property 'timestamp' does not exist on type 'PointsTransaction'.
+src/app/points-management/page.tsx(238,155): error TS2339: Property 'timestamp' does not exist on type 'PointsTransaction'.
+src/app/points-management/page.tsx(238,209): error TS2339: Property 'timestamp' does not exist on type 'PointsTransaction'.
+src/app/points-management/page.tsx(238,240): error TS2339: Property 'timestamp' does not exist on type 'PointsTransaction'.
+src/app/points-management/page.tsx(284,21): error TS2353: Object literal may only specify known properties, and 'roles' does not exist in type 'GrantPointsToGroupParams'.
+src/app/points-management/page.tsx(289,28): error TS2339: Property 'userCount' does not exist on type 'GrantPointsToGroupResult'.
+src/app/points-management/page.tsx(290,70): error TS2339: Property 'userCount' does not exist on type 'GrantPointsToGroupResult'.
+src/app/points-management/page.tsx(396,67): error TS2339: Property 'type' does not exist on type 'PointsTransaction'.
+src/app/points-management/page.tsx(398,30): error TS2339: Property 'timestamp' does not exist on type 'PointsTransaction'.
+src/app/points-management/page.tsx(398,54): error TS2339: Property 'timestamp' does not exist on type 'PointsTransaction'.
+src/app/points-management/page.tsx(399,30): error TS2339: Property 'timestamp' does not exist on type 'PointsTransaction'.
+src/app/points-management/page.tsx(399,54): error TS2339: Property 'timestamp' does not exist on type 'PointsTransaction'.
+src/app/points-management/page.tsx(426,56): error TS2353: Object literal may only specify known properties, and 'batchId' does not exist in type 'ApproveGrantRequestParams'.
+src/app/points-management/page.tsx(427,24): error TS2339: Property 'alreadyApproved' does not exist on type 'ApproveGrantRequestResult'.
+src/app/points-management/page.tsx(429,31): error TS2339: Property 'approvedCount' does not exist on type 'ApproveGrantRequestResult'.
+src/app/points-management/page.tsx(430,77): error TS2339: Property 'approvedCount' does not exist on type 'ApproveGrantRequestResult'.
+src/app/points-management/page.tsx(493,92): error TS2339: Property 'amount' does not exist on type 'PointsTransaction'.
+src/app/points-management/page.tsx(494,99): error TS2339: Property 'timestamp' does not exist on type 'PointsTransaction'.
+src/app/points-management/page.tsx(494,138): error TS2339: Property 'timestamp' does not exist on type 'PointsTransaction'.
+src/app/points-management/page.tsx(494,192): error TS2339: Property 'timestamp' does not exist on type 'PointsTransaction'.
+src/app/points-management/page.tsx(494,223): error TS2339: Property 'timestamp' does not exist on type 'PointsTransaction'.
+src/app/search/page.tsx(129,53): error TS2353: Object literal may only specify known properties, and 'description' does not exist in type 'GenerateUserProfileParams'.
+src/app/search/page.tsx(130,22): error TS2345: Argument of type 'GenerateUserProfileResult' is not assignable to parameter of type 'SetStateAction<UserProfile | null>'.
+src/app/search/page.tsx(133,21): error TS2353: Object literal may only specify known properties, and 'description' does not exist in type 'GetProductRecommendationsParams'.
+src/app/search/page.tsx(138,29): error TS2345: Argument of type '{ productId: string; name: string; score: number; reason: string; }[]' is not assignable to parameter of type 'SetStateAction<string[]>'.
+  Type '{ productId: string; name: string; score: number; reason: string; }[]' is not assignable to type 'string[]'.
+    Type '{ productId: string; name: string; score: number; reason: string; }' is not assignable to type 'string'.
+src/components/features/chat-dialog.tsx(132,15): error TS2561: Object literal may only specify known properties, but 'demandId' does not exist in type 'ClarifyDemandParams'. Did you mean to write 'demand'?
+src/components/features/chat-dialog.tsx(141,27): error TS2339: Property 'clarification' does not exist on type 'ClarifyDemandResult'.
+src/components/features/chat-dialog.tsx(147,32): error TS2339: Property 'clarification' does not exist on type 'ClarifyDemandResult'.
+src/components/features/data-processor.tsx(11,35): error TS2724: '"@/ai/flows/supplier-data-analysis"' has no exported member named 'EvaluateSellerDataOutput'. Did you mean 'evaluateSellerData'?
+src/components/features/data-processor.tsx(53,49): error TS2353: Object literal may only specify known properties, and 'csvDataUri' does not exist in type 'EvaluateSellerDataParams'.
+src/components/features/data-processor.tsx(54,26): error TS2339: Property 'processedSuppliers' does not exist on type 'EvaluateSellerDataResult'.
+src/components/features/designers-client.tsx(303,31): error TS2339: Property 'message' does not exist on type 'CreatePrivateDemandResult'.
+src/components/features/designers-client.tsx(304,17): error TS2353: Object literal may only specify known properties, and 'requesterId' does not exist in type 'CreatePrivateDemandParams'.
+src/components/features/shopping-assistant.tsx(313,32): error TS2339: Property 'mediaAssetId' does not exist on type 'GetUploadUrlForMediaAssetResult'.
+src/components/features/shopping-assistant.tsx(313,122): error TS2353: Object literal may only specify known properties, and 'contentType' does not exist in type 'GetUploadUrlForMediaAssetParams'.
+src/components/features/shopping-assistant.tsx(366,50): error TS2353: Object literal may only specify known properties, and 'mediaAssetId' does not exist in type 'AnalyzeMediaAssetParams'.
+src/components/features/shopping-assistant.tsx(370,58): error TS2353: Object literal may only specify known properties, and 'description' does not exist in type 'GetProductRecommendationsParams'.
+src/components/layout/app-layout.tsx(7,24): error TS2307: Cannot find module '@/components/layout/header' or its corresponding type declarations.
+src/components/layout/app-layout.tsx(8,25): error TS2307: Cannot find module '@/components/layout/sidebar' or its corresponding type declarations.
+src/components/layout/app-layout.tsx(12,40): error TS2307: Cannot find module '@/components/features/dynamic-video-background' or its corresponding type declarations.
+src/lib/datastore/firebase-points.ts(4,28): error TS2307: Cannot find module '@/lib/firebase-admin' or its corresponding type declarations.
+src/lib/datastore/firebase-points.ts(32,9): error TS2353: Object literal may only specify known properties, and 'uid' does not exist in type 'Omit<PointsTransaction, "id" | "timestamp">'.
+src/lib/datastore/firebase-points.ts(36,27): error TS2551: Property 'llm_action' does not exist on type 'Partial<PointsTransaction>'. Did you mean 'llmAction'?
+src/lib/datastore/tcb-points.ts(70,9): error TS2353: Object literal may only specify known properties, and 'uid' does not exist in type 'Omit<PointsTransaction, "id" | "timestamp">'.
+src/lib/datastore/tcb-points.ts(74,27): error TS2551: Property 'llm_action' does not exist on type 'Partial<PointsTransaction>'. Did you mean 'llmAction'?
+src/lib/firebase.ts(9,10): error TS2305: Module '"firebase/firestore"' has no exported member 'getFirestore'.
+src/lib/repositories/tcb/products.ts(3,15): error TS2305: Module '"@/lib/types"' has no exported member 'Product'.
+src/lib/repositories/tcb/users.ts(45,17): error TS2739: Type 'Query' is missing the following properties from type 'CollectionReference': name, doc, add, aggregate
+src/lib/repositories/tcb/users.ts(105,24): error TS2339: Property 'pagers' does not exist on type 'IGetRes'.
+src/lib/repositories/tcb/users.ts(124,17): error TS2739: Type 'Query' is missing the following properties from type 'CollectionReference': name, doc, add, aggregate
+src/lib/repositories/tcb/users.ts(127,43): error TS2554: Expected 2 arguments, but got 1.
+src/lib/repositories/tcb/users.ts(132,25): error TS2339: Property 'startAfter' does not exist on type 'Query'.
+src/lib/repositories/tcb/users.ts(132,59): error TS2339: Property 'startAfter' does not exist on type 'Query'.
+src/lib/repositories/tcb/users.ts(142,81): error TS2339: Property 'id' does not exist on type 'User'.
+src/lib/repositories/tcb/users.ts(143,47): error TS2339: Property 'pagers' does not exist on type 'IGetRes'.
+src/lib/repositories/users.ts(80,5): error TS2561: Object literal may only specify known properties, but 'points_balance' does not exist in type 'User'. Did you mean to write 'pointsBalance'?
+src/lib/services/auth.ts(37,11): error TS2416: Property 'onAuthStateChanged' in type 'AuthProxy' is not assignable to the same property in base type 'AuthService'.
+  Type '(callback: (user: User | null, role: Role | null) => void) => Promise<() => void>' is not assignable to type '(callback: (user: User | null, role: Role | null) => void) => () => void'.
+    Type 'Promise<() => void>' is not assignable to type '() => void'.
+      Type 'Promise<() => void>' provides no match for the signature '(): void'.
+src/lib/tcb-admin.ts(47,64): error TS2554: Expected 1 arguments, but got 3.

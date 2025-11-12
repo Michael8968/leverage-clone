@@ -5,7 +5,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { db, dbType } from '@/lib/services/db';
+import { getDb } from '@/lib/services/db';
 
 const COLLECTION_NAME = 'availabilities';
 
@@ -22,29 +22,11 @@ export async function GET(req: Request) {
             return NextResponse.json({ error: 'userId is required' }, { status: 400 });
         }
 
+        const db = getDb();
         let availability = { slots: [] };
-        if (dbType === 'firestore') {
-            const { doc, getDoc, Timestamp } = await import('firebase/firestore');
-            const docRef = doc(db, COLLECTION_NAME, userId);
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                availability = {
-                    ...data,
-                    slots: (data.slots || []).map((slot: any) => 
-                        slot instanceof Timestamp ? slot.toDate().toISOString() : slot
-                    )
-                };
-            }
-        } else if (dbType === 'tcb') {
-            const doc = db.collection(COLLECTION_NAME).doc(userId);
-            const snapshot = await doc.get();
-            if (snapshot.data && snapshot.data.length > 0) {
-                 availability = snapshot.data[0];
-            } else {
-                 // Return a default structure if not found
-                 availability = { slots: [] };
-            }
+        const snapshot = await db.collection(COLLECTION_NAME).doc(userId).get();
+        if (snapshot?.data && snapshot.data.length > 0) {
+            availability = snapshot.data[0];
         }
 
         return NextResponse.json(availability);
@@ -72,22 +54,14 @@ export async function PUT(req: Request) {
             return NextResponse.json({ error: 'slots must be an array' }, { status: 400 });
         }
 
-        if (dbType === 'firestore') {
-            const { doc, setDoc, Timestamp } = await import('firebase/firestore');
-            // Firestore can handle native Date objects, but we'll convert to Timestamps for consistency.
-            const slotsToStore = slots.map(slot => Timestamp.fromDate(new Date(slot)));
-            await setDoc(doc(db, COLLECTION_NAME, userId), { slots: slotsToStore }, { merge: true });
-        } else if (dbType === 'tcb') {
-            // TCB expects native Date objects
-            const slotsToStore = slots.map(slot => new Date(slot));
-            // Use update with upsert-like logic for TCB
-            const collection = db.collection(COLLECTION_NAME);
-            const countResult = await collection.doc(userId).count();
-            if (countResult.total > 0) {
-                await collection.doc(userId).update({ slots: slotsToStore });
-            } else {
-                await collection.add({ _id: userId, slots: slotsToStore });
-            }
+        const db = getDb();
+        const slotsToStore = slots.map(slot => new Date(slot));
+        const collection = db.collection(COLLECTION_NAME);
+        const countResult = await collection.doc(userId).count();
+        if (countResult?.total > 0) {
+            await collection.doc(userId).update({ slots: slotsToStore });
+        } else {
+            await collection.add({ _id: userId, slots: slotsToStore });
         }
 
         return NextResponse.json({ success: true, userId, slots });

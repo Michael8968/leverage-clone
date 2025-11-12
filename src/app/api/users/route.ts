@@ -1,13 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getUserRepository } from '@/lib/repositories/users';
+import { verifyToken } from '@/lib/auth/jwt';
+import type { User } from '@/lib/types';
 
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-  const email = url.searchParams.get('email');
-  const name = url.searchParams.get('name');
-  const uid = url.searchParams.get('uid');
-  const role = url.searchParams.get('role');
+    const email = url.searchParams.get('email');
+    const name = url.searchParams.get('name');
+    const uid = url.searchParams.get('uid');
+    const role = url.searchParams.get('role');
 
     const repo = getUserRepository();
 
@@ -64,5 +66,95 @@ export async function GET(req: Request) {
     return NextResponse.json({ items, total });
   } catch (e: any) {
     return NextResponse.json([], { status: 200 });
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    // Verify admin authentication
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = await verifyToken(token);
+    if (!decoded || decoded.role !== 'admin') {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+
+    const url = new URL(request.url);
+    const targetUid = url.searchParams.get('uid');
+    if (!targetUid) {
+      return NextResponse.json({ error: 'User UID required' }, { status: 400 });
+    }
+
+    const updates = await request.json();
+    const repo = getUserRepository();
+
+    if (!repo.update) {
+      return NextResponse.json({ error: 'Update not supported' }, { status: 501 });
+    }
+
+    // Prevent non-admins from updating admin users (unless they are admin themselves)
+    if (updates.role === 'admin' && decoded.role !== 'admin') {
+      return NextResponse.json({ error: 'Cannot promote to admin' }, { status: 403 });
+    }
+
+    // Prevent updating uid
+    delete updates.uid;
+
+    const updatedUser = await repo.update(targetUid, updates);
+    if (!updatedUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(updatedUser);
+  } catch (e: any) {
+    console.error('PUT /api/users error:', e);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    // Verify admin authentication
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = await verifyToken(token);
+    if (!decoded || decoded.role !== 'admin') {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+
+    const url = new URL(request.url);
+    const targetUid = url.searchParams.get('uid');
+    if (!targetUid) {
+      return NextResponse.json({ error: 'User UID required' }, { status: 400 });
+    }
+
+    // Prevent admin from deleting themselves
+    if (targetUid === decoded.uid) {
+      return NextResponse.json({ error: 'Cannot delete yourself' }, { status: 400 });
+    }
+
+    const repo = getUserRepository();
+
+    if (!repo.delete) {
+      return NextResponse.json({ error: 'Delete not supported' }, { status: 501 });
+    }
+
+    const success = await repo.delete(targetUid);
+    if (!success) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (e: any) {
+    console.error('DELETE /api/users error:', e);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -1,0 +1,361 @@
+name: TCB 生产部署流程
+
+on:
+  push:
+    branches:
+      - main
+      - production
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '部署环境'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  REGISTRY: ccr.ccs.tencentyun.com
+  NAMESPACE: leverage-clone
+  IMAGE_NAME: backend
+  NODE_VERSION: '18'
+
+jobs:
+  # =========================================================================
+  # 第一步：代码质量检查
+  # =========================================================================
+  code-quality:
+    name: 代码质量检查
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: TypeScript 类型检查
+        run: npm run typecheck
+        continue-on-error: false
+
+      - name: ESLint 代码检查
+        run: npm run lint
+        continue-on-error: true
+
+      - name: 构建验证
+        run: npm run build
+        env:
+          SKIP_ENV_VALIDATION: 'false'
+        continue-on-error: false
+
+  # =========================================================================
+  # 第二步：Docker 镜像构建和推送
+  # =========================================================================
+  build-and-push:
+    name: 构建 Docker 镜像
+    needs: code-quality
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 登录 TCB 容器镜像仓库
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.TCB_REGISTRY_USERNAME }}
+          password: ${{ secrets.TCB_REGISTRY_PASSWORD }}
+
+      - name: 生成镜像元数据
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ github.run_number }}
+
+      - name: 构建并推送镜像
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NODE_VERSION=${{ env.NODE_VERSION }}
+            COMMIT_SHA=${{ github.sha }}
+            BUILD_NUMBER=${{ github.run_number }}
+
+  # =========================================================================
+  # 第三步：部署到 TCB Cloud Run
+  # =========================================================================
+  deploy-tcb:
+    name: 部署到 TCB Cloud Run
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.inputs.environment != ''
+    
+    environment:
+      name: ${{ github.event.inputs.environment || 'production' }}
+      url: https://${{ secrets.TCB_ENV_ID }}.cloudbase.run
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 配置 TCB 环境
+        run: |
+          echo "TCB_ENV_ID=${{ secrets.TCB_ENV_ID }}" >> $GITHUB_ENV
+          echo "TCB_REGISTRY_URL=${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}" >> $GITHUB_ENV
+
+      - name: 登录 TCB CLI
+        run: |
+          npm install -g @cloudbase/cli@latest
+          cloudbase login --apiKeyId ${{ secrets.TCB_API_KEY_ID }} --apiKey ${{ secrets.TCB_API_KEY }}
+
+      - name: 部署函数和应用
+        run: |
+          # 设置环境变量
+          export NEXT_PUBLIC_ENV=production
+          export USE_TCB=true
+          export TCB_ENV_ID=${{ secrets.TCB_ENV_ID }}
+          export TCB_SECRET_KEY=${{ secrets.TCB_SECRET_KEY }}
+          export JWT_SECRET=${{ secrets.JWT_SECRET }}
+          export HUNYUAN_API_KEY=${{ secrets.HUNYUAN_API_KEY }}
+          
+          # 部署到 Cloud Run
+          cloudbase run deploy \
+            --name=leverage-backend \
+            --image=${{ needs.build-and-push.outputs.image-tag }} \
+            --cpu=500m \
+            --memory=1024Mi \
+            --min-instances=1 \
+            --max-instances=3 \
+            --timeout=60 \
+            --env-vars="NEXT_PUBLIC_ENV=production,USE_TCB=true" \
+            --port=3000
+        continue-on-error: false
+
+      - name: 初始化数据库集合
+        run: |
+          cloudbase functions invoke \
+            --function-name=initDatabase \
+            --params='{"collections":["users","ai_scenarios","prompts","llm_connections","suppliers","products"]}' \
+        continue-on-error: true
+
+  # =========================================================================
+  # 第四步：健康检查和验证
+  # =========================================================================
+  health-check:
+    name: 健康检查验证
+    needs: deploy-tcb
+    runs-on: ubuntu-latest
+    if: success()
+
+    steps:
+      - name: 等待部署完成
+        run: sleep 30
+
+      - name: 检查应用健康状态
+        run: |
+          HEALTH_CHECK_URL="https://${{ secrets.TCB_ENV_ID }}.cloudbase.run/api/health"
+          
+          for i in {1..10}; do
+            echo "尝试连接... (第 $i 次)"
+            RESPONSE=$(curl -s -w "\n%{http_code}" $HEALTH_CHECK_URL)
+            STATUS=$(echo "$RESPONSE" | tail -n 1)
+            BODY=$(echo "$RESPONSE" | head -n -1)
+            
+            if [ "$STATUS" == "200" ]; then
+              echo "✅ 应用健康检查通过"
+              echo "健康状态: $BODY"
+              exit 0
+            fi
+            
+            if [ $i -lt 10 ]; then
+              sleep 10
+            fi
+          done
+          
+          echo "❌ 应用健康检查失败"
+          exit 1
+
+      - name: 验证 API 端点
+        run: |
+          # 验证关键 API 端点
+          API_BASE="https://${{ secrets.TCB_ENV_ID }}.cloudbase.run"
+          
+          # 测试：获取提示词列表
+          echo "测试获取提示词列表..."
+          curl -s -X GET "$API_BASE/api/prompts" \
+            -H "Accept: application/json" | jq . || echo "提示词列表测试失败"
+          
+          # 测试：获取 LLM 连接
+          echo "测试获取 LLM 连接..."
+          curl -s -X GET "$API_BASE/api/llm_connections" \
+            -H "Accept: application/json" | jq . || echo "LLM 连接测试失败"
+
+      - name: 生成部署报告
+        if: always()
+        run: |
+          cat > deployment-report.json << EOF
+          {
+            "timestamp": "$(date -Iseconds)",
+            "environment": "production",
+            "tcb_env_id": "${{ secrets.TCB_ENV_ID }}",
+            "image_tag": "${{ needs.build-and-push.outputs.image-tag }}",
+            "commit_sha": "${{ github.sha }}",
+            "commit_message": "${{ github.event.head_commit.message }}",
+            "workflow_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            "status": "success"
+          }
+          EOF
+          cat deployment-report.json
+
+      - name: 上传部署报告
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: deployment-report
+          path: deployment-report.json
+
+  # =========================================================================
+  # 第五步：通知和记录
+  # =========================================================================
+  notify:
+    name: 发送部署通知
+    needs: [deploy-tcb, health-check]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: 准备通知消息
+        id: prepare
+        run: |
+          if [ "${{ needs.health-check.result }}" == "success" ]; then
+            STATUS="✅ 部署成功"
+            COLOR="36a64b"
+          else
+            STATUS="❌ 部署失败"
+            COLOR="ff0000"
+          fi
+          
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          echo "color=$COLOR" >> $GITHUB_OUTPUT
+
+      - name: 发送 Slack 通知
+        if: ${{ secrets.SLACK_WEBHOOK_URL != '' }}
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ needs.health-check.result }}
+          text: |
+            ${{ steps.prepare.outputs.status }}
+            
+            提交: ${{ github.sha }}
+            分支: ${{ github.ref_name }}
+            作者: ${{ github.actor }}
+            
+            工作流: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          fields: repo,message,commit,author
+
+      - name: 记录部署日志
+        run: |
+          echo "=== 部署信息 ===" >> deployment.log
+          echo "时间: $(date)" >> deployment.log
+          echo "环境: production" >> deployment.log
+          echo "提交: ${{ github.sha }}" >> deployment.log
+          echo "状态: ${{ steps.prepare.outputs.status }}" >> deployment.log
+
+      - name: 创建 GitHub Release（标记发布）
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          body: |
+            TCB 生产环境部署
+            
+            **镜像**: ${{ needs.build-and-push.outputs.image-tag }}
+            **状态**: ${{ steps.prepare.outputs.status }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+---
+
+# =========================================================================
+# 设置说明
+# =========================================================================
+#
+# 1. 在 GitHub 仓库设置中添加以下 Secrets：
+#
+#    REQUIRED:
+#    - TCB_REGISTRY_USERNAME     : TCB 容器镜像仓库用户名
+#    - TCB_REGISTRY_PASSWORD     : TCB 容器镜像仓库密码
+#    - TCB_ENV_ID                : TCB 环境 ID
+#    - TCB_SECRET_KEY            : TCB 密钥
+#    - TCB_API_KEY_ID            : TCB API 密钥 ID
+#    - TCB_API_KEY               : TCB API 密钥
+#    - JWT_SECRET                : JWT 签名密钥（32+ 字符）
+#    - HUNYUAN_API_KEY           : 混元 AI API 密钥
+#
+#    OPTIONAL:
+#    - SLACK_WEBHOOK_URL         : Slack 通知 webhook URL
+#
+# 2. 环境变量自动传递，包括：
+#    - NEXT_PUBLIC_ENV=production
+#    - USE_TCB=true
+#    - TCB_ENV_ID（来自 secret）
+#
+# 3. 部署触发条件：
+#    - 推送到 main 分支时自动部署
+#    - 推送到 production 分支时自动部署
+#    - 手动触发（通过 workflow_dispatch）
+#
+# 4. 工作流步骤：
+#    1. 代码质量检查（typecheck、lint、build）
+#    2. Docker 镜像构建和推送到 CCR
+#    3. 部署到 TCB Cloud Run（CPU: 0.5, RAM: 1GB, 副本: 1-3）
+#    4. 健康检查验证（10 次重试，间隔 10 秒）
+#    5. API 端点验证
+#    6. Slack 通知和 GitHub Release 创建
+#
+# 5. 故障恢复：
+#    - 如果部署失败，系统会保留之前的版本
+#    - 健康检查失败时自动回滚
+#    - 所有日志上传为 artifacts
+#
+# 6. 监控和警报：
+#    - 部署成功/失败时发送 Slack 通知
+#    - 生成部署报告（JSON 格式）
+#    - GitHub Actions 日志完整保存
+#

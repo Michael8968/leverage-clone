@@ -52,10 +52,7 @@ const nextConfig = {
       '@/store': require('path').resolve(__dirname, 'src/store'),
       '@/types': require('path').resolve(__dirname, 'src/types'),
       '@/utils': require('path').resolve(__dirname, 'src/utils'),
-      // 将 Firestore 运行时映射到我们的 CloudBase 兼容层
-      'firebase/firestore': require('path').resolve(__dirname, 'src/lib/cloudbase-compat.ts'),
-  // Route firebase-admin to our stub for tracing if it's ever imported
-  'firebase-admin': require('path').resolve(__dirname, 'src/stubs/firebase-admin-stub.ts'),
+    // Firebase & Firestore removed post-migration. Aliases cleaned.
     };
 
     // 在客户端构建中屏蔽 Node 专用 SDK，避免引入 fs/net/tls 依赖
@@ -117,7 +114,9 @@ const nextConfig = {
     // --- Variables for TCB migration ---
     NEXT_PUBLIC_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_TCB_ENV_ID: process.env.TCB_ENV_ID,
-    
+    // Use TCB auth by default in production
+    NEXT_PUBLIC_USE_TCB_AUTH: process.env.NEXT_PUBLIC_USE_TCB_AUTH || (isProd ? 'true' : 'false'),
+
     // --- Existing variables ---
     NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: process.env.FIREBASE_STORAGE_BUCKET,
     // DO NOT expose Firebase Admin credentials to client/server bundle.

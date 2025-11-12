@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     }
 
     const repo = getPointsRepository();
-    await repo.addTransaction({ uid, type: 'recharge', amount, reason: 'recharge', status: 'pending' });
+    await repo.addTransaction({ userId: uid, transactionType: 'recharge', pointsChange: amount, reason: 'recharge', status: 'pending' } as any);
     return NextResponse.json({ success: true, uid, amount }, { status: 201 });
   } catch (e: any) {
     return NextResponse.json({ error: String(e?.message || e) }, { status: 500 });

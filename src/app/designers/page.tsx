@@ -7,7 +7,7 @@ import type { User } from '@/lib/types';
 async function getInitialDesigners() {
     try {
         const { designers } = await getDesigners();
-        return designers as User[];
+        return designers as unknown as User[];
     } catch (error) {
         console.error("Failed to fetch initial designers on the server:", error);
         return [];

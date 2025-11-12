@@ -7,6 +7,7 @@
 **✅ 生产环境已部署上线**
 
 - **部署日期**: 2025年11月10-11日
+- **最新更新**: 2025年11月12日 - 添加管理员用户管理系统
 - **部署环境**: 腾讯云 CloudBase 云托管
 - **部署分支**: `tcb-cloudrun-fullstack-ready`
 - **运行状态**: 生产环境稳定运行中
@@ -15,6 +16,7 @@
 - [生产部署成功记录](./PRODUCTION_DEPLOYMENT_SUCCESS.md)
 - [TCB 云托管部署方案](./TCB_DEPLOYMENT_SOLUTION.md)
 - [健康检查配置指南](./TCB_HEALTH_CHECK_FIX.md)
+- [开发笔记 - 最新管理员系统](./DEVELOPMENT_NOTES.md)
 
 ## 核心技术栈
 
@@ -264,25 +266,123 @@ npm run health-check
 ```
 ├── src/                    # 源代码
 │   ├── app/               # Next.js App Router
+│   │   ├── api/          # API路由
+│   │   │   ├── users/    # 用户管理API (新增PUT/DELETE)
+│   │   │   └── auth/     # 认证API (增强的管理员注册)
+│   │   └── register/     # 注册页面 (智能表单)
 │   ├── components/        # React组件
 │   ├── lib/              # 工具库
-│   └── ai/               # AI相关代码
+│   │   ├── auth/        # JWT认证模块 (新增)
+│   │   ├── repositories/ # 数据层接口
+│   │   │   ├── users.ts        # 用户Repository
+│   │   │   └── tcb/            # TCB实现
+│   │   └── tcb.ts       # TCB初始化
+│   ├── ai/               # AI相关代码
+│   └── types/            # 类型定义
 ├── scripts/              # 构建和部署脚本
 ├── data/                 # 测试数据
 ├── public/               # 静态资源
 └── docs/                 # 文档
 ```
 
+## 管理员用户管理系统 (新增 v1.1)
+
+### 核心功能
+
+#### 1. **JWT认证模块** (`src/lib/auth/jwt.ts`)
+- Token生成和验证
+- 支持7天有效期
+- 集成所有管理员操作
+
+#### 2. **用户管理API** (`src/app/api/users/route.ts`)
+- **GET**: 列表查询、精确查询、模糊搜索、分页
+- **PUT**: 更新用户信息 (仅管理员)
+- **DELETE**: 删除用户账户 (仅管理员，防自删)
+
+#### 3. **增强的管理员注册** (`src/app/api/auth/register/route.ts`)
+- 首个管理员可自注册
+- 后续管理员需由现有管理员授权
+- 最多10个管理员上限
+- JWT token验证
+
+#### 4. **智能注册表单** (`src/app/register/page.tsx`)
+- 动态显示admin选项 (仅管理员可见)
+- 管理员创建模式
+- 自动包含Authorization header
+
+#### 5. **权限管理UI** (`src/app/permissions/page.tsx`)
+- 用户删除功能 (带确认对话框)
+- 自我保护 (管理员不能删除自己)
+- 完善的错误处理
+
+### 使用示例
+
+**创建管理员** (首个):
+```bash
+POST /api/auth/register
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "secure_password",
+  "name": "Admin User",
+  "role": "admin"
+}
+```
+
+**创建管理员** (由现有管理员):
+```bash
+POST /api/auth/register
+Authorization: Bearer {admin_token}
+Content-Type: application/json
+
+{
+  "email": "admin2@example.com",
+  "password": "secure_password",
+  "name": "Second Admin",
+  "role": "admin"
+}
+```
+
+**更新用户**:
+```bash
+PUT /api/users?uid=u_123456
+Authorization: Bearer {admin_token}
+Content-Type: application/json
+
+{
+  "role": "creator",
+  "status": "active"
+}
+```
+
+**删除用户**:
+```bash
+DELETE /api/users?uid=u_123456
+Authorization: Bearer {admin_token}
+```
+
+### 安全特性
+
+- ✅ JWT token认证 (每个管理操作)
+- ✅ 角色检查 (仅admin可操作)
+- ✅ 自我保护 (管理员不能自删)
+- ✅ UID不可修改 (身份保护)
+- ✅ 管理员数量限制 (最多10个)
+- ✅ 操作日志 (控制台记录)
+
 ## 数据库设计
 
 项目使用TCB云数据库，核心集合包括：
-- `users` - 用户数据
+- `users` - 用户数据 (支持新的Repository接口)
 - `products` - 产品数据
 - `demands` - 需求数据
 - `suppliers` - 供应商数据
 - `prompts` - 提示词数据
 
 详细的数据库迁移和验证流程请参考 `DATABASE_MIGRATION_WORKFLOW_README.md`。
+
+更新日志请参考 `DEVELOPMENT_NOTES.md` 中的管理员系统实现部分。
 
 ## 开发脚本
 

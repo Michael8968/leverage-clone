@@ -66,7 +66,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
-import { useTheme } from 'next-themes';
+import { useTheme } from '@/hooks/useTheme';
 import { Switch } from './ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { updateUserStatus } from '@/ai/flows/user-management-flows';
@@ -98,7 +98,7 @@ const navItems: NavItem[] = [
 ];
 
 function ThemeToggle() {
-  const { setTheme } = useTheme();
+  const { setTheme, theme } = useTheme();
 
   return (
     <DropdownMenuSub>
@@ -108,22 +108,26 @@ function ThemeToggle() {
       </DropdownMenuSubTrigger>
       <DropdownMenuPortal>
         <DropdownMenuSubContent>
-          <DropdownMenuItem onClick={() => setTheme("light")}>
+          <DropdownMenuItem 
+            onClick={() => setTheme("light")}
+            className={theme === 'light' ? 'bg-accent' : ''}
+          >
             <Sun className="mr-2 h-4 w-4" />
             <span>明亮</span>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setTheme("dark")}>
+          <DropdownMenuItem 
+            onClick={() => setTheme("dark")}
+            className={theme === 'dark' ? 'bg-accent' : ''}
+          >
             <Moon className="mr-2 h-4 w-4" />
             <span>暗黑</span>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setTheme("gradient")}>
+          <DropdownMenuItem 
+            onClick={() => setTheme("gradient")}
+            className={theme === 'gradient' ? 'bg-accent' : ''}
+          >
             <Sparkles className="mr-2 h-4 w-4" />
             <span>渐变</span>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => setTheme("system")}>
-            <Laptop className="mr-2 h-4 w-4" />
-            <span>系统默认</span>
           </DropdownMenuItem>
         </DropdownMenuSubContent>
       </DropdownMenuPortal>
@@ -247,7 +251,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                             <span className="text-xs text-muted-foreground">{user?.email}</span>
                              <div className="text-xs text-muted-foreground flex items-center gap-1">
                                 <Coins className="w-3 h-3 text-amber-500" />
-                                <span>{user?.points_balance?.toLocaleString() || 0} 积分</span>
+                                <span>{user?.pointsBalance?.toLocaleString() || 0} 积分</span>
                             </div>
                         </div>
                     </div>

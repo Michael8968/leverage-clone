@@ -5,7 +5,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { db, dbType } from '@/lib/services/db';
+import { getDb } from '@/lib/services/db';
 
 const COLLECTION_NAME = 'users';
 
@@ -38,14 +38,8 @@ export async function PUT(req: Request) {
             return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
         }
 
-        if (dbType === 'firestore') {
-            const { doc, updateDoc } = await import('firebase/firestore');
-            const userRef = doc(db, COLLECTION_NAME, userId);
-            await updateDoc(userRef, dataToUpdate);
-        } else if (dbType === 'tcb') {
-            const userRef = db.collection(COLLECTION_NAME).doc(userId);
-            await userRef.update(dataToUpdate);
-        }
+        const db = getDb();
+        await db.collection(COLLECTION_NAME).doc(userId).update(dataToUpdate);
 
         return NextResponse.json({ success: true, userId, ...dataToUpdate });
     } catch (error: any) {

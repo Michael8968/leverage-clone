@@ -5,7 +5,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { db, dbType } from '@/lib/services/db';
+import { getDb } from '@/lib/services/db';
 
 const COLLECTION_NAME = 'demands';
 
@@ -22,16 +22,9 @@ function getIdFromRequest(req: Request): string | null {
  */
 export async function GET(req: Request) {
     try {
-        let demands: any[] = [];
-        if (dbType === 'firestore') {
-            const { collection, query, where, getDocs } = await import('firebase/firestore');
-            const q = query(collection(db, COLLECTION_NAME), where('status', '==', '开放中'));
-            const snapshot = await getDocs(q);
-            demands = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        } else if (dbType === 'tcb') {
-            const snapshot = await db.collection(COLLECTION_NAME).where({ status: '开放中' }).get();
-            demands = snapshot.data.map((item: any) => ({ ...item, id: item._id }));
-        }
+        const db = getDb();
+        const snapshot = await db.collection(COLLECTION_NAME).where({ status: '开放中' }).get();
+        const demands = (snapshot?.data || []).map((item: any) => ({ ...item, id: item._id || item.id }));
         return NextResponse.json(demands);
     } catch (error: any) {
         console.error('[API /demands GET] Error:', error);
@@ -61,12 +54,8 @@ export async function PUT(req: Request) {
             return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
         }
 
-        if (dbType === 'firestore') {
-            const { doc, updateDoc } = await import('firebase/firestore');
-            await updateDoc(doc(db, COLLECTION_NAME, id), dataToUpdate);
-        } else if (dbType === 'tcb') {
-            await db.collection(COLLECTION_NAME).doc(id).update(dataToUpdate);
-        }
+        const db = getDb();
+        await db.collection(COLLECTION_NAME).doc(id).update(dataToUpdate);
 
         return NextResponse.json({ success: true, id, ...dataToUpdate });
     } catch (error: any) {

@@ -4,6 +4,7 @@
  * @description API endpoint for checking the status of a 3D model generation task.
  */
 
+import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 // A mock function to simulate fetching the status from an external 3D model generation API.
@@ -50,9 +51,9 @@ async function getTaskStatus(provider: string, taskId: string, apiKey: string): 
  * GET /api/3d-models/[taskId]
  * Checks the status of a 3D model generation task.
  */
-export async function GET(req: Request, { params }: { params: { taskId: string } }) {
+export async function GET(req: NextRequest, context: { params: Promise<{ taskId: string }> }) {
     try {
-        const { taskId } = params;
+        const { taskId } = await context.params;
         const { searchParams } = new URL(req.url);
         const provider = searchParams.get('provider');
         const apiKey = searchParams.get('apiKey'); // The personal API key if provided

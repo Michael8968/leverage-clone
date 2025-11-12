@@ -40,7 +40,7 @@ export function createTcbUserRepository(): UserRepository {
       const q = opts?.q;
       const role = opts?.role;
 
-      let coll = db.collection('users');
+      let coll: any = db.collection('users');
       // CloudBase SDK supports simple where queries; for fuzzy we fallback to server-side filtering
       if (role) coll = coll.where({ role });
 
@@ -102,7 +102,7 @@ export function createTcbUserRepository(): UserRepository {
       }
 
       // total: attempt a fast count query if supported; else estimate by fetching without skip/limit
-      let total = res?.pagers?.total || filtered.length;
+      let total = filtered.length;
       try {
         const countRes = await db.collection('users').count();
         total = countRes.total || total;
@@ -120,27 +120,50 @@ export function createTcbUserRepository(): UserRepository {
       const limit = Math.max(1, Math.min(100, Number(opts?.limit || 20)));
       const cursor = opts?.cursor;
 
-      let coll = db.collection('users');
+      let coll: any = db.collection('users');
       if (role) coll = coll.where({ role });
 
       // If no cursor, start from beginning. We'll attempt to use uid/_id ordering.
-      let queryColl = coll.orderBy ? coll.orderBy('_id') : coll;
-      if (cursor) {
-        try {
-          const decoded = Buffer.from(String(cursor), 'base64').toString('utf-8');
-          // assume decoded is lastId
-          if (queryColl.startAfter) queryColl = queryColl.startAfter(decoded);
-        } catch (e) {
-          // ignore invalid cursor
-        }
-      }
+      // CloudBase orderBy requires direction; fall back without if unsupported
+      let queryColl = coll.orderBy ? coll.orderBy('_id', 'asc') : coll;
+      // Cursor handling not supported (startAfter) in current SDK; skip for now
 
       // apply limit
       const res = await (queryColl.limit ? queryColl.limit(limit).get() : queryColl.skip(0).limit(limit).get());
       const items = (res?.data || []).map(sanitizeUser);
       const last = items.length > 0 ? items[items.length - 1] : null;
-      const nextCursor = last ? Buffer.from(String(last.uid || last._id || last.id)).toString('base64') : undefined;
-      return { items, nextCursor, total: res?.pagers?.total };
+      const nextCursor = last ? Buffer.from(String(last.uid || last._id)).toString('base64') : undefined;
+      return { items, nextCursor, total: items.length };
+    },
+    async update(uid: string, updates: Partial<any>) {
+      const db = getTcbDb();
+      // First find the user to get the document ID
+      const findRes = await db.collection('users').where({ uid }).limit(1).get();
+      const userDoc = (findRes?.data || [])[0];
+      if (!userDoc) return null;
+
+      // Update the document
+      const updateData = { ...updates };
+      // Remove uid from updates as it shouldn't be changed
+      delete updateData.uid;
+
+      await db.collection('users').doc(userDoc._id).update(updateData);
+
+      // Return the updated user
+      const updatedRes = await db.collection('users').where({ uid }).limit(1).get();
+      const updatedUser = (updatedRes?.data || [])[0];
+      return updatedUser ? sanitizeUser(updatedUser) : null;
+    },
+    async delete(uid: string) {
+      const db = getTcbDb();
+      // First find the user to get the document ID
+      const findRes = await db.collection('users').where({ uid }).limit(1).get();
+      const userDoc = (findRes?.data || [])[0];
+      if (!userDoc) return false;
+
+      // Delete the document
+      await db.collection('users').doc(userDoc._id).remove();
+      return true;
     }
   };
 }

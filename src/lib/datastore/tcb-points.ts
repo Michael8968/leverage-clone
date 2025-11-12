@@ -47,7 +47,7 @@ export function createTcbPointsStore(): PointsStore {
       const res = await db.collection('users').doc(userId).get();
       const doc = res?.data?.[0];
       if (!doc) return null;
-      return typeof doc.points_balance === 'number' ? doc.points_balance : 0;
+      return typeof doc.pointsBalance === 'number' ? doc.pointsBalance : 0;
     },
     async deduct(userId: string, amount: number, reason: string, meta?: Partial<PointsTransaction>) {
       // Check balance first
@@ -62,22 +62,22 @@ export function createTcbPointsStore(): PointsStore {
 
       // Deduct points
       await db.collection('users').doc(userId).update({
-        points_balance: _.inc(-amount),
+        pointsBalance: _.inc(-amount),
       });
 
       // Record transaction
-      const transaction: Omit<PointsTransaction, 'id' | 'timestamp'> = {
-        uid: userId,
-        type: 'deduct',
-        amount: -amount,
+      const transaction: Omit<PointsTransaction, '_id' | 'createdAt'> = {
+        userId,
+        transactionType: 'deduct',
+        pointsChange: -amount,
         reason,
-        llm_action: meta?.llm_action || 'prompt_execution',
+        llmAction: meta?.llmAction || 'prompt_execution',
         status: 'approved',
         approvers: [],
       };
       await db.collection('points_transactions').add({
         ...transaction,
-        timestamp: db.serverDate(),
+        createdAt: db.serverDate ? db.serverDate() : new Date(),
       });
     },
   };

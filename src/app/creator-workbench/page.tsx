@@ -218,10 +218,10 @@ function SubmissionForm({
                 const fileName = `${values.name.replace(/\s+/g, '-')}-${Date.now()}.png`;
                 const imageFile = await dataUriToFile(imageUrl, fileName);
 
-                const { uploadUrl, mediaAssetId } = await getUploadUrlForMediaAsset({
+                const { uploadUrl, assetId } = await getUploadUrlForMediaAsset({
                     userId: user.uid,
                     fileName: imageFile.name,
-                    contentType: imageFile.type,
+                    fileType: imageFile.type,
                 });
 
                 // Step 2: Upload the file to Firebase Storage
@@ -235,8 +235,8 @@ function SubmissionForm({
                         // 构造 TCB/COS 访问 URL：优先使用环境变量配置的公开域名
                         const publicBase = process.env.NEXT_PUBLIC_TCB_PUBLIC_BASE || process.env.NEXT_PUBLIC_ASSETS_BASE;
                         const publicUrl = publicBase
-                            ? `${publicBase.replace(/\/$/, '')}/media_assets/${user.uid}/${mediaAssetId}-${imageFile.name}`
-                            : `/media/media_assets/${user.uid}/${mediaAssetId}-${imageFile.name}`;
+                            ? `${publicBase.replace(/\/$/, '')}/media_assets/${user.uid}/${assetId}-${imageFile.name}`
+                            : `/media/media_assets/${user.uid}/${assetId}-${imageFile.name}`;
 
                 // Step 4: Save the product data with the public URL to CloudBase
                 await addDoc(collection('products') as any, {
@@ -399,10 +399,10 @@ function Universal3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: ()
     const pollTaskStatus = useCallback(async (currentTaskId: string, provider: string, apiKey?: string) => {
         const interval = setInterval(async () => {
             try {
-                const data = await get3DModelTaskStatus(currentTaskId, provider, apiKey);
+                const data = await get3DModelTaskStatus({ taskId: currentTaskId, providerId: provider });
                 setTaskStatus(data);
 
-                if (data.status === 'success' || data.status === 'failed') {
+                if (data.status === 'completed' || data.status === 'failed') {
                     clearInterval(interval);
                     setIsGenerating(false);
                     if (data.status === 'failed') {
@@ -625,12 +625,12 @@ function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
                 const data = await getTripo3dModelStatus({ taskId: currentTaskId, apiKey: currentApiKey });
                 setTaskStatus(data);
 
-                if (data.status === 'success' || data.status === 'failed') {
+                if (data.status === 'completed' || data.status === 'failed') {
                     clearInterval(interval);
-                    if(data.status === 'success') {
+                    if(data.status === 'completed') {
                         setTaskId(null); // Clear task ID for next generation
                     } else {
-                        setError(data.error || '任务生成失败，请检查提示词或API Key。');
+                        setError('任务生成失败，请检查提示词或API Key。');
                     }
                 }
             } catch (err: any) {
@@ -659,15 +659,15 @@ function Tripo3DGenerator({ onSubmissionSuccess }: { onSubmissionSuccess: () => 
 
         try {
             const responseData = await generateTripo3dModel({ prompt, apiKey: apiKeyToUse });
-            if (responseData.data && responseData.data.task_id) {
-                const newTaskId = responseData.data.task_id;
+            if (responseData.task_id) {
+                const newTaskId = responseData.task_id;
                 setTaskId(newTaskId);
                 // Immediately start polling
                 const initialStatus = await getTripo3dModelStatus({ taskId: newTaskId, apiKey: apiKeyToUse });
                 setTaskStatus(initialStatus);
                 pollTaskStatus(newTaskId, apiKeyToUse);
             } else {
-                throw new Error("API did not return a task_id in the 'data' field.");
+                throw new Error("API did not return a task_id.");
             }
         } catch (err: any) {
             setError(err.message || 'Failed to create generation task.');
@@ -1297,7 +1297,7 @@ function ScheduleAndAssistantTab() {
                         <CardContent className="space-y-4">
                             <div className="text-center p-6 bg-muted rounded-lg">
                                 <p className="text-sm text-muted-foreground">当前积分余额</p>
-                                <p className="text-4xl font-bold font-headline">{user?.points_balance?.toLocaleString() || 0}</p>
+                                <p className="text-4xl font-bold font-headline">{user?.pointsBalance?.toLocaleString() || 0}</p>
                             </div>
                              <Button className="w-full" onClick={() => setIsRechargeDialogOpen(true)}>充值积分</Button>
                             <Button variant="outline" className="w-full" onClick={() => setIsHistoryDialogOpen(true)}>

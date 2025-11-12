@@ -9,15 +9,16 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthStore, type Role } from '@/store/auth';
 import type { User, PointsApprovalConfig } from '@/lib/types';
-import { ChevronsUpDown, UserCog, ShieldCheck, Star, Ban, Save, Loader2, Users, Frown } from 'lucide-react';
+import { ChevronsUpDown, UserCog, ShieldCheck, Star, Ban, Save, Loader2, Users, Frown, Trash2, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { batchUpdateUsers } from '@/ai/flows/user-management-flows';
@@ -160,9 +161,11 @@ export default function PermissionsPage() {
     // UI states
     const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
-    const [isActionModalOpen, setIsActionModalOpen] = useState(false);
+    const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [modalAction, setModalAction] = useState<'role' | 'starLevel' | 'status' | null>(null);
     const [actionValue, setActionValue] = useState<string | number>('');
+    const [isActionModalOpen, setIsActionModalOpen] = useState(false);
 
     // Fetch data on client side
     useEffect(() => {
@@ -291,9 +294,7 @@ export default function PermissionsPage() {
             else if (modalAction === 'status') updates.disabled = actionValue === 'suspended';
 
             await batchUpdateUsers({
-                userIds: selectedUserIds,
-                updates: updates,
-                currentUserId: currentUser.uid,
+                updates: selectedUserIds.map((id) => ({ userId: id, updates })),
             });
 
             toast({ title: '批量更新成功！', description: `${selectedUserIds.length} 位用户的权限已更新。` });
@@ -328,6 +329,44 @@ export default function PermissionsPage() {
             }
 
             toast({ title: '批量更新失败', description: friendlyMessage, variant: 'destructive' });
+        }
+    };
+
+    const handleDeleteUser = async () => {
+        if (!deleteUserId || !currentUser) return;
+
+        try {
+            const token = localStorage.getItem('auth_token');
+            const response = await fetch(`/api/users?uid=${encodeURIComponent(deleteUserId)}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || '删除用户失败');
+            }
+
+            toast({ title: '删除成功', description: '用户已被删除。' });
+            setUsers(users.filter(u => u.uid !== deleteUserId));
+            setDeleteUserId(null);
+            setIsDeleteDialogOpen(false);
+        } catch (error: any) {
+            console.error('Error deleting user:', error);
+            const errorMessage = error instanceof Error ? error.message : '未知错误';
+            let friendlyMessage = '删除用户失败，请重试。';
+
+            if (errorMessage.includes('Cannot delete yourself')) {
+                friendlyMessage = '不能删除自己的账户。';
+            } else if (errorMessage.includes('Admin access required')) {
+                friendlyMessage = '权限不足：只有管理员可以删除用户。';
+            } else if (errorMessage.includes('not found')) {
+                friendlyMessage = '用户不存在，可能已被删除。';
+            }
+
+            toast({ title: '删除失败', description: friendlyMessage, variant: 'destructive' });
         }
     };
 
@@ -382,11 +421,12 @@ export default function PermissionsPage() {
                                     <TableHead><Button variant="ghost" onClick={() => handleSort('role')}>角色<ChevronsUpDown className="ml-2 h-4 w-4 inline"/></Button></TableHead>
                                     <TableHead><Button variant="ghost" onClick={() => handleSort('rating')}>星级<ChevronsUpDown className="ml-2 h-4 w-4 inline"/></Button></TableHead>
                                     <TableHead>状态</TableHead>
+                                    <TableHead>操作</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {isLoadingData ? Array.from({length: 5}).map((_: any, i: number) => (
-                                    <TableRow key={i}><TableCell colSpan={5}><Skeleton className="h-10 w-full"/></TableCell></TableRow>
+                                    <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-10 w-full"/></TableCell></TableRow>
                                 )) : sortedUsers.map((user: User) => (
                                     <TableRow key={user.uid}>
                                         <TableCell><Checkbox checked={selectedUserIds.includes(user.uid)} onCheckedChange={(c) => handleSelect(user.uid, !!c)}/></TableCell>
@@ -394,6 +434,19 @@ export default function PermissionsPage() {
                                         <TableCell><Badge variant="secondary">{ROLE_NAMES[user.role] || user.role}</Badge></TableCell>
                                         <TableCell>{user.rating ? `${user.rating} 星` : '未评级'}</TableCell>
                                         <TableCell><Badge variant={user.status === 'suspended' ? 'destructive' : 'default'}>{user.status === 'suspended' ? '已禁用' : (user.status === 'active' ? '活跃' : '未知')}</Badge></TableCell>
+                                        <TableCell>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => {
+                                                    setDeleteUserId(user.uid);
+                                                    setIsDeleteDialogOpen(true);
+                                                }}
+                                                disabled={user.uid === currentUser?.uid}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -438,6 +491,29 @@ export default function PermissionsPage() {
                         <DialogFooter><Button variant="ghost" onClick={() => setIsActionModalOpen(false)}>取消</Button><Button onClick={handleBatchUpdate}>确认更新</Button></DialogFooter>
                     </DialogContent>
                 </Dialog>
+
+                <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle className="flex items-center gap-2">
+                                <AlertTriangle className="h-5 w-5 text-destructive" />
+                                确认删除用户
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                此操作将永久删除用户账户及其所有相关数据。此操作无法撤销。
+                                <br />
+                                <br />
+                                确定要删除用户 "{users.find(u => u.uid === deleteUserId)?.name}" 吗？
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel onClick={() => setDeleteUserId(null)}>取消</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleDeleteUser} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                确认删除
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </div>
         </AppLayout>
     );

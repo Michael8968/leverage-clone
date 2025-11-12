@@ -129,22 +129,23 @@ export function ChatDialog({ open, onOpenChange, demand, currentUser }: {
       setIsAiThinking(true);
       try {
           const aiResponse = await clarifyDemandDetails({
-              demandId: demand.id,
-              demandTitle: demand.title,
-              demandDescription: demand.description,
-              chatHistory: currentMessages.map((m: ChatMessage) => ({...m, text: m.text || ''})),
+              demand: {
+                id: demand.id,
+                title: demand.title,
+                description: demand.description,
+                chatHistory: currentMessages.map((m: ChatMessage) => ({...m, text: m.text || ''})),
+              },
               userId: currentUser.uid,
-              creatorId: creatorId,
           });
 
           // If the AI response is empty, it means a handoff happened and a system message was already posted.
-          if (!aiResponse.clarification) {
+          if (!aiResponse.clarifiedDemand || !aiResponse.suggestions || aiResponse.suggestions.length === 0) {
               return;
           }
 
           const aiMessage: ChatMessage = {
               id: `ai_msg_${Date.now()}`,
-              text: aiResponse.clarification,
+              text: aiResponse.suggestions.join('\n'),
               senderId: 'ai-assistant',
               senderName: 'AI 助理',
               senderAvatar: '/bot.png', 

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Upload, BrainCircuit, Loader2, FileText, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { evaluateSellerData, type EvaluateSellerDataOutput } from '@/ai/flows/supplier-data-analysis';
+import { evaluateSellerData } from '@/ai/flows/supplier-data-analysis';
 import { useAuthStore } from '@/store/auth';
 import { writeBatch, serverTimestamp } from '@/lib/cloudbase-compat';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
@@ -30,7 +30,7 @@ export function DataProcessor({ className, destination = 'suppliers' }: { classN
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [aiResult, setAiResult] = useState<EvaluateSellerDataOutput['processedSuppliers'] | null>(null);
+  const [aiResult, setAiResult] = useState<any[] | null>(null);
   const { toast } = useToast();
   const { user } = useAuthStore();
 
@@ -50,8 +50,18 @@ export function DataProcessor({ className, destination = 'suppliers' }: { classN
     setAiResult(null);
     try {
       const csvDataUri = await fileToDataUri(file);
-      const result = await evaluateSellerData({ csvDataUri, supplierId: user.uid });
-      setAiResult(result.processedSuppliers);
+      // Parse CSV data from data URI
+      const csvText = atob(csvDataUri.split(',')[1]);
+      const rows = csvText.split('\n').map(row => row.split(','));
+      const headers = rows[0];
+      const sellerData = rows.slice(1).map(row => {
+        const obj: any = {};
+        headers.forEach((header, i) => obj[header.trim()] = row[i]?.trim());
+        return obj;
+      });
+      
+      const result = await evaluateSellerData({ sellerData, criteria: { supplierId: user.uid } });
+      setAiResult([result.evaluation]); // Wrap evaluation in array for table display
       toast({ title: '成功', description: 'AI分析完成，请检查结果并保存。' });
     } catch (error) {
       console.error("Data processing failed", error);
