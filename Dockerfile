@@ -48,9 +48,9 @@ FROM node:20-alpine AS runtime
 WORKDIR /app
 
 # Runtime environment variables (will be injected by TCB Cloud Run)
-# Support both port 80 (TCB default) and 3000 (Next.js default)
+# Use port 3000 (non-privileged) for non-root user compatibility
 ENV NODE_ENV=production \
-    PORT=80 \
+    PORT=3000 \
     NEXT_TELEMETRY_DISABLED=1
 
 # Create non-root user for security
@@ -67,11 +67,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Switch to non-root user
 USER nextjs
 
-# Expose both 80 (TCB default) and 3000 (Next.js default)
-EXPOSE 80 3000
+# Expose port 3000 (non-privileged port for non-root user)
+EXPOSE 3000
 
-# Health check - check the PORT environment variable
+# Health check on port 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "const port = process.env.PORT || 3000; require('http').get('http://localhost:' + port + '/api/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));"
+  CMD node -e "require('http').get('http://localhost:3000/api/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));"
 
 CMD ["node", "server.js"]
