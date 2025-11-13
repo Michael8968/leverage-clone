@@ -55,11 +55,11 @@ export const VideoBackground: React.FC<VideoBackgroundProps> = ({
     baseUrl: `https://d565-static-leverage-test-abc123-9bn41a84185-1382937545.cos.ap-shanghai.myqcloud.com`,
   };
 
-  // 视频文件映射
+  // 视频文件映射（public/video）
   const VIDEO_FILES = {
-    light: 'videos/light-bg.mp4',
-    dark: 'videos/dark-bg.mp4',
-    gradient: 'videos/gradient-bg.mp4',
+    light: 'video/light-bg.mp4',
+    dark: 'video/dark-bg.mp4',
+    gradient: 'video/gradient-bg.mp4',
   };
 
   /**
@@ -90,16 +90,17 @@ export const VideoBackground: React.FC<VideoBackgroundProps> = ({
    * 3. 若以上都不可用，回退到 COS URL
    */
     const resolveVideoSrc = useCallback((theme: VideoTheme): string => {
-      // 优先使用相对路径 /videos/...（适用于本地 dev、容器以及大多数部署），
-      // 这避免了错误或过期的 publicBase 导致页面上引用到不可访问的外部域名。
-      return `/videos/${theme}-bg.mp4`;
+    // 优先使用相对路径 /video/...（适用于本地 dev、容器以及大多数部署），
+    // 这避免了错误或过期的 publicBase 导致页面上引用到不可访问的外部域名。
+    return `/video/${theme}-bg.mp4`;
     }, []);
 
   /**
    * 验证COS URL格式
    */
   const validateCosUrl = useCallback((url: string): boolean => {
-    const cosUrlPattern = /^https:\/\/[a-zA-Z0-9-]+-static-[a-zA-Z0-9-]+-[a-zA-Z0-9-]+\.cos\.[a-zA-Z0-9-]+\.myqcloud\.com\/videos\/[a-zA-Z0-9_-]+\.mp4$/;
+    // 接受 /video/ 和 /videos/ 两种历史路径的 COS URL（兼容旧配置）
+    const cosUrlPattern = /^https:\/\/[a-zA-Z0-9-]+-static-[a-zA-Z0-9-]+-[a-zA-Z0-9-]+\.cos\.[a-zA-Z0-9-]+\.myqcloud\.com\/(?:video|videos)\/[a-zA-Z0-9_-]+\.mp4$/;
 
     const isValid = cosUrlPattern.test(url);
     console.log(`🔍 VideoBackground: COS URL验证`, {

@@ -63,8 +63,8 @@ function DynamicVideoBackground() {
 
     // 使用 useMemo 计算视频源,避免在 effect 中同步 setState
         const videoSrc = useMemo(() => {
-        // 始终使用相对路径 /videos/...，保证服务端与客户端渲染一致（避免将来 public base 配置不当导致引用外部域名）。
-        return `/videos/${theme}-bg.mp4`;
+    // 始终使用相对路径 /video/...（public/video），保证服务端与客户端渲染一致并匹配部署目录。
+    return `/video/${theme}-bg.mp4`;
         }, [theme]);
 
     // Probe whether the video can be loaded/playback to avoid showing broken media in production

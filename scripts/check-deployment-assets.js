@@ -41,11 +41,11 @@ async function checkVideoFiles() {
   const results = [];
 
   for (const video of videos) {
-    const url = `${BASE_URL}/videos/${video}`;
+    const url = `${BASE_URL}/video/${video}`;
     try {
       const res = await makeRequest(url);
       const success = res.status === 200;
-      results.push({ video, url, status: res.status, success });
+    const match = html.match(/<source[^>]*src="([^"]*video\/[^"]*\.mp4)"/);
       console.log(`  ${success ? '✅' : '❌'} ${video}: ${res.status}`);
     } catch (error) {
       results.push({ video, url, error: error.message, success: false });
@@ -75,7 +75,7 @@ async function checkLoginPageVideoSrc() {
 
     if (match) {
       const src = match[1];
-      const isRelative = src.startsWith('/videos/');
+  const isRelative = src.startsWith('/video/');
       console.log(`  ${isRelative ? '✅' : '❌'} 视频 src: ${src}`);
       return { src, isRelative, success: isRelative };
     } else {

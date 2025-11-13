@@ -7,9 +7,9 @@ describe('DynamicVideoBackground E2E Tests', () => {
     });
 
     // Mock TCB COS environment variables
-    cy.intercept('GET', '**/videos/light-bg.mp4', { fixture: 'light-bg.mp4' }).as('lightVideo');
-    cy.intercept('GET', '**/videos/dark-bg.mp4', { fixture: 'dark-bg.mp4' }).as('darkVideo');
-    cy.intercept('GET', '**/videos/gradient-bg.mp4', { fixture: 'gradient-bg.mp4' }).as('gradientVideo');
+      cy.intercept('GET', '**/video/light-bg.mp4', { fixture: 'light-bg.mp4' }).as('lightVideo');
+      cy.intercept('GET', '**/video/dark-bg.mp4', { fixture: 'dark-bg.mp4' }).as('darkVideo');
+      cy.intercept('GET', '**/video/gradient-bg.mp4', { fixture: 'gradient-bg.mp4' }).as('gradientVideo');
   });
 
   describe('Login Page Video Background', () => {
@@ -26,7 +26,7 @@ describe('DynamicVideoBackground E2E Tests', () => {
       cy.get('video').should('have.attr', 'playsinline');
 
       // Verify video source
-      cy.get('video source').should('have.attr', 'src').and('include', 'videos/light-bg.mp4');
+        cy.get('video source').should('have.attr', 'src').and('include', 'video/light-bg.mp4');
       cy.get('video source').should('have.attr', 'type', 'video/mp4');
 
       // Check that video request was made
@@ -35,7 +35,7 @@ describe('DynamicVideoBackground E2E Tests', () => {
 
     it('should show fallback gradient when video fails to load', () => {
       // Mock video load failure
-      cy.intercept('GET', '**/videos/light-bg.mp4', { statusCode: 404 }).as('failedVideo');
+        cy.intercept('GET', '**/video/light-bg.mp4', { statusCode: 404 }).as('failedVideo');
 
       cy.visit('/login');
 
@@ -50,7 +50,7 @@ describe('DynamicVideoBackground E2E Tests', () => {
 
     it('should handle video loading errors gracefully', () => {
       // Mock network error
-      cy.intercept('GET', '**/videos/light-bg.mp4', { forceNetworkError: true }).as('networkError');
+        cy.intercept('GET', '**/video/light-bg.mp4', { forceNetworkError: true }).as('networkError');
 
       cy.visit('/login');
 
@@ -125,7 +125,7 @@ describe('DynamicVideoBackground E2E Tests', () => {
       cy.get('[data-testid="light-theme-option"]').click();
 
       // Force video failure for light theme
-      cy.intercept('GET', '**/videos/light-bg.mp4', { statusCode: 404 }).as('lightFail');
+        cy.intercept('GET', '**/video/light-bg.mp4', { statusCode: 404 }).as('lightFail');
       cy.reload();
 
       cy.get('[data-video-src*="light-bg.mp4"]').should('have.class', 'from-blue-400');
@@ -135,7 +135,7 @@ describe('DynamicVideoBackground E2E Tests', () => {
       cy.get('[data-testid="theme-switcher"]').click();
       cy.get('[data-testid="dark-theme-option"]').click();
 
-      cy.intercept('GET', '**/videos/dark-bg.mp4', { statusCode: 404 }).as('darkFail');
+        cy.intercept('GET', '**/video/dark-bg.mp4', { statusCode: 404 }).as('darkFail');
       cy.reload();
 
       cy.get('[data-video-src*="dark-bg.mp4"]').should('have.class', 'from-[#0f1724]');
@@ -145,7 +145,7 @@ describe('DynamicVideoBackground E2E Tests', () => {
       cy.get('[data-testid="theme-switcher"]').click();
       cy.get('[data-testid="gradient-theme-option"]').click();
 
-      cy.intercept('GET', '**/videos/gradient-bg.mp4', { statusCode: 404 }).as('gradientFail');
+        cy.intercept('GET', '**/video/gradient-bg.mp4', { statusCode: 404 }).as('gradientFail');
       cy.reload();
 
       cy.get('[data-video-src*="gradient-bg.mp4"]').should('have.class', 'from-indigo-600');

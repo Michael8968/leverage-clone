@@ -38,9 +38,8 @@ export default function SignupPage() {
     },
   });
 
-  // 动态视频源
-  // 始终使用相对路径 /videos/...，保证服务端与客户端渲染一致（避免将来 public base 配置不当导致引用外部域名）。
-  const videoSrc = useMemo(() => `/videos/${theme}-bg.mp4`, [theme]);
+  // 动态视频源 - 使用 public/video 目录
+  const videoSrc = useMemo(() => `/video/${theme}-bg.mp4`, [theme]);
 
   const onSubmit = async (data: SignupFormValues) => {
     try {

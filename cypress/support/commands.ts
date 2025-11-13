@@ -24,7 +24,7 @@ Cypress.Commands.add('mockVideoResponse', (theme: string, statusCode = 200) => {
     ? { fixture }
     : { statusCode };
 
-  cy.intercept('GET', `**/videos/${theme}-bg.mp4`, interceptOptions).as(`${theme}Video`);
+  cy.intercept('GET', `**/video/${theme}-bg.mp4`, interceptOptions).as(`${theme}Video`);
 });
 
 Cypress.Commands.add('verifyVideoAttributes', () => {

@@ -71,7 +71,7 @@ export default function RegisterPage() {
   // 动态视频源
   const videoSrc = useMemo(() => {
     const constructCosUrl = (theme: string): string => {
-      const videoPath = `videos/${theme}-bg.mp4`;
+  const videoPath = `video/${theme}-bg.mp4`;
       return `https://d565-static-leverage-test-abc123-9bn41a84185-1382937545.cos.ap-shanghai.myqcloud.com/${videoPath}`;
     };
 
@@ -80,16 +80,16 @@ export default function RegisterPage() {
 
     switch (theme) {
       case 'light':
-        return base ? `${base}/videos/light-bg.mp4` : constructCosUrl('light');
+  return base ? `${base}/video/light-bg.mp4` : constructCosUrl('light');
       case 'dark':
-        return base ? `${base}/videos/dark-bg.mp4` : constructCosUrl('dark');
+  return base ? `${base}/video/dark-bg.mp4` : constructCosUrl('dark');
       case 'gradient':
-        return base ? `${base}/videos/gradient-bg.mp4` : constructCosUrl('gradient');
+  return base ? `${base}/video/gradient-bg.mp4` : constructCosUrl('gradient');
       default:
         if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
-          return base ? `${base}/videos/dark-bg.mp4` : constructCosUrl('dark');
+          return base ? `${base}/video/dark-bg.mp4` : constructCosUrl('dark');
         }
-        return base ? `${base}/videos/light-bg.mp4` : constructCosUrl('light');
+  return base ? `${base}/video/light-bg.mp4` : constructCosUrl('light');
     }
   }, [theme]);
 
