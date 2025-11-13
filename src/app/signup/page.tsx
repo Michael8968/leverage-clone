@@ -16,6 +16,7 @@ import { useAuthStore } from '@/store/auth';
 import { useTheme } from '@/hooks/useTheme';
 
 const signupSchema = z.object({
+  name: z.string().min(1, { message: '请输入姓名' }),
   email: z.string().email({ message: '请输入有效的邮箱地址' }),
   password: z.string().min(6, { message: '密码至少需要6位' }),
 });
@@ -31,6 +32,7 @@ export default function SignupPage() {
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
     defaultValues: {
+      name: '',
       email: '',
       password: '',
     },
@@ -65,7 +67,7 @@ export default function SignupPage() {
     try {
       // This now uses the Zustand store's signup method, which handles
       // the Firebase/TCB logic internally based on the environment.
-      await signupWithEmail(data.email, data.password);
+  await signupWithEmail(data.email, data.password, data.name);
       
       toast({
         title: '注册成功',
@@ -128,6 +130,20 @@ export default function SignupPage() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>姓名</FormLabel>
+                    <FormControl>
+                      <Input placeholder="您的姓名" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <FormField
                 control={form.control}
                 name="email"

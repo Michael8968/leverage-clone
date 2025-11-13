@@ -16,7 +16,8 @@ const getAuthImplementation = async () => {
 export interface AuthService {
     onAuthStateChanged(callback: (user: AppUser | null, role: Role | null) => void): () => void;
     loginWithEmail(email: string, pass: string): Promise<any>;
-    signupWithEmail(email: string, pass: string): Promise<any>;
+    // signupWithEmail now accepts an optional name parameter to satisfy backend requirements
+    signupWithEmail(email: string, pass: string, name?: string): Promise<any>;
     logout(): Promise<void>;
 }
 
@@ -57,9 +58,9 @@ class AuthProxy implements AuthService {
         return service.loginWithEmail(email, pass);
     }
 
-    async signupWithEmail(email: string, pass: string): Promise<any> {
+    async signupWithEmail(email: string, pass: string, name?: string): Promise<any> {
         const service = await this.getService();
-        return service.signupWithEmail(email, pass);
+        return service.signupWithEmail(email, pass, name);
     }
 
     async logout(): Promise<void> {

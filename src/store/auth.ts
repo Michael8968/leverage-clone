@@ -14,7 +14,7 @@ interface AuthState {
   setUser: (user: User | null, role: Role | null) => void;
   setIsLoading: (loading: boolean) => void;
   loginWithEmail: (email: string, pass: string) => Promise<any>;
-  signupWithEmail: (email: string, pass: string) => Promise<any>;
+  signupWithEmail: (email: string, pass: string, name?: string) => Promise<any>;
   logout: () => Promise<void>;
   initializeAuthListener: () => () => void;
 }
@@ -34,9 +34,9 @@ export const useAuthStore = create<AuthState>()(
         return auth.loginWithEmail(email, password);
       },
 
-      signupWithEmail: (email, password) => {
-        // Delegate directly to the auth service
-        return auth.signupWithEmail(email, password);
+      signupWithEmail: (email, password, name) => {
+        // Delegate directly to the auth service (pass optional name)
+        return auth.signupWithEmail(email, password, name);
       },
       
       logout: async () => {

@@ -85,11 +85,14 @@ class TcbAuth implements AuthService {
         this.updateUserState(user);
     }
 
-    async signupWithEmail(email: string, pass: string): Promise<any> {
+    async signupWithEmail(email: string, pass: string, name?: string): Promise<any> {
+         const payload: any = { email, password: pass };
+         if (name) payload.name = name;
+
          const response = await fetch('/api/auth/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password: pass }),
+            body: JSON.stringify(payload),
         });
 
         if (!response.ok) {
