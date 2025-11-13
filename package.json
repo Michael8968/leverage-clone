@@ -41,7 +41,8 @@
     "migrate:import": "tsx --env-file=.env scripts/firestore-to-tcb-migration.ts --action import",
     "migrate:verify": "tsx --env-file=.env scripts/firestore-to-tcb-migration.ts --action verify",
     "tcb:upload-videos": "tcb hosting:deploy --only static",
-    "tcb:upload-videos:force": "tcb hosting:deploy --only static --force"
+    "tcb:upload-videos:force": "tcb hosting:deploy --only static --force",
+    "check-deployment-assets": "node scripts/check-deployment-assets.js"
   },
   "dependencies": {
     "@cloudbase/js-sdk": "^2.22.4",
