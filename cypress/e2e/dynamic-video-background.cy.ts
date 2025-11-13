@@ -194,7 +194,7 @@ describe('DynamicVideoBackground E2E Tests', () => {
 
     it('should handle slow network conditions', () => {
       // Simulate slow network
-      cy.intercept('GET', '**/videos/light-bg.mp4', (req) => {
+  cy.intercept('GET', '**/video/light-bg.mp4', (req) => {
         req.reply((res) => {
           // Delay response by 5 seconds
           setTimeout(() => {
@@ -226,7 +226,7 @@ describe('DynamicVideoBackground E2E Tests', () => {
     it('should recover from temporary network issues', () => {
       // First request fails
       let requestCount = 0;
-      cy.intercept('GET', '**/videos/light-bg.mp4', (req) => {
+        cy.intercept('GET', '**/video/light-bg.mp4', (req) => {
         requestCount++;
         if (requestCount === 1) {
           req.reply({ statusCode: 500 });
@@ -250,7 +250,7 @@ describe('DynamicVideoBackground E2E Tests', () => {
 
     it('should handle CORS issues gracefully', () => {
       // Mock CORS error
-      cy.intercept('GET', '**/videos/light-bg.mp4', { statusCode: 0, body: '' }).as('corsError');
+  cy.intercept('GET', '**/video/light-bg.mp4', { statusCode: 0, body: '' }).as('corsError');
 
       cy.visit('/login');
 

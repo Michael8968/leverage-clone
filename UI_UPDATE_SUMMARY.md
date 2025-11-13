@@ -215,7 +215,7 @@ const fontHeadline = Space_Grotesk({ subsets: ["latin"], variable: "--font-headl
 
 ## 8. 已知限制
 
-- 动态视频背景需要视频文件存在：`/videos/light-bg.mp4`, `/videos/dark-bg.mp4`, `/videos/gradient-bg.mp4`
+- 动态视频背景需要视频文件存在：`/video/light-bg.mp4`, `/video/dark-bg.mp4`, `/video/gradient-bg.mp4`
 - 渐变主题的背景渐变颜色硬编码，不随 CSS 变量更新（如需动态，需要 JS 改造）
 - 系统主题偏好不再作为主题选项，用户必须手动选择
 

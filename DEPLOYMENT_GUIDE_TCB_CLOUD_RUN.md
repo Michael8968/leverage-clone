@@ -465,7 +465,7 @@ git remote set-url origin git@github.com:username/repo.git
 // src/components/features/shopping-assistant.tsx
 const videoSrc = useMemo(() => {
   const constructCosUrl = (theme: string): string => {
-    return `https://your-cos-bucket.cos.ap-shanghai.myqcloud.com/videos/${theme}-bg.mp4`;
+  return `https://your-cos-bucket.cos.ap-shanghai.myqcloud.com/video/${theme}-bg.mp4`;
   };
   // ...
 }, [theme]);

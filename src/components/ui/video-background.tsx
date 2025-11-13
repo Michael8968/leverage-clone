@@ -84,10 +84,10 @@ export const VideoBackground: React.FC<VideoBackgroundProps> = ({
   const publicBase = publicBaseRaw ? publicBaseRaw.replace(/\/$/, '') : '';
 
   /**
-   * 根据优先级生成视频资源 URL：
-   * 1. 如果设置了 publicBase，使用 `${publicBase}/videos/...`
-   * 2. 否则优先使用相对路径 `/videos/...`（适合项目内 `public/videos`）
-   * 3. 若以上都不可用，回退到 COS URL
+  * 根据优先级生成视频资源 URL：
+  * 1. 如果设置了 publicBase，使用 `${publicBase}/video/...`
+  * 2. 否则优先使用相对路径 `/video/...`（适合项目内 `public/video`）
+  * 3. 若以上都不可用，回退到 COS URL
    */
     const resolveVideoSrc = useCallback((theme: VideoTheme): string => {
     // 优先使用相对路径 /video/...（适用于本地 dev、容器以及大多数部署），

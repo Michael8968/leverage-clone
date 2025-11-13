@@ -113,14 +113,14 @@
 
 - **实现**: 在 `src/components/features/shopping-assistant.tsx` 文件中创建了一个名为 `DynamicVideoBackground` 的独立组件。
   - 该组件使用 `useTheme` 钩子来实时监听当前激活的主题。
-  - 它通过一个 `switch` 语句或类似逻辑，根据主题（`light`, `dark`, `gradient`）动态选择并渲染对应的视频文件 (`/videos/light-bg.mp4`, `/videos/dark-bg.mp4`, `/videos/gradient-bg.mp4`)。
+  - 它通过一个 `switch` 语句或类似逻辑，根据主题（`light`, `dark`, `gradient`）动态选择并渲染对应的视频文件 (`/video/light-bg.mp4`, `/video/dark-bg.mp4`, `/video/gradient-bg.mp4`)。
   - 视频通过绝对定位、较低的`z-index`和`object-fit: cover`样式，作为覆盖全页的背景层。
 - **效果**: 用户在切换主题时，背景视频会随之无缝切换，提供了高度定制化的视觉体验。
 
 ### **5.2. 登录页 (`/login`)**
 
 - **实现**: 在 `src/app/login/page.tsx` 文件中，直接在页面组件的根 `div` 内部嵌入了 `<video>` 标签。
-  - 视频源固定为 `/videos/light-bg.mp4`。
+  - 视频源固定为 `/video/light-bg.mp4`。
   - 使用了与AI智能匹配页相同的CSS类名和HTML属性，以确保其作为背景正确显示。
   - 登录表单等前景内容被放置在拥有更高`z-index`的容器中，确保其浮动在视频之上。
 - **效果**: 为登录页面提供了一个统一且具吸引力的视觉入口。

@@ -136,7 +136,7 @@
 
 1. **字体加载**: Inter 和 Space Grotesk 通过 Google Fonts CDN 加载，无需额外依赖
 2. **主题持久化**: 使用 localStorage，用户偏好在刷新后保留
-3. **视频背景**: 需要在 `public/videos/` 目录中放置三个文件：
+3. **视频背景**: 需要在 `public/video/` 目录中放置三个文件：
    - `light-bg.mp4`
    - `dark-bg.mp4`
    - `gradient-bg.mp4`
