@@ -79,6 +79,22 @@ export const VideoBackground: React.FC<VideoBackgroundProps> = ({
     return url;
   }, []);
 
+  // 公共资源基础 URL（可由环境变量覆盖）。优先使用 NEXT_PUBLIC_ASSETS_BASE 或 NEXT_PUBLIC_TCB_PUBLIC_BASE。
+  const publicBaseRaw = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_ASSETS_BASE || process.env.NEXT_PUBLIC_TCB_PUBLIC_BASE) : undefined;
+  const publicBase = publicBaseRaw ? publicBaseRaw.replace(/\/$/, '') : '';
+
+  /**
+   * 根据优先级生成视频资源 URL：
+   * 1. 如果设置了 publicBase，使用 `${publicBase}/videos/...`
+   * 2. 否则优先使用相对路径 `/videos/...`（适合项目内 `public/videos`）
+   * 3. 若以上都不可用，回退到 COS URL
+   */
+    const resolveVideoSrc = useCallback((theme: VideoTheme): string => {
+      // 优先使用相对路径 /videos/...（适用于本地 dev、容器以及大多数部署），
+      // 这避免了错误或过期的 publicBase 导致页面上引用到不可访问的外部域名。
+      return `/videos/${theme}-bg.mp4`;
+    }, []);
+
   /**
    * 验证COS URL格式
    */
@@ -220,8 +236,8 @@ export const VideoBackground: React.FC<VideoBackgroundProps> = ({
    * 切换主题时更新视频源
    */
   useEffect(() => {
-    const newSrc = constructCosUrl(theme);
-    const isValidUrl = validateCosUrl(newSrc);
+  const newSrc = resolveVideoSrc(theme);
+  const isValidUrl = validateCosUrl(newSrc) || newSrc.startsWith('/') || !!publicBase;
 
     if (!isValidUrl) {
       console.warn(`⚠️ VideoBackground: COS URL格式无效`, {

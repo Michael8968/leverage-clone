@@ -37,29 +37,8 @@ export default function LoginPage() {
   });
 
   // 动态视频源
-  const videoSrc = useMemo(() => {
-    const constructCosUrl = (theme: string): string => {
-      const videoPath = `videos/${theme}-bg.mp4`;
-      return `https://d565-static-leverage-test-abc123-9bn41a84185-1382937545.cos.ap-shanghai.myqcloud.com/${videoPath}`;
-    };
-
-    const publicBase = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_ASSETS_BASE || process.env.NEXT_PUBLIC_TCB_PUBLIC_BASE) : undefined;
-    const base = publicBase ? publicBase.replace(/\/$/, '') : '';
-
-    switch (theme) {
-      case 'light':
-        return base ? `${base}/videos/light-bg.mp4` : constructCosUrl('light');
-      case 'dark':
-        return base ? `${base}/videos/dark-bg.mp4` : constructCosUrl('dark');
-      case 'gradient':
-        return base ? `${base}/videos/gradient-bg.mp4` : constructCosUrl('gradient');
-      default:
-        if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
-          return base ? `${base}/videos/dark-bg.mp4` : constructCosUrl('dark');
-        }
-        return base ? `${base}/videos/light-bg.mp4` : constructCosUrl('light');
-    }
-  }, [theme]);
+  // 始终使用相对路径 /videos/...，保证服务端与客户端渲染一致（避免将来 public base 配置不当导致引用外部域名）。
+  const videoSrc = useMemo(() => `/videos/${theme}-bg.mp4`, [theme]);
 
   const onSubmit = async (data: LoginFormValues) => {
     try {
