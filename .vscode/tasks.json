@@ -14,6 +14,14 @@
 				"$tsc"
 			],
 			"group": "build"
+		},
+		{
+			"label": "Fix Manifest & Preview",
+			"type": "shell",
+			"command": "npm run lint:manifest && code public/site.webmanifest && npm run dev",
+			"group": "build",
+			"detail": "Lint manifest → 打开文件修复 → 构建预览（检查无 SyntaxError）",
+			"problemMatcher": []
 		}
 	]
 }

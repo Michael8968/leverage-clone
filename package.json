@@ -42,7 +42,10 @@
     "migrate:verify": "tsx --env-file=.env scripts/firestore-to-tcb-migration.ts --action verify",
     "tcb:upload-videos": "tcb hosting:deploy --only static",
     "tcb:upload-videos:force": "tcb hosting:deploy --only static --force",
-    "check-deployment-assets": "node scripts/check-deployment-assets.js"
+    "check-deployment-assets": "node scripts/check-deployment-assets.js",
+    "lint:manifest": "node -e \"try{JSON.parse(require('fs').readFileSync('public/site.webmanifest','utf8'));console.log('✅ Manifest OK');}catch(e){console.error('❌ Manifest Error:',e.message);process.exit(1);}\"",
+    "build:check": "npm run lint:manifest && npm run build && npx serve .next/standalone -p 3000",
+    "deploy:safe": "npm run build:check && echo '打开 localhost:3000/login 检查 Console 无红字'"
   },
   "dependencies": {
     "@cloudbase/js-sdk": "^2.22.4",
