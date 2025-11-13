@@ -80,7 +80,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center p-4 overflow-hidden">
+    <div className="relative flex min-h-screen items-center justify-center p-4 overflow-hidden bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900">
       {/* 视频背景层 - 位于底层 */}
       <video
         key={videoSrc}
