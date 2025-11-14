@@ -1,0 +1,151 @@
+[2025-11-14 09:31:06] Cloning Git repository...
+[2025-11-14 09:31:06] Cloning into '.'...
+[2025-11-14 09:31:37] Switched to a new branch 'local-only/video-paths-20251113'
+[2025-11-14 09:31:37] branch 'local-only/video-paths-20251113' set up to track 'origin/local-only/video-paths-20251113'.
+[2025-11-14 09:31:37] Repository cloned and checked out.
+[2025-11-14 09:31:38] Logging into Docker registry...
+[2025-11-14 09:31:38] WARNING! Your password will be stored unencrypted in /root/.docker/config.json.
+[2025-11-14 09:31:38] Configure a credential helper to remove this warning. See
+[2025-11-14 09:31:38] https://docs.docker.com/engine/reference/commandline/login/#credentials-store
+[2025-11-14 09:31:38] 
+[2025-11-14 09:31:38] Login Succeeded
+[2025-11-14 09:31:38] Building Docker image: ccr.ccs.tencentyun.com/tcb-100011340160-hcwe/ca-qrxboqpw_leverage:leverage-024-20251114093058
+[2025-11-14 09:31:38] #0 building with "default" instance using docker driver
+[2025-11-14 09:31:38] 
+[2025-11-14 09:31:38] #1 [internal] load build definition from Dockerfile
+[2025-11-14 09:31:38] #1 transferring dockerfile: 2.58kB done
+[2025-11-14 09:31:38] #1 DONE 0.1s
+[2025-11-14 09:31:38] 
+[2025-11-14 09:31:38] #2 [internal] load metadata for docker.io/library/node:20-alpine
+[2025-11-14 09:31:39] #2 DONE 1.1s
+[2025-11-14 09:31:39] 
+[2025-11-14 09:31:39] #3 [internal] load .dockerignore
+[2025-11-14 09:31:39] #3 transferring context: 178B done
+[2025-11-14 09:31:39] #3 DONE 0.0s
+[2025-11-14 09:31:39] 
+[2025-11-14 09:31:39] #4 [runtime 1/6] FROM docker.io/library/node:20-alpine@sha256:6178e78b972f79c335df281f4b7674a2d85071aae2af020ffa39f0a770265435
+[2025-11-14 09:31:39] #4 resolve docker.io/library/node:20-alpine@sha256:6178e78b972f79c335df281f4b7674a2d85071aae2af020ffa39f0a770265435 0.0s done
+[2025-11-14 09:31:39] #4 sha256:2d35ebdb57d9971fea0cac1582aa78935adf8058b2cc32db163c98822e5dfa1b 0B / 3.80MB 0.1s
+[2025-11-14 09:31:39] #4 sha256:60e45a9660cfaebbbac9bba98180aa28b3966b7f2462d132c46f51a1f5b25a64 0B / 42.75MB 0.1s
+[2025-11-14 09:31:39] #4 sha256:e74e4ed823e9560b3fe51c0cab47dbfdfc4b12453604319408ec58708fb9e720 0B / 1.26MB 0.1s
+[2025-11-14 09:31:39] #4 sha256:6178e78b972f79c335df281f4b7674a2d85071aae2af020ffa39f0a770265435 7.67kB / 7.67kB done
+[2025-11-14 09:31:39] #4 sha256:be8d32d651b3e0c9c2b28fdc1d3888408125d703232013cff955344d052027e5 1.72kB / 1.72kB done
+[2025-11-14 09:31:39] #4 sha256:2b56f2779663b9e1a77bdb5235dc31f1a81e534ccab1c1b35c716a8db79eeab9 6.42kB / 6.42kB done
+[2025-11-14 09:31:40] #4 ...
+[2025-11-14 09:31:40] 
+[2025-11-14 09:31:40] #5 [internal] load build context
+[2025-11-14 09:31:40] #5 transferring context: 78.27MB 0.2s done
+[2025-11-14 09:31:40] #5 DONE 0.2s
+[2025-11-14 09:31:40] 
+[2025-11-14 09:31:40] #4 [runtime 1/6] FROM docker.io/library/node:20-alpine@sha256:6178e78b972f79c335df281f4b7674a2d85071aae2af020ffa39f0a770265435
+[2025-11-14 09:31:40] #4 sha256:e74e4ed823e9560b3fe51c0cab47dbfdfc4b12453604319408ec58708fb9e720 1.26MB / 1.26MB 0.3s
+[2025-11-14 09:31:40] #4 sha256:2d35ebdb57d9971fea0cac1582aa78935adf8058b2cc32db163c98822e5dfa1b 1.05MB / 3.80MB 0.4s
+[2025-11-14 09:31:40] #4 sha256:e74e4ed823e9560b3fe51c0cab47dbfdfc4b12453604319408ec58708fb9e720 1.26MB / 1.26MB 0.3s done
+[2025-11-14 09:31:40] #4 sha256:da04d522c98fe12816b2bcddf8413fca73645f8fa60f287c672f58bcc7f0fa38 0B / 444B 0.4s
+[2025-11-14 09:31:40] #4 extracting sha256:2d35ebdb57d9971fea0cac1582aa78935adf8058b2cc32db163c98822e5dfa1b
+[2025-11-14 09:31:40] #4 sha256:2d35ebdb57d9971fea0cac1582aa78935adf8058b2cc32db163c98822e5dfa1b 3.80MB / 3.80MB 0.5s done
+[2025-11-14 09:31:40] #4 sha256:60e45a9660cfaebbbac9bba98180aa28b3966b7f2462d132c46f51a1f5b25a64 20.97MB / 42.75MB 0.6s
+[2025-11-14 09:31:40] #4 sha256:da04d522c98fe12816b2bcddf8413fca73645f8fa60f287c672f58bcc7f0fa38 444B / 444B 0.5s done
+[2025-11-14 09:31:40] #4 extracting sha256:2d35ebdb57d9971fea0cac1582aa78935adf8058b2cc32db163c98822e5dfa1b 0.1s done
+[2025-11-14 09:31:40] #4 sha256:60e45a9660cfaebbbac9bba98180aa28b3966b7f2462d132c46f51a1f5b25a64 42.75MB / 42.75MB 0.8s
+[2025-11-14 09:31:40] #4 sha256:60e45a9660cfaebbbac9bba98180aa28b3966b7f2462d132c46f51a1f5b25a64 42.75MB / 42.75MB 0.8s done
+[2025-11-14 09:31:40] #4 extracting sha256:60e45a9660cfaebbbac9bba98180aa28b3966b7f2462d132c46f51a1f5b25a64 0.1s
+[2025-11-14 09:31:41] #4 extracting sha256:60e45a9660cfaebbbac9bba98180aa28b3966b7f2462d132c46f51a1f5b25a64 0.7s done
+[2025-11-14 09:31:41] #4 extracting sha256:e74e4ed823e9560b3fe51c0cab47dbfdfc4b12453604319408ec58708fb9e720
+[2025-11-14 09:31:41] #4 extracting sha256:e74e4ed823e9560b3fe51c0cab47dbfdfc4b12453604319408ec58708fb9e720 0.0s done
+[2025-11-14 09:31:41] #4 extracting sha256:da04d522c98fe12816b2bcddf8413fca73645f8fa60f287c672f58bcc7f0fa38 done
+[2025-11-14 09:31:41] #4 DONE 1.8s
+[2025-11-14 09:31:41] 
+[2025-11-14 09:31:41] #6 [runtime 2/6] WORKDIR /app
+[2025-11-14 09:31:41] #6 DONE 0.0s
+[2025-11-14 09:31:41] 
+[2025-11-14 09:31:41] #7 [deps 3/4] COPY package.json package-lock.json* ./
+[2025-11-14 09:31:41] #7 DONE 0.0s
+[2025-11-14 09:31:41] 
+[2025-11-14 09:31:41] #8 [deps 4/4] RUN npm ci --omit=dev --no-audit --no-fund &&     npm cache clean --force
+[2025-11-14 09:31:42] #8 ...
+[2025-11-14 09:31:42] 
+[2025-11-14 09:31:42] #9 [runtime 3/6] RUN addgroup -g 1001 -S nodejs &&     adduser -S nextjs -u 1001 -G nodejs
+[2025-11-14 09:31:42] #9 DONE 0.3s
+[2025-11-14 09:31:42] 
+[2025-11-14 09:31:42] #8 [deps 4/4] RUN npm ci --omit=dev --no-audit --no-fund &&     npm cache clean --force
+[2025-11-14 09:31:44] #8 2.564 npm warn deprecated request@2.88.2: request has been deprecated, see https://github.com/request/request/issues/3142
+[2025-11-14 09:31:45] #8 3.851 npm warn deprecated har-validator@5.1.5: this library is no longer supported
+[2025-11-14 09:31:50] #8 9.208 npm warn deprecated uuid@3.4.0: Please upgrade  to version 7 or higher.  Older versions may use Math.random() in certain circumstances, which is known to be problematic.  See https://v8.dev/blog/math-random for details.
+[2025-11-14 09:32:09] #8 27.68 
+[2025-11-14 09:32:09] #8 27.68 added 473 packages in 27s
+[2025-11-14 09:32:09] #8 27.68 npm notice
+[2025-11-14 09:32:09] #8 27.68 npm notice New major version of npm available! 10.8.2 -> 11.6.2
+[2025-11-14 09:32:09] #8 27.68 npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.6.2
+[2025-11-14 09:32:09] #8 27.68 npm notice To update run: npm install -g npm@11.6.2
+[2025-11-14 09:32:09] #8 27.68 npm notice
+[2025-11-14 09:32:09] #8 27.79 npm warn using --force Recommended protections disabled.
+[2025-11-14 09:32:09] #8 DONE 28.3s
+[2025-11-14 09:32:11] 
+[2025-11-14 09:32:11] #10 [builder 3/7] COPY --from=deps /app/node_modules ./node_modules
+[2025-11-14 09:32:14] #10 DONE 2.5s
+[2025-11-14 09:32:14] 
+[2025-11-14 09:32:14] #11 [builder 4/7] COPY package.json package-lock.json* ./
+[2025-11-14 09:32:14] #11 DONE 0.0s
+[2025-11-14 09:32:14] 
+[2025-11-14 09:32:14] #12 [builder 5/7] RUN npm ci --no-audit --no-fund
+[2025-11-14 09:32:17] #12 3.655 npm warn deprecated request@2.88.2: request has been deprecated, see https://github.com/request/request/issues/3142
+[2025-11-14 09:32:18] #12 4.912 npm warn deprecated har-validator@5.1.5: this library is no longer supported
+[2025-11-14 09:32:22] #12 8.558 npm warn deprecated uuid@3.4.0: Please upgrade  to version 7 or higher.  Older versions may use Math.random() in certain circumstances, which is known to be problematic.  See https://v8.dev/blog/math-random for details.
+[2025-11-14 09:32:42] #12 28.79 
+[2025-11-14 09:32:42] #12 28.79 added 473 packages in 29s
+[2025-11-14 09:32:43] #12 28.79 npm notice
+[2025-11-14 09:32:43] #12 28.79 npm notice New major version of npm available! 10.8.2 -> 11.6.2
+[2025-11-14 09:32:43] #12 28.79 npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.6.2
+[2025-11-14 09:32:43] #12 28.79 npm notice To update run: npm install -g npm@11.6.2
+[2025-11-14 09:32:43] #12 28.79 npm notice
+[2025-11-14 09:32:43] #12 DONE 29.1s
+[2025-11-14 09:32:43] 
+[2025-11-14 09:32:43] #13 [builder 6/7] COPY . .
+[2025-11-14 09:32:43] #13 DONE 0.1s
+[2025-11-14 09:32:43] 
+[2025-11-14 09:32:43] #14 [builder 7/7] RUN npm run build
+[2025-11-14 09:32:43] #14 0.265 
+[2025-11-14 09:32:43] #14 0.265 > nextn@0.1.0 build
+[2025-11-14 09:32:43] #14 0.265 > next build
+[2025-11-14 09:32:43] #14 0.265 
+[2025-11-14 09:32:44] #14 0.869    ▲ Next.js 15.5.6
+[2025-11-14 09:32:44] #14 0.870    - Experiments (use with caution):
+[2025-11-14 09:32:44] #14 0.870      · optimizePackageImports
+[2025-11-14 09:32:44] #14 0.870 
+[2025-11-14 09:32:44] #14 0.903    Creating an optimized production build ...
+[2025-11-14 09:33:04] #14 20.77 Failed to compile.
+[2025-11-14 09:33:04] #14 20.77 
+[2025-11-14 09:33:04] #14 20.77 ./src/app/login/page.tsx
+[2025-11-14 09:33:04] #14 20.77 'client-only' cannot be imported from a Server Component module. It should only be used from a Client Component.
+[2025-11-14 09:33:04] #14 20.77 
+[2025-11-14 09:33:04] #14 20.77 The error was caused by using 'styled-jsx' in './src/app/login/page.tsx'. It only works in a Client Component but none of its parents are marked with "use client", so they're Server Components by default.
+[2025-11-14 09:33:04] #14 20.77 
+[2025-11-14 09:33:04] #14 20.77 Import trace for requested module:
+[2025-11-14 09:33:04] #14 20.77   ./src/app/login/page.tsx
+[2025-11-14 09:33:04] #14 20.77 
+[2025-11-14 09:33:04] #14 20.78 
+[2025-11-14 09:33:04] #14 20.78 > Build failed because of webpack errors
+[2025-11-14 09:33:04] #14 ERROR: process "/bin/sh -c npm run build" did not complete successfully: exit code: 1
+[2025-11-14 09:33:04] ------
+[2025-11-14 09:33:04]  > [builder 7/7] RUN npm run build:
+[2025-11-14 09:33:04] 20.77 ./src/app/login/page.tsx
+[2025-11-14 09:33:04] 20.77 'client-only' cannot be imported from a Server Component module. It should only be used from a Client Component.
+[2025-11-14 09:33:04] 20.77 
+[2025-11-14 09:33:04] 20.77 The error was caused by using 'styled-jsx' in './src/app/login/page.tsx'. It only works in a Client Component but none of its parents are marked with "use client", so they're Server Components by default.
+[2025-11-14 09:33:04] 20.77 
+[2025-11-14 09:33:04] 20.77 Import trace for requested module:
+[2025-11-14 09:33:04] 20.77   ./src/app/login/page.tsx
+[2025-11-14 09:33:04] 20.77 
+[2025-11-14 09:33:04] 20.78 
+[2025-11-14 09:33:04] 20.78 > Build failed because of webpack errors
+[2025-11-14 09:33:04] ------
+[2025-11-14 09:33:04] Dockerfile:44
+[2025-11-14 09:33:04] --------------------
+[2025-11-14 09:33:04]   42 |     
+[2025-11-14 09:33:04]   43 |     # Build Next.js standalone bundle
+[2025-11-14 09:33:04]   44 | >>> RUN npm run build
+[2025-11-14 09:33:04]   45 |     
+[2025-11-14 09:33:04]   46 |     # ===== Runtime Stage =====
+[2025-11-14 09:33:04] --------------------
+[2025-11-14 09:33:04] ERROR: failed to solve: process "/bin/sh -c npm run build" did not complete successfully: exit code: 1
