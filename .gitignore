@@ -73,3 +73,5 @@ docs/backup/
 # Archive files with sensitive info
 LOCAL_DEV_CONFIG_ARCHIVE.md
 *ARCHIVE*.md
+
+Temp-log/
