@@ -43,6 +43,13 @@ COPY . .
 # Build Next.js standalone bundle
 RUN npm run build
 
+# Ensure `public` is packaged into the standalone output so runtime can serve
+# static assets (manifest, videos, icons) directly from the standalone artifact.
+# Some build/deploy environments (including TCB) run the standalone server
+# without copying repository `public` into the final image; copying here makes
+# the standalone artifact self-contained.
+RUN if [ -d public ]; then mkdir -p .next/standalone/public && cp -a public/. .next/standalone/public/; fi
+
 # ===== Runtime Stage =====
 FROM node:20-alpine AS runtime
 WORKDIR /app
@@ -58,8 +65,12 @@ RUN addgroup -g 1001 -S nodejs && \
     adduser -S nextjs -u 1001 -G nodejs
 
 # Copy only necessary runtime files
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+# Copy the standalone app first (it contains server.js). Then copy the
+# repository `public` into the standalone's `public` directory so the
+# standalone artifact serves static files directly. This avoids creating
+# nested `public/public` if both places are copied to different targets.
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/public ./.next/standalone/public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Next.js standalone already contains the required node_modules in .next/standalone
 # Do NOT copy full node_modules to significantly reduce image size
