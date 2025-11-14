@@ -1,8 +1,5 @@
 {
-  "miniprogram.miniprogramPath": "miniprogram\\pages\\index",
-  "json.validate.enable": true,
   "files.encoding": "utf8",
-  "[json]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
-  }
+  "files.eol": "\n"
+}
 }
