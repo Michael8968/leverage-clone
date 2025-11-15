@@ -51,7 +51,15 @@ RUN npm run build
 # Some build/deploy environments (including TCB) run the standalone server
 # without copying repository `public` into the final image; copying here makes
 # the standalone artifact self-contained.
-RUN if [ -d public ]; then mkdir -p .next/standalone/public && cp -a public/. .next/standalone/public/; fi
+# 添加构建时验证，确保 public/ 成功复制（TCB 日志可见）
+RUN if [ -d public ]; then \
+      mkdir -p .next/standalone/public && \
+      cp -a public/. .next/standalone/public/ && \
+      echo "SUCCESS: Copied public/ to .next/standalone/public/" && \
+      ls -la .next/standalone/public/ | head -10; \
+    else \
+      echo "ERROR: public/ directory not found!"; exit 1; \
+    fi
 
 # ===== Runtime Stage =====
 FROM node:20-alpine AS runtime
@@ -68,12 +76,22 @@ RUN addgroup -g 1001 -S nodejs && \
     adduser -S nextjs -u 1001 -G nodejs
 
 # Copy only necessary runtime files
-# Copy the standalone app first (it contains server.js). Then copy the
-# repository `public` into the standalone's `public` directory so the
-# standalone artifact serves static files directly. This avoids creating
-# nested `public/public` if both places are copied to different targets.
+# Copy the standalone app first (it contains server.js)
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/public ./.next/standalone/public
+
+# 删除这行（错误！会覆盖 builder 阶段复制的 public）
+# COPY --from=builder --chown=nextjs:nodejs /app/public ./.next/standalone/public
+
+# 修复：从 standalone 中提取 public/ 到根目录，供 /site.webmanifest 等路径访问
+RUN mkdir -p public && \
+    if [ -d .next/standalone/public ]; then \
+      cp -a .next/standalone/public/. public/ && \
+      echo "SUCCESS: Extracted .next/standalone/public/ to root public/" && \
+      ls -la public/ | head -10; \
+    else \
+      echo "ERROR: .next/standalone/public not found!"; exit 1; \
+    fi
+
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Next.js standalone already contains the required node_modules in .next/standalone
 # Do NOT copy full node_modules to significantly reduce image size
