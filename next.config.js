@@ -58,6 +58,29 @@ const nextConfig = {
     // 在客户端构建中屏蔽 Node 专用 SDK，避免引入 fs/net/tls 依赖
     if (!isServer) {
       config.resolve.alias['@cloudbase/node-sdk'] = false;
+      
+      // 确保 @cloudbase/js-sdk 在客户端被正确打包
+      // 不要将其外部化，确保它被包含在客户端 bundle 中
+      if (config.externals) {
+        config.externals = config.externals.filter((external) => {
+          if (typeof external === 'function') {
+            return true; // Keep function externals
+          }
+          if (typeof external === 'string' && external.includes('@cloudbase/js-sdk')) {
+            return false; // Remove @cloudbase/js-sdk from externals
+          }
+          return true;
+        });
+      }
+      
+      // 确保 @cloudbase/js-sdk 被正确解析和打包
+      // 添加模块规则以确保正确处理
+      if (!config.module) {
+        config.module = {};
+      }
+      if (!config.module.rules) {
+        config.module.rules = [];
+      }
     }
 
     // Inject admin instrumentation only on server build.

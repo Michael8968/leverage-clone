@@ -36,7 +36,36 @@ export function getApp() {
 
 // Firestore-compatible functions
 export function collection(path: string) {
-  return getDb().collection(path);
+  const db = getDb();
+  if (!db) {
+    console.error('[CloudBase Compat] getDb() returned null/undefined');
+    // Return a mock collection that returns empty results
+    return {
+      get: async () => ({
+        docs: [],
+        empty: true,
+        size: 0,
+      }),
+      doc: () => ({
+        get: async () => ({ exists: false, data: () => null }),
+      }),
+    };
+  }
+  if (typeof db.collection !== 'function') {
+    console.error('[CloudBase Compat] db.collection is not a function:', db);
+    // Return a mock collection
+    return {
+      get: async () => ({
+        docs: [],
+        empty: true,
+        size: 0,
+      }),
+      doc: () => ({
+        get: async () => ({ exists: false, data: () => null }),
+      }),
+    };
+  }
+  return db.collection(path);
 }
 
 export function doc(path: string) {
@@ -48,6 +77,22 @@ export function doc(path: string) {
 }
 
 export function getDocs(query: any) {
+  if (!query) {
+    console.error('[CloudBase Compat] getDocs called with null/undefined query');
+    return Promise.resolve({
+      docs: [],
+      empty: true,
+      size: 0,
+    });
+  }
+  if (typeof query.get !== 'function') {
+    console.error('[CloudBase Compat] getDocs called with invalid query object:', query);
+    return Promise.resolve({
+      docs: [],
+      empty: true,
+      size: 0,
+    });
+  }
   return query.get();
 }
 

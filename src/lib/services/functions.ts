@@ -16,13 +16,38 @@ function initializeTCB() {
   if (tcbApp) return tcbApp;
   
   try {
-    const { init } = require('@cloudbase/js-sdk');
+    // Try to require the module with proper error handling
+    const cloudbaseModule = require('@cloudbase/js-sdk');
+    
+    // Handle different export formats
+    let initFn: any;
+    if (typeof cloudbaseModule === 'function') {
+      initFn = cloudbaseModule;
+    } else if (cloudbaseModule && typeof cloudbaseModule.init === 'function') {
+      initFn = cloudbaseModule.init;
+    } else if (cloudbaseModule && cloudbaseModule.default) {
+      if (typeof cloudbaseModule.default === 'function') {
+        initFn = cloudbaseModule.default;
+      } else if (cloudbaseModule.default.init) {
+        initFn = cloudbaseModule.default.init;
+      }
+    }
+    
+    if (!initFn || typeof initFn !== 'function') {
+      console.error('[Functions Service] @cloudbase/js-sdk module structure:', {
+        type: typeof cloudbaseModule,
+        hasInit: cloudbaseModule?.init !== undefined,
+        hasDefault: cloudbaseModule?.default !== undefined,
+        keys: cloudbaseModule ? Object.keys(cloudbaseModule) : [],
+      });
+      throw new Error('init function not found in @cloudbase/js-sdk. Module may not be properly bundled.');
+    }
     
     if (!process.env.NEXT_PUBLIC_TCB_ENV_ID) {
       throw new Error('NEXT_PUBLIC_TCB_ENV_ID is not defined');
     }
 
-    tcbApp = init({
+    tcbApp = initFn({
       env: process.env.NEXT_PUBLIC_TCB_ENV_ID,
     });
 
